@@ -89,7 +89,12 @@ The panel filters by `sender.tab.id === activeTabId` and by `tipId`/`stepIndex`.
 ## Storage
 
 `chrome.storage.local`: `pt.teacher`, `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
-`chrome.storage.session`: `pt.redirect.<tabId>` (`{ from, to, at, kind }`, written by background, shown by the panel as "You were redirected here from …"), `pt.guide.<tabId>` (`{ tipId, stepIndex }`, written by the panel so a guide resumes after the panel reopens), `pt.allowedDomains`.
+`chrome.storage.session`: `pt.redirect.<tabId>` (`{ from, to, at, kind }`, written by background, shown by the panel as "You were redirected here from …"), `pt.guide.<tabId>` (`{ tipId, stepIndex }`, written by the panel so a guide resumes after the panel reopens), `pt.allowedDomains`, and the background-only `pt.lastUrl.<tabId>` (the tab's last committed URL, used as the "from" of client redirects; it lives in storage because the service worker can be killed at any time).
+
+## declarativeNetRequest rule ids
+
+- Dynamic block rules: ids 1000+ (priority 1), rebuilt from `src/data/blocklist.json` on install/startup.
+- Session "proceed anyway" allow rules: ids 50001+ (priority 100), added by `PT_PROCEED_ANYWAY`, gone when the browser closes.
 
 Content scripts never read storage directly (session storage is closed to them by default). They ask the background.
 

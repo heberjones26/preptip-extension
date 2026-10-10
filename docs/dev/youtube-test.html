@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PrepTip YouTube button test harness</title>
+  <!--
+    Dev-only harness for src/content/youtube*.js. Serve the repo root, e.g.
+      npx --yes http-server -p 5519 -c-1
+    then open http://localhost:5519/docs/dev/youtube-test.html?case=ok   (or case=age, private, error, live)
+    The page rewrites its own URL to /watch?v=... (same-origin history.replaceState) so the content
+    scripts think they're on a YouTube watch page, and stubs #movie_player.getPlayerResponse().
+    Add &dark=1 to preview YouTube's dark theme. Reloading after the rewrite 404s; use the links.
+  -->
+  <link rel="stylesheet" href="/src/content/youtube.css">
+  <style>
+    body { margin: 0; font-family: Roboto, Arial, sans-serif; background: #fff; color: #0f0f0f; }
+    html[dark] body { background: #0f0f0f; color: #f1f1f1; }
+    .topbar { height: 56px; display: flex; align-items: center; gap: 16px; padding: 0 16px; border-bottom: 1px solid #e5e5e5; font-weight: 700; }
+    html[dark] .topbar { border-color: #272727; }
+    .topbar a { font-weight: 400; font-size: 13px; color: #065fd4; }
+    ytd-watch-flexy { display: block; max-width: 900px; margin: 16px auto; padding: 0 16px; }
+    #player { aspect-ratio: 16 / 9; background: #000; border-radius: 12px; display: grid; place-items: center; color: #aaa; }
+    #movie_player video { width: 0; height: 0; }
+    #below { display: block; }
+    ytd-watch-metadata { display: block; }
+    #title h1 { font-size: 20px; margin: 12px 0 4px; }
+    .channel { color: #606060; font-size: 14px; }
+    .comments { margin-top: 24px; color: #606060; }
+  </style>
+  <script>
+    // Read the case BEFORE rewriting the URL, then pretend to be /watch.
+    (function () {
+      var p = new URLSearchParams(location.search);
+      var c = p.get('case') || 'ok';
+      window.__ptCase = c;
+      if (p.get('dark')) document.documentElement.setAttribute('dark', '');
+      history.replaceState(null, '', '/watch?v=dQw4w9WgXcQ&case=' + encodeURIComponent(c) + (p.get('dark') ? '&dark=1' : '') + (p.get('click') ? '&click=1' : ''));
+    })();
+  </script>
+</head>
+<body>
+  <div class="topbar">YouTube (fake)
+    <a href="/docs/dev/youtube-test.html?case=ok">ok</a>
+    <a href="/docs/dev/youtube-test.html?case=age">age</a>
+    <a href="/docs/dev/youtube-test.html?case=private">private</a>
+    <a href="/docs/dev/youtube-test.html?case=error">error</a>
+    <a href="/docs/dev/youtube-test.html?case=live">live</a>
+    <a href="/docs/dev/youtube-test.html?case=ok&dark=1">ok (dark)</a>
+  </div>
+  <ytd-watch-flexy>
+    <div id="primary">
+      <div id="player"><div id="movie_player">Player stub<video></video></div></div>
+      <div id="below">
+        <ytd-watch-metadata>
+          <div id="title"><h1>Photosynthesis for Kids | Stub Video</h1></div>
+          <div class="channel">Science Channel &middot; 1.2M views</div>
+        </ytd-watch-metadata>
+        <div class="comments">Comments would be here.</div>
+      </div>
+    </div>
+  </ytd-watch-flexy>
+
+  <script>
+    (function () {
+      var c = window.__ptCase;
+      var base = {
+        videoDetails: { videoId: 'dQw4w9WgXcQ', title: 'Photosynthesis for Kids', isPrivate: false, isLiveContent: false },
+        playabilityStatus: { status: 'OK' },
+        microformat: { playerMicroformatRenderer: { isFamilySafe: true } }
+      };
+      if (c === 'age') base.playabilityStatus = { status: 'LOGIN_REQUIRED', reason: 'Sign in to confirm your age' };
+      if (c === 'private') { base.playabilityStatus = { status: 'LOGIN_REQUIRED', reason: 'This video is private' }; base.videoDetails.isPrivate = true; }
+      if (c === 'error') base.playabilityStatus = { status: 'UNPLAYABLE', reason: 'Video unavailable' };
+      if (c === 'live') { base.playabilityStatus = { status: 'LIVE_STREAM_OFFLINE', reason: 'Premieres in 2 hours' }; base.videoDetails.isLiveContent = true; }
+
+      var player = document.getElementById('movie_player');
+      player.getPlayerResponse = function () { return base; };
+      // Pretend the teacher has watched 83 seconds, so "Copy link" adds ?t=83.
+      Object.defineProperty(player.querySelector('video'), 'currentTime', { get: function () { return 83.4; } });
+      window.__ptResponse = base;
+    })();
+  </script>
+  <script src="/src/content/youtube-main.js"></script>
+  <script src="/src/content/youtube.js"></script>
+  <script>
+    // &click=1 presses the button once it appears (for headless screenshots).
+    if (/[?&]click=1/.test(location.search)) {
+      var tries = 0, t = setInterval(function () {
+        var b = document.querySelector('#preptip-yt-root .preptip-yt-btn');
+        if (b || ++tries > 40) { clearInterval(t); if (b) b.click(); }
+      }, 100);
+    }
+  </script>
+</body>
+</html>

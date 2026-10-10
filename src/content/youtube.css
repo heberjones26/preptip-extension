@@ -1,0 +1,147 @@
+/* PrepTip "Download for Slides" on YouTube (R8-R10). Everything is scoped with a preptip- prefix. */
+
+#preptip-yt-root.preptip-yt-root {
+  --preptip-brand: #E8590C;
+  --preptip-brand-dk: #C2410C;
+  --preptip-brand-soft: #FFF1E7;
+  --preptip-ink: #1E2433;
+  --preptip-ink-2: #4A5468;
+  --preptip-line: #E3E6EC;
+  --preptip-surface: #FFFFFF;
+  --preptip-danger: #B42318;
+  --preptip-danger-soft: #FEF0EE;
+  --preptip-ok: #15803D;
+  font-family: "Nunito", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--preptip-ink);
+  margin: 12px 0 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+html[dark] #preptip-yt-root.preptip-yt-root {
+  --preptip-ink: #EEF0F5;
+  --preptip-ink-2: #B7BECC;
+  --preptip-line: #3A4152;
+  --preptip-surface: #1E2330;
+  --preptip-brand-soft: #3A2414;
+  --preptip-danger: #F97066;
+  --preptip-danger-soft: #3B1E1C;
+}
+
+#preptip-yt-root .preptip-yt-btn {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px 0 8px;
+  border-radius: 999px;
+  background: var(--preptip-brand);
+  color: #fff;
+  font: 800 14px/1 "Nunito", "Segoe UI", system-ui, sans-serif;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .12);
+  transition: background-color .15s, box-shadow .15s;
+  user-select: none;
+}
+#preptip-yt-root .preptip-yt-btn:hover { background: var(--preptip-brand-dk); }
+#preptip-yt-root .preptip-yt-btn:focus-visible { box-shadow: 0 0 0 3px rgba(232, 89, 12, .38); }
+#preptip-yt-root .preptip-yt-btn[aria-expanded="true"] { background: var(--preptip-brand-dk); }
+#preptip-yt-root .preptip-yt-logo { width: 22px; height: 22px; flex: none; display: block; }
+
+/* Shared panel shell (Slides card and error card) */
+#preptip-yt-root .preptip-yt-panel {
+  box-sizing: border-box;
+  position: relative;
+  width: min(520px, 100%);
+  background: var(--preptip-surface);
+  border: 1px solid var(--preptip-line);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(16, 24, 40, .10);
+  animation: preptip-yt-in .16s ease-out;
+}
+@keyframes preptip-yt-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+#preptip-yt-root .preptip-yt-close {
+  all: unset;
+  box-sizing: border-box;
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border-radius: 8px;
+  font-size: 20px; line-height: 1;
+  color: var(--preptip-ink-2);
+  cursor: pointer;
+  flex: none;
+}
+#preptip-yt-root .preptip-yt-close:hover { background: rgba(127, 127, 127, .14); color: var(--preptip-ink); }
+#preptip-yt-root .preptip-yt-close:focus-visible { box-shadow: 0 0 0 3px rgba(232, 89, 12, .38); }
+
+/* R10 error */
+#preptip-yt-root .preptip-yt-error {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 8px 10px 12px;
+  background: var(--preptip-danger-soft);
+  border-color: transparent;
+  border-left: 4px solid var(--preptip-danger);
+}
+#preptip-yt-root .preptip-yt-error-icon { width: 20px; height: 20px; flex: none; color: var(--preptip-danger); display: block; }
+#preptip-yt-root .preptip-yt-error-text { margin: 0; flex: 1; font-weight: 700; font-size: 14px; color: var(--preptip-ink); }
+
+/* Slides card */
+#preptip-yt-root .preptip-yt-card { padding: 14px 16px 14px; border-top: 3px solid var(--preptip-brand); }
+#preptip-yt-root .preptip-yt-card-head { display: flex; align-items: flex-start; gap: 8px; margin: -2px -6px 6px 0; }
+#preptip-yt-root .preptip-yt-card-title { margin: 2px 0 0; flex: 1; font-size: 16px; font-weight: 800; color: var(--preptip-ink); }
+#preptip-yt-root .preptip-yt-card-body { margin: 0 0 10px; color: var(--preptip-ink-2); font-size: 14px; }
+
+#preptip-yt-root .preptip-yt-steps {
+  margin: 0 0 12px; padding: 0;
+  list-style: none; counter-reset: preptip-step;
+  display: grid; gap: 6px;
+}
+#preptip-yt-root .preptip-yt-steps li {
+  counter-increment: preptip-step;
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 14px; color: var(--preptip-ink);
+}
+#preptip-yt-root .preptip-yt-steps li::before {
+  content: counter(preptip-step);
+  flex: none;
+  width: 20px; height: 20px; border-radius: 50%;
+  display: inline-grid; place-items: center;
+  background: var(--preptip-brand-soft); color: var(--preptip-brand-dk);
+  font-weight: 800; font-size: 12px;
+  transform: translateY(-1px);
+}
+html[dark] #preptip-yt-root .preptip-yt-steps li::before { color: #FDBA74; }
+#preptip-yt-root .preptip-yt-steps b { font-weight: 800; }
+
+#preptip-yt-root .preptip-yt-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+#preptip-yt-root .preptip-yt-copy,
+#preptip-yt-root .preptip-yt-copy-plain {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  font: 800 14px/1 "Nunito", "Segoe UI", system-ui, sans-serif;
+  border-radius: 999px;
+  padding: 9px 16px;
+}
+#preptip-yt-root .preptip-yt-copy { background: var(--preptip-brand); color: #fff; }
+#preptip-yt-root .preptip-yt-copy:hover { background: var(--preptip-brand-dk); }
+#preptip-yt-root .preptip-yt-copy-plain { color: var(--preptip-ink-2); padding: 9px 4px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+#preptip-yt-root .preptip-yt-copy-plain:hover { color: var(--preptip-ink); }
+#preptip-yt-root .preptip-yt-copy:focus-visible,
+#preptip-yt-root .preptip-yt-copy-plain:focus-visible { box-shadow: 0 0 0 3px rgba(232, 89, 12, .38); }
+
+#preptip-yt-root .preptip-yt-copied {
+  font-weight: 800; font-size: 13px; color: var(--preptip-ok);
+  opacity: 0; transition: opacity .15s;
+}
+html[dark] #preptip-yt-root .preptip-yt-copied { color: #4ADE80; }
+#preptip-yt-root .preptip-yt-copied.preptip-yt-show { opacity: 1; }
+#preptip-yt-root .preptip-yt-copied.preptip-yt-fail { color: var(--preptip-danger); }
+
+.preptip-yt-offscreen { position: fixed; top: -1000px; left: -1000px; opacity: 0; }
