@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PrepTip guide test bench</title>
+<!--
+  Dev-only test page for src/content/guide.js.
+  Serve the repo root (npx --yes http-server -p 5518 -c-1) and open
+  http://localhost:5518/docs/dev/guide-test.html
+
+  It fakes a Google Sheets-like page (ARIA menubar + dropdown menus that open on mousedown,
+  a Share button, a "Conditional format rules" dialog), stubs the `chrome` API BEFORE loading
+  guide.js, and has buttons that act like the side panel sending PT_GUIDE_SHOW / PT_GUIDE_CLEAR.
+  Every message guide.js sends shows up in the log on the right.
+-->
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 13px/1.4 "Segoe UI", Roboto, Arial, sans-serif; color: #1f1f1f; background: #F9FBFD; }
+
+  /* --- fake Sheets chrome --- */
+  .top { display: flex; align-items: center; gap: 12px; padding: 8px 16px 0; }
+  .doc-title { font-size: 18px; }
+  .share {
+    margin-left: auto; padding: 8px 20px; border-radius: 18px; background: #C2E7FF; color: #001D35;
+    font-weight: 600; cursor: pointer; user-select: none;
+  }
+  #docs-menubar { display: flex; gap: 2px; padding: 2px 10px 6px; }
+  #docs-menubar [role="menuitem"] { padding: 3px 8px; border-radius: 4px; cursor: default; user-select: none; }
+  #docs-menubar [role="menuitem"]:hover, #docs-menubar [role="menuitem"].open { background: #E1E5EA; }
+  .toolbar { display: flex; gap: 8px; align-items: center; margin: 0 12px; padding: 6px 10px; background: #EDF2FA; border-radius: 20px; }
+  .toolbar input { width: 220px; padding: 4px 10px; border: 1px solid #C4C7C5; border-radius: 14px; font: inherit; }
+
+  .goog-menu {
+    position: absolute; z-index: 1000; min-width: 230px; padding: 6px 0; background: #fff;
+    border-radius: 4px; box-shadow: 0 2px 6px 2px rgba(60,64,67,.15), 0 1px 2px rgba(60,64,67,.3);
+    display: none;
+  }
+  .goog-menu.open { display: block; }
+  .goog-menuitem { padding: 6px 18px 6px 40px; cursor: default; user-select: none; display: flex; }
+  .goog-menuitem:hover { background: #F1F3F4; }
+  .goog-menuitem-accel { margin-left: auto; color: #80868B; padding-left: 20px; }
+  .goog-menuseparator { border-top: 1px solid #E1E3E1; margin: 6px 0; }
+
+  /* grid */
+  .grid { margin: 8px 0 0; border-top: 1px solid #E2E3E3; display: grid; grid-template-columns: 46px repeat(8, 100px); }
+  .grid div { height: 22px; border-right: 1px solid #E2E3E3; border-bottom: 1px solid #E2E3E3; padding: 2px 6px; background: #fff; }
+  .grid .h { background: #F8F9FA; color: #5f6368; text-align: center; }
+
+  /* conditional format rules sidebar */
+  [role="dialog"] {
+    position: fixed; top: 96px; right: 0; bottom: 0; width: 300px; background: #fff;
+    border-left: 1px solid #DADCE0; padding: 14px 16px;
+  }
+  [role="dialog"] h2 { font-size: 16px; font-weight: 400; margin: 0 0 12px; display: flex; justify-content: space-between; }
+  [role="dialog"] .x { cursor: pointer; color: #5f6368; }
+  .field { border: 1px solid #C4C7C5; border-radius: 4px; padding: 7px 10px; margin: 6px 0 14px; }
+  .done { background: #0B57D0; color: #fff; border: 0; border-radius: 18px; padding: 8px 20px; font-weight: 600; }
+
+  /* --- test bench --- */
+  .bench {
+    position: fixed; left: 12px; bottom: 12px; width: 360px; padding: 12px; background: #1E2433; color: #EEF0F5;
+    border-radius: 12px; font: 12px/1.4 system-ui, sans-serif; box-shadow: 0 8px 24px rgba(0,0,0,.25);
+  }
+  .bench h3 { margin: 0 0 8px; font-size: 13px; color: #FDBA74; }
+  .bench button { display: block; width: 100%; text-align: left; margin: 4px 0; padding: 6px 8px; border: 0; border-radius: 6px; background: #2E3546; color: #fff; font: inherit; cursor: pointer; }
+  .bench button:hover { background: #3A4357; }
+  .bench label { display: block; margin-top: 6px; }
+  #log {
+    position: fixed; right: 12px; bottom: 12px; width: 420px; max-height: 300px; overflow: auto; margin: 0;
+    padding: 10px; background: #0F1320; color: #B7F5C5; border-radius: 12px; font: 11.5px/1.45 Consolas, monospace;
+    white-space: pre-wrap;
+  }
+  #log .out { color: #FDBA74; }
+  #log .in { color: #93C5FD; }
+</style>
+
+<script>
+  // ---- Stub of the chrome extension API, defined BEFORE guide.js loads ----
+  (function () {
+    const listeners = [];
+    window.__ptLog = []; // for inspection from devtools / automation
+
+    function log(kind, text) {
+      window.__ptLog.push(text);
+      const pre = document.getElementById('log');
+      if (!pre) return;
+      const line = document.createElement('div');
+      line.className = kind;
+      line.textContent = new Date().toLocaleTimeString() + '  ' + text;
+      pre.appendChild(line);
+      pre.scrollTop = pre.scrollHeight;
+    }
+    window.__ptLogLine = log;
+
+    function fakeResponse(msg) {
+      switch (msg.type) {
+        case 'PT_GET_SITE_INFO':
+          return { site: { url_pattern: 'docs.google.com/spreadsheets', name: 'Google Sheets' }, tipCount: 6, showNudge: true };
+        case 'PT_OPEN_PANEL':
+          return { ok: document.getElementById('openOk').checked };
+        case 'PT_NUDGE_DISMISSED':
+          return { ok: true };
+        default:
+          return undefined; // like the side panel: no response
+      }
+    }
+
+    window.chrome = {
+      runtime: {
+        id: 'stub-extension-id',
+        lastError: undefined,
+        onMessage: {
+          addListener: (fn) => listeners.push(fn),
+          removeListener: (fn) => { const i = listeners.indexOf(fn); if (i >= 0) listeners.splice(i, 1); }
+        },
+        sendMessage(msg, callback) {
+          const { type, ...rest } = msg;
+          log('out', 'guide → ' + type + ' ' + JSON.stringify(rest));
+          setTimeout(() => {
+            const resp = fakeResponse(msg);
+            if (resp !== undefined) log('in', '   reply ' + JSON.stringify(resp));
+            if (callback) callback(resp);
+          }, 30);
+        }
+      }
+    };
+
+    // Act like the side panel: chrome.tabs.sendMessage(tabId, msg)
+    window.panelSend = function (msg) {
+      log('in', 'panel → ' + msg.type + (msg.step ? ' ' + msg.step.target_element : ''));
+      listeners.forEach((fn) => fn(msg, { id: 'stub-extension-id' }, (resp) => log('in', '   reply ' + JSON.stringify(resp))));
+    };
+  })();
+</script>
+<link rel="stylesheet" href="../../src/content/guide.css">
+</head>
+<body>
+
+<div class="top">
+  <svg width="26" height="34" viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/></svg>
+  <div class="doc-title">Gradebook – Period 3</div>
+  <div class="share" role="button" aria-label="Share. Private to only me." id="docs-titlebar-share-client-button">Share</div>
+</div>
+
+<div id="docs-menubar" role="menubar" aria-label="Menu bar">
+  <div id="docs-file-menu" role="menuitem" aria-haspopup="true" data-menu="menu-file">File</div>
+  <div id="docs-edit-menu" role="menuitem" aria-haspopup="true" data-menu="menu-edit">Edit</div>
+  <div id="docs-view-menu" role="menuitem" aria-haspopup="true" data-menu="menu-view">View</div>
+  <div id="docs-insert-menu" role="menuitem" aria-haspopup="true" data-menu="menu-insert">Insert</div>
+  <div id="docs-format-menu" role="menuitem" aria-haspopup="true" data-menu="menu-format">Format</div>
+  <div id="trix-data-menu" role="menuitem" aria-haspopup="true" data-menu="menu-data">Data</div>
+  <div id="docs-tools-menu" role="menuitem" aria-haspopup="true" data-menu="menu-tools">Tools</div>
+  <div id="docs-extensions-menu" role="menuitem" aria-haspopup="true" data-menu="menu-ext">Extensions</div>
+  <div id="docs-help-menu" role="menuitem" aria-haspopup="true" data-menu="menu-help">Help</div>
+</div>
+
+<div class="toolbar">
+  <span>↶ ↷ 🖶 100% $ % .0</span>
+  <input type="text" placeholder="Search the menus (Alt+/)" aria-label="Search the menus">
+</div>
+
+<div class="grid" id="grid"></div>
+
+<!-- Dropdown menus (kept in the DOM, hidden until opened, like Google's) -->
+<div class="goog-menu" role="menu" id="menu-file">
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">New</span></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Open</span><span class="goog-menuitem-accel">Ctrl+O</span></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Print</span><span class="goog-menuitem-accel">Ctrl+P</span></div>
+</div>
+<div class="goog-menu" role="menu" id="menu-edit">
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Undo</span><span class="goog-menuitem-accel">Ctrl+Z</span></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Redo</span><span class="goog-menuitem-accel">Ctrl+Y</span></div>
+</div>
+<div class="goog-menu" role="menu" id="menu-view">
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Show</span> ›</div>
+  <div class="goog-menuitem submenu-parent" role="menuitem" aria-haspopup="true" data-sub="menu-freeze"><span class="goog-menuitem-label">Freeze</span><span class="goog-menuitem-accel">›</span></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Group</span> ›</div>
+  <div class="goog-menuseparator"></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Zoom</span> ›</div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Full screen</span></div>
+</div>
+<div class="goog-menu" role="menu" id="menu-freeze">
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">No rows</span></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">1 row</span></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">2 rows</span></div>
+  <div class="goog-menuseparator"></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">No columns</span></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">1 column</span></div>
+</div>
+<div class="goog-menu" role="menu" id="menu-insert">
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Cells</span> ›</div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Chart</span></div>
+</div>
+<div class="goog-menu" role="menu" id="menu-format">
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Theme</span></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Number</span> ›</div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Text</span> ›</div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Alignment</span> ›</div>
+  <div class="goog-menuseparator"></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Convert to table</span><span class="goog-menuitem-accel">Ctrl+Alt+T</span></div>
+  <div class="goog-menuitem" role="menuitem" data-action="cf"><span class="goog-menuitem-label">Conditional formatting</span></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Alternating colors</span></div>
+  <div class="goog-menuseparator"></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Clear formatting</span><span class="goog-menuitem-accel">Ctrl+\</span></div>
+</div>
+<div class="goog-menu" role="menu" id="menu-data">
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Sort sheet</span> ›</div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Sort range</span> ›</div>
+  <div class="goog-menuseparator"></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Create a filter</span></div>
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Data validation</span></div>
+</div>
+<div class="goog-menu" role="menu" id="menu-tools">
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Spelling</span> ›</div>
+</div>
+<div class="goog-menu" role="menu" id="menu-ext">
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Add-ons</span> ›</div>
+</div>
+<div class="goog-menu" role="menu" id="menu-help">
+  <div class="goog-menuitem" role="menuitem"><span class="goog-menuitem-label">Help</span></div>
+</div>
+
+<div role="dialog" aria-label="Conditional format rules" id="cf-panel" hidden>
+  <h2>Conditional format rules <span class="x" id="cf-close">✕</span></h2>
+  <div>Apply to range</div>
+  <div class="field">C2:C40</div>
+  <div>Format cells if…</div>
+  <div class="field">Less than ▾</div>
+  <div class="field">70</div>
+  <button class="done" id="cf-done">Done</button>
+</div>
+
+<div class="bench">
+  <h3>Pretend side panel</h3>
+  <button id="t-format">SHOW guided · menu:Format &gt; Conditional formatting</button>
+  <button id="t-freeze">SHOW guided · menu:View &gt; Freeze &gt; 1 row</button>
+  <button id="t-share">SHOW guided · button:Share</button>
+  <button id="t-panel">SHOW your_turn · panel:Conditional format rules</button>
+  <button id="t-search">SHOW guided · search:Search the menus</button>
+  <button id="t-unknown">SHOW guided · grid:A1 (unsupported kind)</button>
+  <button id="t-ping">PING</button>
+  <button id="t-clear">CLEAR</button>
+  <label><input type="checkbox" id="openOk"> PT_OPEN_PANEL replies {ok:true}</label>
+</div>
+
+<pre id="log"></pre>
+
+<script>
+  // ---- Fake Sheets behavior ----
+  (function () {
+    // grid
+    const grid = document.getElementById('grid');
+    const cols = ['', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    const names = ['Student', 'Ava', 'Ben', 'Cruz', 'Dina', 'Eli', 'Fay', 'Gus', 'Hal', 'Ivy', 'Jo'];
+    cols.forEach((c) => { const d = document.createElement('div'); d.className = 'h'; d.textContent = c; grid.appendChild(d); });
+    for (let r = 1; r <= 18; r++) {
+      const h = document.createElement('div'); h.className = 'h'; h.textContent = r; grid.appendChild(h);
+      for (let c = 1; c <= 8; c++) {
+        const d = document.createElement('div');
+        if (c === 1) d.textContent = names[r - 1] || '';
+        if (c === 2) d.textContent = r === 1 ? 'Quiz 1' : r <= 10 ? 55 + ((r * 7) % 45) : '';
+        grid.appendChild(d);
+      }
+    }
+
+    const menubar = document.getElementById('docs-menubar');
+    let openItem = null;
+
+    function closeAll() {
+      document.querySelectorAll('.goog-menu.open').forEach((m) => m.classList.remove('open'));
+      if (openItem) openItem.classList.remove('open');
+      openItem = null;
+    }
+
+    function openMenu(item) {
+      closeAll();
+      const menu = document.getElementById(item.dataset.menu);
+      const r = item.getBoundingClientRect();
+      menu.style.left = r.left + 'px';
+      menu.style.top = (r.bottom + window.scrollY + 2) + 'px';
+      menu.classList.add('open');
+      item.classList.add('open');
+      openItem = item;
+    }
+
+    // Google menus open on MOUSEDOWN
+    menubar.addEventListener('mousedown', (e) => {
+      const item = e.target.closest('[role="menuitem"]');
+      if (!item) return;
+      e.preventDefault();
+      if (openItem === item) closeAll(); else openMenu(item);
+    });
+
+    // submenu opens on hover
+    document.getElementById('menu-view').addEventListener('mouseover', (e) => {
+      const item = e.target.closest('.goog-menuitem');
+      if (!item) return;
+      const sub = document.getElementById('menu-freeze');
+      if (item.dataset.sub) {
+        const r = item.getBoundingClientRect();
+        sub.style.left = (r.right - 4) + 'px';
+        sub.style.top = (r.top + window.scrollY - 6) + 'px';
+        sub.classList.add('open');
+      } else {
+        sub.classList.remove('open');
+      }
+    });
+
+    // item clicks
+    document.addEventListener('click', (e) => {
+      const item = e.target.closest('.goog-menu .goog-menuitem');
+      if (item && !item.dataset.sub) {
+        closeAll();
+        if (item.dataset.action === 'cf') document.getElementById('cf-panel').hidden = false;
+      }
+    });
+
+    // click outside closes menus
+    document.addEventListener('mousedown', (e) => {
+      if (!e.target.closest('.goog-menu, #docs-menubar')) closeAll();
+    });
+
+    document.getElementById('cf-close').onclick = () => { document.getElementById('cf-panel').hidden = true; };
+    document.getElementById('cf-done').onclick = () => { document.getElementById('cf-panel').hidden = true; };
+  })();
+
+  // ---- Pretend side panel buttons ----
+  (function () {
+    const show = (stepIndex, totalSteps, step_type, target_element, step_description) =>
+      panelSend({ type: 'PT_GUIDE_SHOW', tipId: 'tip-cf', stepIndex, totalSteps,
+                  step: { step_type, target_element, step_description } });
+    const on = (id, fn) => document.getElementById(id).addEventListener('click', fn);
+    on('t-format', () => show(0, 3, 'guided', 'menu:Format > Conditional formatting', 'Open Format, then Conditional formatting.'));
+    on('t-freeze', () => show(0, 2, 'guided', 'menu:View > Freeze > 1 row', 'Freeze the header row.'));
+    on('t-share', () => show(0, 2, 'guided', 'button:Share', 'Click Share in the top right.'));
+    on('t-panel', () => show(2, 3, 'your_turn',
+      'panel:Conditional format rules',
+      'Pick the grade column, choose "Less than" and type 70, then pick a red fill so failing grades stand out right away. Click Done when it looks right.'));
+    on('t-search', () => show(0, 1, 'guided', 'search:Search the menus', 'Type what you want to do.'));
+    on('t-unknown', () => show(0, 1, 'guided', 'grid:A1', 'Click cell A1.'));
+    on('t-ping', () => panelSend({ type: 'PT_PING' }));
+    on('t-clear', () => panelSend({ type: 'PT_GUIDE_CLEAR' }));
+  })();
+</script>
+
+<!-- Loaded last, like a document_idle content script -->
+<script src="../../src/content/guide.js"></script>
+</body>
+</html>
