@@ -1,0 +1,12 @@
+{
+  "name": "preptip-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PrepTip: teacher tips Chrome extension (IS 401 prototype)",
+  "type": "module",
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "icons": "node scripts/make-icons.mjs",
+    "check": "node scripts/check.mjs"
+  }
+}

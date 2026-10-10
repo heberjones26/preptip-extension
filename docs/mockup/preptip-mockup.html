@@ -1,0 +1,1044 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>PrepTip Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   PrepTip prototype: pure HTML + CSS (state lives in radio inputs)
+   ============================================================ */
+:root {
+  --brand: #E8590C;
+  --brand-dk: #C2410C;
+  --brand-soft: #FFF1E7;
+  --brand-ring: rgba(232, 89, 12, .38);
+  --ink: #1E2433;
+  --ink-2: #4A5468;
+  --ink-3: #7A8396;
+  --line: #E3E6EC;
+  --bg: #EDEFF3;
+  --ok: #15803D;
+  --ok-soft: #E9F7EE;
+  --warn: #B45309;
+  --warn-soft: #FFF7E6;
+  --sheet-line: #E2E3E3;
+  --ui: "Segoe UI", Roboto, Arial, sans-serif;
+  --xp: "Nunito", "Segoe UI", system-ui, sans-serif;
+  /* presenter stage (theme-aware); the browser mockup itself stays light */
+  --st-bg: #EDEFF3;
+  --st-surface: #FFFFFF;
+  --st-bar: rgba(255,255,255,.92);
+  --st-ink: #1E2433;
+  --st-ink-2: #4A5468;
+  --st-ink-3: #7A8396;
+  --st-line: #DDE1E8;
+  --st-pill: #E4E7EC;
+  --st-accent: #C2410C;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --st-bg: #14171F; --st-surface: #1E2330; --st-bar: rgba(20,23,31,.9);
+    --st-ink: #EEF0F5; --st-ink-2: #B7BECC; --st-ink-3: #8891A3;
+    --st-line: #2E3546; --st-pill: #262C3A; --st-accent: #FB923C;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --st-bg: #14171F; --st-surface: #1E2330; --st-bar: rgba(20,23,31,.9);
+  --st-ink: #EEF0F5; --st-ink-2: #B7BECC; --st-ink-3: #8891A3;
+  --st-line: #2E3546; --st-pill: #262C3A; --st-accent: #FB923C;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--st-bg); color: var(--st-ink); font-family: var(--xp); }
+svg { display: block; }
+label { cursor: pointer; }
+.vh { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* ---------------- presenter bar ---------------- */
+.proto-bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 100;
+  background: var(--st-bar); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--st-line);
+  padding: 12px 24px 10px;
+}
+.pb-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; max-width: 1240px; margin: 0 auto; }
+.pb-title { display: flex; align-items: center; gap: 10px; }
+.pb-title svg { width: 32px; height: 32px; }
+.pb-title b { display: block; font-size: 17px; font-weight: 800; }
+.pb-title small { color: var(--st-ink-3); font-size: 12.5px; }
+.mode { display: flex; background: var(--st-pill); border-radius: 999px; padding: 3px; }
+.mode label { padding: 6px 14px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--st-ink-2); }
+#mode-click:checked ~ .proto-bar label[for="mode-click"],
+#mode-all:checked ~ .proto-bar label[for="mode-all"] { background: var(--st-surface); color: var(--st-ink); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.nav { display: flex; flex-wrap: wrap; gap: 6px; max-width: 1240px; margin: 10px auto 0; }
+.chip-nav {
+  font-size: 12.5px; font-weight: 700; padding: 5px 11px; border-radius: 999px;
+  border: 1px solid var(--st-line); background: var(--st-surface); color: var(--st-ink-2);
+}
+.chip-nav.x { border-style: dashed; color: var(--st-ink-3); }
+.chip-nav:hover { border-color: var(--st-ink-3); }
+
+/* ---------------- screens ---------------- */
+main { max-width: 1288px; margin: 0 auto; padding: 24px 24px 64px; }
+.screen { display: none; }
+#mode-all:checked ~ .proto-bar .nav { display: none; }
+#mode-all:checked ~ main .screen { display: block; margin-bottom: 64px; }
+#mode-all:checked ~ main .stepper,
+#mode-all:checked ~ main .hint { display: none; }
+
+.cap { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
+.cap-num {
+  flex: none; min-width: 40px; height: 40px; padding: 0 8px; border-radius: 12px;
+  display: grid; place-items: center; background: var(--st-ink); color: var(--st-bg); font-weight: 800; font-size: 17px;
+}
+.cap-num.extra { background: var(--st-surface); color: var(--st-ink); border: 2px dashed var(--st-ink-3); }
+.cap-txt { flex: 1; min-width: 0; }
+.cap-txt h2 { margin: 0 0 3px; font-size: 20px; font-weight: 800; }
+.cap-txt h2 { text-wrap: balance; }
+.cap-txt p { margin: 0; color: var(--st-ink-2); font-size: 14.5px; line-height: 1.45; max-width: 780px; }
+.cap-txt .hint { margin-top: 6px; font-size: 13.5px; color: var(--st-accent); }
+.stepper { display: flex; gap: 8px; flex: none; }
+.step-btn {
+  font-size: 13px; font-weight: 700; padding: 8px 14px; border-radius: 10px;
+  background: var(--st-surface); border: 1px solid var(--st-line); color: var(--st-ink);
+}
+.step-btn.primary { background: var(--st-ink); border-color: var(--st-ink); color: var(--st-bg); }
+.step-btn.off { opacity: .35; }
+
+/* ---------------- browser frame ---------------- */
+.frame-scroll { overflow-x: auto; padding-bottom: 6px; max-width: 100%; }
+.frame-scroll:focus-visible, .fb textarea:focus-visible { outline: 2px solid var(--brand); }
+.browser {
+  width: 1240px; height: 720px; margin: 0 auto;
+  display: flex; flex-direction: column;
+  border-radius: 12px; overflow: hidden; background: #fff;
+  box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 18px 48px -12px rgba(30,36,51,.28);
+  font-family: var(--ui); color: #202124;
+}
+.tabstrip { height: 40px; flex: none; background: #DEE1E6; display: flex; align-items: flex-end; padding: 0 10px; gap: 8px; }
+.dots { display: flex; gap: 7px; align-self: center; margin-right: 8px; }
+.dots i { width: 11px; height: 11px; border-radius: 50%; background: #c4c7cc; }
+.tab {
+  height: 33px; width: 250px; background: #fff; border-radius: 9px 9px 0 0;
+  display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 12.5px;
+}
+.tab svg { width: 14px; height: 16px; flex: none; color: #5f6368; }
+.tab span:first-of-type { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tx { color: #5f6368; }
+.tab-plus { align-self: center; color: #5f6368; font-size: 18px; }
+.toolbar { height: 44px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 10px; border-bottom: 1px solid #DADCE0; }
+.nav-btn { width: 30px; text-align: center; color: #5f6368; font-size: 16px; }
+.omni {
+  flex: 1; height: 32px; border-radius: 16px; background: #F1F3F4;
+  display: flex; align-items: center; gap: 10px; padding: 0 14px; font-size: 13.5px; color: #3c4043; margin: 0 8px;
+}
+.lock { font-size: 8px; color: #5f6368; }
+.exts { display: flex; align-items: center; gap: 4px; }
+.ext-ic { width: 30px; height: 30px; display: grid; place-items: center; color: #5f6368; }
+.ext-ic svg { width: 18px; height: 18px; }
+.ext-wrap { position: relative; }
+.ext-btn { position: relative; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; }
+.ext-btn svg { width: 20px; height: 20px; }
+.ext-btn:hover, .ext-btn.on { background: #E8EAED; }
+.ext-btn.muted svg { filter: grayscale(1); opacity: .55; }
+.badge {
+  position: absolute; top: 1px; right: -1px; min-width: 15px; height: 15px; padding: 0 3px;
+  border-radius: 8px; background: var(--ok); color: #fff; font: 700 10px/15px var(--ui); text-align: center;
+  box-shadow: 0 0 0 2px #fff;
+}
+label.ext-btn { animation: badge-pulse 2.2s ease-out infinite; }
+@keyframes badge-pulse {
+  0% { box-shadow: 0 0 0 0 var(--brand-ring); }
+  70%, 100% { box-shadow: 0 0 0 9px rgba(232,89,12,0); }
+}
+.avatar {
+  width: 28px; height: 28px; border-radius: 50%; margin-left: 6px;
+  background: #7C5CDB; color: #fff; font: 700 13px/28px var(--ui); text-align: center;
+}
+
+/* proactive nudge */
+.nudge {
+  position: absolute; top: calc(100% + 12px); right: -64px; width: 270px; z-index: 30;
+  background: #fff; border-radius: 14px; padding: 14px;
+  box-shadow: 0 10px 30px rgba(30,36,51,.22), 0 0 0 1px rgba(30,36,51,.06);
+  font-family: var(--xp); color: var(--ink);
+}
+.nudge::before {
+  content: ""; position: absolute; top: -7px; right: 76px; width: 14px; height: 14px;
+  background: #fff; transform: rotate(45deg); box-shadow: -1px -1px 0 rgba(30,36,51,.06);
+}
+.nudge-top { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.nudge-top svg { width: 20px; height: 20px; }
+.nudge-x { margin-left: auto; color: var(--ink-3); font-size: 18px; line-height: 1; }
+.nudge p { margin: 8px 0 12px; font-size: 14px; line-height: 1.4; color: var(--ink-2); }
+.nudge p b { color: var(--ink); }
+.nudge-row { display: flex; gap: 8px; }
+
+.viewport { flex: 1; min-height: 0; display: flex; }
+.page { flex: 1; min-width: 0; position: relative; overflow: hidden; }
+
+/* ---------------- google sheets mock ---------------- */
+.sheets { height: 100%; display: flex; flex-direction: column; background: #F9FBFD; font-size: 13px; }
+.s-top { display: flex; align-items: flex-start; gap: 10px; padding: 8px 16px 2px; }
+.s-logo svg { width: 26px; height: 34px; margin-top: 2px; }
+.s-top > div { flex: 1; }
+.s-title { font-size: 17px; color: #1f1f1f; padding: 2px 6px; }
+.star { color: #5f6368; font-size: 15px; margin-left: 4px; }
+.s-menu { display: flex; gap: 0; margin-top: 1px; }
+.mi-wrap { position: relative; }
+.mi { display: inline-block; position: relative; padding: 3px 7px; border-radius: 4px; font-size: 13.5px; color: #1f1f1f; }
+.mi:hover, .mi.open { background: #E1E5EA; }
+.s-share {
+  margin-top: 8px; background: #C2E7FF; color: #001D35; font-weight: 600;
+  padding: 9px 22px; border-radius: 20px; font-size: 13.5px;
+}
+.s-tools {
+  display: flex; align-items: center; gap: 12px; margin: 6px 12px 0; padding: 6px 14px;
+  background: #EDF2FA; border-radius: 22px; color: #444746; font-size: 13px;
+}
+.s-tools .sep { width: 1px; height: 18px; background: #C7C7C7; }
+.s-tools .box { border: 1px solid #747775; border-radius: 4px; padding: 0 6px; }
+.s-fx { display: flex; align-items: center; gap: 12px; padding: 6px 16px; border-bottom: 1px solid #E1E3E1; color: #1f1f1f; }
+.s-fx .ref { width: 80px; padding-right: 10px; border-right: 1px solid #E1E3E1; }
+.s-fx .fx { color: #9AA0A6; font-style: italic; }
+.s-body { flex: 1; min-height: 0; display: flex; }
+.s-grid { flex: 1; min-width: 0; overflow: hidden; background: #fff; }
+.s-grid table { border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+.s-grid th {
+  background: #F8F9FA; color: #5f6368; font-weight: 400; font-size: 11.5px;
+  border: 1px solid #DADCE0; height: 21px;
+}
+.s-grid tr:first-child th { width: 104px; }
+.s-grid tr:first-child th.corner { width: 46px; }
+.s-grid td { border: 1px solid var(--sheet-line); height: 21px; padding: 0 6px; white-space: nowrap; }
+.s-grid td.n { text-align: right; }
+.s-grid td.hd { font-weight: 700; background: #F3F6FB; }
+.s-grid td.active { outline: 2px solid #1A73E8; outline-offset: -2px; }
+.s-grid td.bad { background: #F4C7C3; color: #A50E0E; }
+.s-tabs { height: 38px; flex: none; display: flex; align-items: center; gap: 18px; padding: 0 16px; background: #F9FBFD; border-top: 1px solid #E1E3E1; color: #444746; }
+.sheet-tab { background: #E1E9F7; color: #0B57D0; padding: 6px 14px; border-radius: 6px; font-weight: 600; }
+.sheet-tab.off { background: none; color: #444746; font-weight: 400; }
+
+/* dropdown menus */
+.dropdown {
+  position: absolute; top: calc(100% + 2px); left: 0; z-index: 20; width: 270px;
+  background: #fff; border-radius: 6px; padding: 6px 0;
+  box-shadow: 0 2px 6px 2px rgba(60,64,67,.15), 0 1px 2px rgba(60,64,67,.3);
+}
+.dd-item { display: block; position: relative; padding: 6px 18px 6px 44px; font-size: 13.5px; color: #1f1f1f; }
+.dropdown hr { border: 0; border-top: 1px solid #E1E3E1; margin: 6px 0; }
+
+/* ---------------- guidance overlay ---------------- */
+.guide-target {
+  z-index: 15;
+  background: var(--brand-soft) !important;
+  box-shadow: 0 0 0 2px var(--brand);
+  animation: ring 1.8s ease-out infinite;
+}
+.mi.guide-target { border-radius: 6px; }
+.dd-item.guide-target { font-weight: 600; }
+@keyframes ring {
+  0% { box-shadow: 0 0 0 2px var(--brand), 0 0 0 2px var(--brand-ring); }
+  80%, 100% { box-shadow: 0 0 0 2px var(--brand), 0 0 0 12px rgba(232,89,12,0); }
+}
+.gcursor { position: absolute; left: 62%; top: 55%; width: 28px; height: 28px; z-index: 25; pointer-events: none; filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
+.gcursor::before {
+  content: ""; position: absolute; left: -9px; top: -9px; width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--brand); animation: tap 1.8s ease-out infinite;
+}
+@keyframes tap { 0% { transform: scale(.4); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+.coach {
+  position: absolute; z-index: 26; width: max-content; max-width: 220px;
+  background: var(--ink); color: #fff; font: 600 13px/1.35 var(--xp);
+  padding: 8px 12px; border-radius: 10px; box-shadow: 0 8px 20px rgba(0,0,0,.2); pointer-events: none;
+}
+.coach small { display: block; color: #FDBA74; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.coach::before { content: ""; position: absolute; width: 10px; height: 10px; background: var(--ink); transform: rotate(45deg); }
+.coach-below { top: calc(100% + 40px); left: -4px; }
+.coach-below::before { top: -5px; left: 18px; }
+.coach-below-l { top: calc(100% + 40px); right: -4px; }
+.coach-below-l::before { top: -5px; right: 18px; }
+.coach-right { left: calc(100% + 18px); top: 50%; transform: translateY(-50%); }
+.coach-right::before { left: -5px; top: calc(50% - 5px); }
+.dd-item .gcursor { left: 70%; top: 40%; }
+
+/* ---------------- sheets conditional formatting sidebar ---------------- */
+.cf { width: 300px; flex: none; background: #fff; border-left: 1px solid #DADCE0; padding: 0 0 12px; position: relative; overflow: hidden; }
+.cf-h { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px 10px; font-size: 16px; }
+.cf-x { color: #5f6368; font-size: 20px; }
+.cf-tabs { display: flex; border-bottom: 1px solid #E1E3E1; margin: 0 16px; }
+.cf-tabs span { flex: 1; text-align: center; padding: 8px 0; color: #5f6368; font-size: 13px; }
+.cf-tabs .on { color: #0B57D0; box-shadow: inset 0 -3px 0 #0B57D0; font-weight: 600; }
+.cf-sec { position: relative; margin: 14px 16px 0 38px; }
+.cf-l { font-weight: 600; font-size: 13px; margin-bottom: 7px; }
+.cf-sub { color: #444746; font-size: 12.5px; margin-bottom: 5px; }
+.cf-in { display: flex; justify-content: space-between; border: 1px solid #C4C7C5; border-radius: 4px; padding: 7px 10px; font-size: 13px; }
+.cf-in.sel { background: #F8FAFD; }
+.cf-grid { color: #5f6368; }
+.cf-style { display: flex; flex-direction: column; gap: 8px; }
+.cf-prev { background: #B7E1CD; padding: 7px 10px; border-radius: 4px; font-size: 13px; width: 100%; }
+.cf-tools { display: flex; gap: 14px; color: #444746; font-size: 13px; }
+.fill-a { text-decoration: underline 3px #F4C7C3; }
+.cf-btns { position: relative; display: flex; justify-content: flex-end; gap: 10px; margin: 18px 16px 0; }
+.cf-cancel { padding: 8px 14px; color: #0B57D0; font-weight: 600; }
+.cf-done { padding: 8px 20px; background: #0B57D0; color: #fff; border-radius: 18px; font-weight: 600; }
+.cf-add { margin: 14px 16px 0; color: #0B57D0; font-size: 13px; }
+.pin {
+  display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--brand); color: #fff; font: 800 11.5px/1 var(--xp); flex: none;
+  box-shadow: 0 0 0 3px #fff, 0 0 0 4px var(--brand-ring);
+}
+.cf-sec > .pin { position: absolute; left: -28px; top: -2px; }
+.cf-btns > .pin { position: absolute; left: 90px; top: 6px; }
+
+/* ---------------- other website (unsupported) ---------------- */
+.other-site { height: 100%; background: #FFFDF6; font-family: Georgia, serif; overflow: hidden; }
+.os-nav { display: flex; align-items: center; gap: 22px; padding: 16px 32px; background: #2E5E4E; color: #E8F3EC; font-family: var(--ui); font-size: 14px; }
+.os-nav b { font-size: 18px; margin-right: auto; font-family: Georgia, serif; }
+.os-btn { background: #F7C948; color: #2E2A1F; padding: 6px 14px; border-radius: 6px; font-weight: 600; }
+.os-hero { padding: 48px 32px 30px; }
+.os-hero h1 { margin: 0 0 8px; font-size: 32px; color: #24302B; }
+.os-hero p { margin: 0 0 18px; color: #5A665F; font-size: 16px; }
+.os-search { width: 420px; padding: 12px 16px; border: 2px solid #CFD8D3; border-radius: 8px; color: #8A958F; font-family: var(--ui); background: #fff; }
+.os-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 0 32px; font-family: var(--ui); }
+.os-cards div { background: #fff; border: 1px solid #ECE6D4; border-radius: 10px; padding: 12px; }
+.os-cards i { display: block; height: 90px; border-radius: 6px; margin-bottom: 10px; background: repeating-linear-gradient(135deg, #F3EEDD 0 10px, #FAF6EA 10px 20px); }
+.os-cards b { display: block; color: #24302B; }
+.os-cards small { color: #8A958F; }
+
+/* ---------------- chrome side panel + PrepTip UI ---------------- */
+.side { width: 368px; flex: none; display: flex; flex-direction: column; border-left: 1px solid #DADCE0; background: #fff; font-family: var(--xp); color: var(--ink); }
+.side-chrome { height: 40px; flex: none; display: flex; align-items: center; gap: 6px; padding: 0 10px 0 14px; border-bottom: 1px solid var(--line); font-family: var(--ui); font-size: 13px; color: #3c4043; }
+.sc-name { display: flex; align-items: center; gap: 7px; margin-right: auto; font-weight: 600; }
+.sc-name svg { width: 16px; height: 16px; }
+.sc-ic { width: 26px; text-align: center; color: #5f6368; font-size: 14px; }
+.xp { flex: 1; overflow-y: auto; padding: 16px 16px 20px; scrollbar-width: thin; }
+.xp > * + * { margin-top: 14px; }
+
+.site-chip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--ok-soft); }
+.site-chip .fav { width: 30px; height: 30px; border-radius: 8px; background: #fff; display: grid; place-items: center; }
+.site-chip .fav svg { width: 15px; height: 18px; }
+.site-chip b { display: block; font-size: 14.5px; }
+.site-chip small { color: var(--ok); font-weight: 700; font-size: 12px; }
+.site-chip.muted { background: #F1F3F6; }
+.site-chip.muted small { color: var(--ink-3); }
+.site-chip.muted .fav svg { width: 18px; height: 18px; color: var(--ink-3); }
+
+.search {
+  display: flex; align-items: center; gap: 9px; padding: 0 12px; height: 42px;
+  border: 1.5px solid #D3D8E0; border-radius: 12px; background: #fff; color: var(--ink-3); font-size: 14px;
+}
+label.search:hover { border-color: var(--brand); }
+.search svg { width: 17px; height: 17px; flex: none; }
+.search .ph { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search .val { color: var(--ink); font-weight: 600; flex: 1; }
+.search .clear { width: 22px; height: 22px; border-radius: 50%; background: #E9ECF1; color: var(--ink-2); display: grid; place-items: center; font-size: 15px; }
+
+.sec-h h4 { margin: 4px 0 0; font-size: 15px; font-weight: 800; }
+.sec-h small { color: var(--ink-3); font-size: 12.5px; }
+.tip-card { display: block; border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px; background: #fff; }
+.xp > .tip-card + .tip-card { margin-top: 8px; }
+.tip-card.link { border-color: #F6C3A5; background: linear-gradient(#FFFBF8, #fff); }
+.tip-card.link:hover { border-color: var(--brand); box-shadow: 0 4px 14px -4px var(--brand-ring); }
+.tc-top { display: flex; align-items: center; gap: 8px; }
+.tc-top b { font-size: 14.5px; }
+.hot { margin-left: auto; flex: none; font-size: 10.5px; font-weight: 800; color: var(--brand-dk); background: var(--brand-soft); padding: 2px 7px; border-radius: 999px; }
+.tip-card p { margin: 4px 0 8px; color: var(--ink-2); font-size: 13px; line-height: 1.4; }
+.tc-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-3); }
+.tag { background: #F1F3F6; color: var(--ink-2); padding: 2px 8px; border-radius: 6px; font-weight: 700; }
+.go { margin-left: auto; color: var(--brand); font-weight: 800; font-size: 15px; }
+.more { font-size: 13.5px; font-weight: 700; color: var(--brand-dk); text-align: center; padding: 4px; }
+
+.btn { display: inline-flex; align-items: center; justify-content: center; font-family: var(--xp); font-weight: 700; border-radius: 10px; padding: 10px 16px; font-size: 14px; border: 1.5px solid transparent; }
+.btn.sm { padding: 7px 13px; font-size: 13px; }
+.btn.full { width: 100%; }
+.btn.primary { background: var(--brand); color: #fff; }
+.btn.primary:hover { background: var(--brand-dk); }
+.btn.ghost { color: var(--ink-2); background: #F1F3F6; }
+.btn.outline { border-color: #D3D8E0; color: var(--ink); background: #fff; }
+
+/* empty / no results */
+.empty { text-align: center; padding: 10px 8px 0; }
+.empty-ic { width: 52px; height: 52px; margin: 0 auto 10px; border-radius: 16px; background: #F1F3F6; color: var(--ink-3); display: grid; place-items: center; }
+.empty-ic svg { width: 24px; height: 24px; }
+.empty h4 { margin: 0 0 4px; font-size: 16px; font-weight: 800; }
+.empty p { margin: 0; font-size: 13.5px; color: var(--ink-2); }
+.next { border: 1px solid var(--line); border-radius: 14px; padding: 4px 14px; }
+.next-row { padding: 12px 0; }
+.next-row + .next-row { border-top: 1px solid var(--line); }
+.next-row > b { display: block; font-size: 13px; margin-bottom: 8px; }
+.next-row small.muted { display: block; color: var(--ink-3); font-size: 12px; margin-top: 6px; text-align: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12.5px; font-weight: 700; padding: 5px 10px; border-radius: 999px; background: #F1F3F6; color: var(--ink-2); }
+.chip.link { background: var(--ok-soft); color: var(--ok); box-shadow: inset 0 0 0 1.5px #A7DDB9; }
+
+/* guide */
+.g-head .back { font-size: 13px; font-weight: 700; color: var(--ink-3); }
+.g-head h3 { margin: 6px 0 10px; font-size: 18px; font-weight: 800; line-height: 1.25; }
+.prog { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 800; color: var(--brand-dk); white-space: nowrap; }
+.prog .bar { flex: 1; height: 6px; border-radius: 3px; background: #F1F3F6; overflow: hidden; }
+.prog .bar i { display: block; height: 100%; background: var(--brand); border-radius: 3px; }
+.intro { background: #F6F8FB; border-radius: 12px; padding: 12px 14px; }
+.intro b { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); }
+.intro p { margin: 4px 0 0; font-size: 14px; line-height: 1.5; }
+.live { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; color: var(--ok); }
+.live i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); animation: blink 1.6s ease-in-out infinite; }
+@keyframes blink { 50% { opacity: .3; } }
+
+.steps { list-style: none; margin: 14px 0 0; padding: 0; }
+.steps li { display: flex; gap: 12px; position: relative; padding-bottom: 16px; font-size: 14px; color: var(--ink-3); }
+.steps li:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 28px; bottom: 2px; width: 2px; background: var(--line); }
+.steps .sm { width: 28px; height: 28px; border-radius: 50%; flex: none; display: grid; place-items: center; font-weight: 800; font-size: 13px; background: #F1F3F6; color: var(--ink-3); }
+.steps .sm svg { width: 15px; height: 15px; }
+.steps li > div { padding-top: 4px; line-height: 1.4; }
+.steps small { display: block; margin-top: 3px; font-size: 13px; color: var(--ink-2); }
+.steps .done { color: var(--ink-2); }
+.steps .done .sm { background: var(--ok); color: #fff; }
+.steps .done::before { background: #A7DDB9 !important; }
+.steps .now { color: var(--ink); font-weight: 600; }
+.steps .now .sm { background: var(--brand); color: #fff; box-shadow: 0 0 0 4px var(--brand-soft); }
+.steps .now > div { background: var(--brand-soft); margin: -2px 0 0; padding: 6px 10px; border-radius: 10px; flex: 1; }
+.steps .now.warn .sm { background: var(--warn); box-shadow: 0 0 0 4px var(--warn-soft); }
+.steps .now.warn > div { background: var(--warn-soft); }
+.tiny-note { font-size: 12.5px; color: var(--ink-3); background: #F6F8FB; border-radius: 10px; padding: 9px 12px; line-height: 1.45; }
+.g-foot { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 4px; }
+
+.offtrack { background: var(--warn-soft); border: 1.5px solid #F5D08A; border-radius: 14px; padding: 13px 14px; }
+.offtrack b { color: #7A3E06; font-size: 14.5px; }
+.offtrack p { margin: 4px 0 10px; font-size: 13.5px; line-height: 1.45; color: #6B4A1E; }
+
+.arrived { display: flex; gap: 10px; background: var(--ok-soft); border-radius: 12px; padding: 12px; }
+.arrived > svg { width: 22px; height: 22px; flex: none; color: #fff; background: var(--ok); border-radius: 50%; padding: 4px; }
+.arrived b { font-size: 14.5px; }
+.arrived p { margin: 2px 0 0; font-size: 13px; line-height: 1.45; color: var(--ink-2); }
+.howto { list-style: none; margin: 0; padding: 0; }
+.howto li { display: flex; gap: 12px; padding: 10px 0; }
+.howto li + li { border-top: 1px dashed var(--line); }
+.howto .pin { margin-top: 2px; }
+.howto b { font-size: 14px; }
+.howto p { margin: 2px 0 0; font-size: 13px; line-height: 1.45; color: var(--ink-2); }
+code { font-family: Consolas, monospace; font-size: 12.5px; background: #F1F3F6; padding: 1px 5px; border-radius: 4px; color: var(--ink); }
+.ideas { background: #F6F8FB; border-radius: 12px; padding: 12px 14px; }
+.ideas h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); }
+.idea { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.idea b { display: block; font-size: 13.5px; }
+.idea small { color: var(--ink-3); font-size: 12px; }
+.sw { width: 22px; height: 22px; border-radius: 6px; flex: none; }
+.sw.red { background: #F4C7C3; } .sw.yel { background: #FCE8B2; } .sw.grn { background: #B7E1CD; }
+
+/* minimized rail */
+.side.rail { width: 60px; align-items: center; padding: 14px 0; gap: 18px; background: #FBFBFC; }
+.rail-logo svg { width: 28px; height: 28px; }
+.rail-steps { display: flex; flex-direction: column; gap: 6px; }
+.rail-steps i { width: 8px; height: 8px; border-radius: 50%; }
+.rail-steps .d { background: var(--ok); }
+.rail-steps .c { background: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.rail-btn { display: flex; flex-direction: column; align-items: center; gap: 10px; color: var(--brand-dk); }
+.rail-btn span { width: 36px; height: 36px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 17px; animation: badge-pulse 2.2s ease-out infinite; }
+.rail-btn em { writing-mode: vertical-rl; font-style: normal; font-weight: 800; font-size: 13px; letter-spacing: .02em; }
+
+/* feedback */
+.win { text-align: center; padding: 6px 4px 2px; }
+.win-ic { width: 52px; height: 52px; margin: 0 auto 8px; border-radius: 50%; background: var(--ok); color: #fff; display: grid; place-items: center; box-shadow: 0 0 0 7px var(--ok-soft); }
+.win-ic svg { width: 26px; height: 26px; }
+.win h4 { margin: 6px 0 4px; font-size: 18px; font-weight: 800; }
+.win p { margin: 0; font-size: 13.5px; line-height: 1.5; color: var(--ink-2); }
+.fb { border: 1.5px solid var(--line); border-radius: 16px; padding: 16px; }
+.fb h4 { margin: 0 0 12px; font-size: 16px; font-weight: 800; text-align: center; }
+.thumbs { display: flex; gap: 10px; }
+.thumb {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px; border-radius: 12px; border: 1.5px solid #D3D8E0; font-weight: 800; font-size: 14.5px; color: var(--ink-2);
+}
+.thumb svg { width: 20px; height: 20px; }
+.thumb.down svg { transform: scaleY(-1); }
+.thumb:hover { border-color: var(--ink-3); }
+#th-up:checked ~ .fb-form .thumb.up { border-color: var(--ok); background: var(--ok-soft); color: var(--ok); }
+#th-down:checked ~ .fb-form .thumb.down { border-color: #C2410C; background: var(--brand-soft); color: var(--brand-dk); }
+.fb textarea {
+  display: block; width: 100%; margin-top: 12px; resize: none; font: 14px/1.4 var(--xp);
+  border: 1.5px solid #D3D8E0; border-radius: 12px; padding: 10px 12px; color: var(--ink);
+}
+.fb textarea:focus { outline: none; border-color: var(--brand); }
+.fb-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+.skip { font-size: 13.5px; font-weight: 700; color: var(--ink-3); text-decoration: underline; text-underline-offset: 3px; }
+.fb-thanks { display: none; gap: 10px; align-items: flex-start; }
+.fb-thanks svg { width: 22px; height: 22px; flex: none; background: var(--ok); color: #fff; border-radius: 50%; padding: 4px; }
+.fb-thanks b { font-size: 14.5px; }
+.fb-thanks p { margin: 2px 0 0; font-size: 13px; color: var(--ink-2); }
+#fb-sent:checked ~ .fb-form, #fb-skip:checked ~ .fb-form { display: none; }
+#fb-sent:checked ~ .fb-thanks.sent, #fb-skip:checked ~ .fb-thanks.skipped { display: flex; }
+
+/* ---------------- small screens ---------------- */
+@media (max-width: 760px) {
+  .proto-bar { padding: 10px 16px; }
+  .pb-title small { display: none; }
+  main { padding: 16px 16px 48px; }
+  .cap { flex-wrap: wrap; }
+  .stepper { width: 100%; }
+  .stepper .step-btn { flex: 1; text-align: center; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; }
+}
+
+#s1:checked ~ main #screen-1{display:block}
+#s1:checked ~ .proto-bar label[for="s1"]{background:var(--st-ink);color:var(--st-bg);border-color:var(--st-ink)}
+#s2:checked ~ main #screen-2{display:block}
+#s2:checked ~ .proto-bar label[for="s2"]{background:var(--st-ink);color:var(--st-bg);border-color:var(--st-ink)}
+#s2a:checked ~ main #screen-2a{display:block}
+#s2a:checked ~ .proto-bar label[for="s2a"]{background:var(--st-ink);color:var(--st-bg);border-color:var(--st-ink)}
+#s2b:checked ~ main #screen-2b{display:block}
+#s2b:checked ~ .proto-bar label[for="s2b"]{background:var(--st-ink);color:var(--st-bg);border-color:var(--st-ink)}
+#s3:checked ~ main #screen-3{display:block}
+#s3:checked ~ .proto-bar label[for="s3"]{background:var(--st-ink);color:var(--st-bg);border-color:var(--st-ink)}
+#s4:checked ~ main #screen-4{display:block}
+#s4:checked ~ .proto-bar label[for="s4"]{background:var(--st-ink);color:var(--st-bg);border-color:var(--st-ink)}
+#s4a:checked ~ main #screen-4a{display:block}
+#s4a:checked ~ .proto-bar label[for="s4a"]{background:var(--st-ink);color:var(--st-bg);border-color:var(--st-ink)}
+#s5:checked ~ main #screen-5{display:block}
+#s5:checked ~ .proto-bar label[for="s5"]{background:var(--st-ink);color:var(--st-bg);border-color:var(--st-ink)}
+#s5a:checked ~ main #screen-5a{display:block}
+#s5a:checked ~ .proto-bar label[for="s5a"]{background:var(--st-ink);color:var(--st-bg);border-color:var(--st-ink)}
+#s6:checked ~ main #screen-6{display:block}
+#s6:checked ~ .proto-bar label[for="s6"]{background:var(--st-ink);color:var(--st-bg);border-color:var(--st-ink)}
+</style>
+<input type="radio" name="mode" id="mode-click" class="vh" checked>
+<input type="radio" name="mode" id="mode-all" class="vh">
+<input type="radio" name="scr" id="s1" class="vh" checked>
+<input type="radio" name="scr" id="s2" class="vh">
+<input type="radio" name="scr" id="s2a" class="vh">
+<input type="radio" name="scr" id="s2b" class="vh">
+<input type="radio" name="scr" id="s3" class="vh">
+<input type="radio" name="scr" id="s4" class="vh">
+<input type="radio" name="scr" id="s4a" class="vh">
+<input type="radio" name="scr" id="s5" class="vh">
+<input type="radio" name="scr" id="s5a" class="vh">
+<input type="radio" name="scr" id="s6" class="vh">
+
+<header class="proto-bar">
+  <div class="pb-row">
+    <div class="pb-title"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg><div><b>PrepTip</b><small>Teacher Prep Tip Chrome extension &middot; IS 401 prototype</small></div></div>
+    <div class="mode"><label for="mode-click">Click-through</label><label for="mode-all">All screens</label></div>
+  </div>
+  <nav class="nav"><label for="s1" class="chip-nav">1 Launch</label><label for="s2" class="chip-nav">2 Top tips</label><label for="s2a" class="chip-nav x">2A No results</label><label for="s2b" class="chip-nav x">2B No tips</label><label for="s3" class="chip-nav">3 Tip intro</label><label for="s4" class="chip-nav">4 Walkthrough</label><label for="s4a" class="chip-nav x">4A Off track</label><label for="s5" class="chip-nav">5 Your turn</label><label for="s5a" class="chip-nav x">5A Minimized</label><label for="s6" class="chip-nav">6 Feedback</label></nav>
+</header>
+
+<main>
+<section class="screen" id="screen-1">
+  <div class="cap">
+    <div class="cap-num">1</div>
+    <div class="cap-txt"><h2>Teacher lands on a site and needs help</h2><p>Mrs. Nelly wants low quiz averages to stand out but doesn&rsquo;t know where to start. PrepTip stays in the toolbar: a badge shows there are tips for this site, and a one-time nudge offers to open them.</p><p class="hint"><b>Try it:</b> Click the PrepTip icon or <b>Show tips</b>.</p></div>
+    <div class="stepper"><span class="step-btn off">&larr; Back</span><label for="s2" class="step-btn primary" >Next &rarr;</label></div>
+  </div>
+  <div class="frame-scroll"><div class="browser">
+  <div class="tabstrip">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="tab"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg><span>Unit 4 Quiz Scores &ndash; Google Sheets</span><span class="tx">&times;</span></div>
+    <div class="tab-plus">+</div>
+  </div>
+  <div class="toolbar">
+    <span class="nav-btn">&larr;</span><span class="nav-btn">&rarr;</span><span class="nav-btn">&#8635;</span>
+    <div class="omni"><span class="lock">&#9679;</span>docs.google.com/spreadsheets/d/1Qz8&hellip;/edit#gid=0</div>
+    <div class="exts">
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.7 2.7 0 0 1 0 5.4H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.7 2.7 0 0 1 5.4 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></svg></span>
+      <div class="ext-wrap"><label for="s2" class="ext-btn" title="PrepTip: 6 tips for this site"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg><span class="badge">6</span></label><div class="nudge" role="status">
+          <div class="nudge-top"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg><b>PrepTip</b><span class="nudge-x">&times;</span></div>
+          <p><b>6 teacher tips</b> for Google Sheets are ready if you get stuck.</p>
+          <div class="nudge-row"><label for="s2" class="btn primary sm" >Show tips</label><span class="btn ghost sm">Not now</span></div>
+        </div></div>
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 4v16" stroke="currentColor" stroke-width="2"/></svg></span>
+      <span class="avatar">N</span>
+    </div>
+  </div>
+  <div class="viewport">
+    <div class="page"><div class="sheets">
+  <div class="s-top">
+    <span class="s-logo"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg></span>
+    <div><div class="s-title">Unit 4 Quiz Scores &ndash; Period 3 <span class="star">&#9734;</span></div>
+    <div class="s-menu"><div class="mi-wrap"><span class="mi">File</span></div><div class="mi-wrap"><span class="mi">Edit</span></div><div class="mi-wrap"><span class="mi">View</span></div><div class="mi-wrap"><span class="mi">Insert</span></div><div class="mi-wrap"><span class="mi">Format</span></div><div class="mi-wrap"><span class="mi">Data</span></div><div class="mi-wrap"><span class="mi">Tools</span></div><div class="mi-wrap"><span class="mi">Extensions</span></div><div class="mi-wrap"><span class="mi">Help</span></div></div></div>
+    <span class="s-share">Share</span>
+  </div>
+  <div class="s-tools"><span>&#8630;</span><span>&#8631;</span><span>&#9113;</span><span class="sep"></span><span>100% &#9662;</span><span class="sep"></span><span>$</span><span>%</span><span>.0</span><span>.00</span><span>123</span><span class="sep"></span><span>Arial &#9662;</span><span class="sep"></span><span>&minus;</span><span class="box">10</span><span>+</span><span class="sep"></span><b>B</b><i>I</i><s>S</s><u>A</u><span class="sep"></span><span>&#9638;</span><span>&#8801;</span></div>
+  <div class="s-fx"><span class="ref">E2</span><span class="fx">fx</span><span>=AVERAGE(B2:D2)</span></div>
+  <div class="s-body"><div class="s-grid"><table><tr><th class="corner"></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th><th>K</th></tr><tr><th>1</th><td class="hd">Student</td><td class="hd n">Quiz 1</td><td class="hd n">Quiz 2</td><td class="hd n">Quiz 3</td><td class="hd n">Average</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>2</th><td>Ava M.</td><td class="n">88</td><td class="n">92</td><td class="n">85</td><td class="n active">88</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>3</th><td>Ben T.</td><td class="n">64</td><td class="n">70</td><td class="n">58</td><td class="n">64</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>4</th><td>Chloe R.</td><td class="n">95</td><td class="n">90</td><td class="n">98</td><td class="n">94</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>5</th><td>Diego S.</td><td class="n">72</td><td class="n">68</td><td class="n">75</td><td class="n">72</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>6</th><td>Emma L.</td><td class="n">81</td><td class="n">77</td><td class="n">84</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>7</th><td>Felix K.</td><td class="n">55</td><td class="n">62</td><td class="n">60</td><td class="n">59</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>8</th><td>Grace P.</td><td class="n">90</td><td class="n">94</td><td class="n">91</td><td class="n">92</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>9</th><td>Hana W.</td><td class="n">78</td><td class="n">85</td><td class="n">80</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>10</th><td>Isaac B.</td><td class="n">66</td><td class="n">71</td><td class="n">64</td><td class="n">67</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>11</th><td>Jade N.</td><td class="n">99</td><td class="n">96</td><td class="n">100</td><td class="n">98</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>12</th><td>Leo F.</td><td class="n">83</td><td class="n">79</td><td class="n">88</td><td class="n">83</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>13</th><td>Mia D.</td><td class="n">74</td><td class="n">69</td><td class="n">71</td><td class="n">71</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>14</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>15</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>16</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>17</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>18</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>19</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>20</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>21</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>22</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>23</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table></div></div>
+  <div class="s-tabs"><span>+</span><span>&#8801;</span><span class="sheet-tab">Period 3</span><span class="sheet-tab off">Period 5</span></div>
+</div></div>
+    
+  </div>
+</div></div>
+</section><section class="screen" id="screen-2">
+  <div class="cap">
+    <div class="cap-num">2</div>
+    <div class="cap-txt"><h2>Top tips and search for this site</h2><p>The side panel opens already knowing she&rsquo;s on Google Sheets. Each how-to has a quick summary, and a search bar finds specific tasks.</p><p class="hint"><b>Try it:</b> Click <b>Color-code grades automatically</b>, or click the search bar to see a search with no results.</p></div>
+    <div class="stepper"><label for="s1" class="step-btn" >&larr; Back</label><label for="s3" class="step-btn primary" >Next &rarr;</label></div>
+  </div>
+  <div class="frame-scroll"><div class="browser">
+  <div class="tabstrip">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="tab"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg><span>Unit 4 Quiz Scores &ndash; Google Sheets</span><span class="tx">&times;</span></div>
+    <div class="tab-plus">+</div>
+  </div>
+  <div class="toolbar">
+    <span class="nav-btn">&larr;</span><span class="nav-btn">&rarr;</span><span class="nav-btn">&#8635;</span>
+    <div class="omni"><span class="lock">&#9679;</span>docs.google.com/spreadsheets/d/1Qz8&hellip;/edit#gid=0</div>
+    <div class="exts">
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.7 2.7 0 0 1 0 5.4H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.7 2.7 0 0 1 5.4 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></svg></span>
+      <div class="ext-wrap"><span class="ext-btn on" title="PrepTip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg></span></div>
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 4v16" stroke="currentColor" stroke-width="2"/></svg></span>
+      <span class="avatar">N</span>
+    </div>
+  </div>
+  <div class="viewport">
+    <div class="page"><div class="sheets">
+  <div class="s-top">
+    <span class="s-logo"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg></span>
+    <div><div class="s-title">Unit 4 Quiz Scores &ndash; Period 3 <span class="star">&#9734;</span></div>
+    <div class="s-menu"><div class="mi-wrap"><span class="mi">File</span></div><div class="mi-wrap"><span class="mi">Edit</span></div><div class="mi-wrap"><span class="mi">View</span></div><div class="mi-wrap"><span class="mi">Insert</span></div><div class="mi-wrap"><span class="mi">Format</span></div><div class="mi-wrap"><span class="mi">Data</span></div><div class="mi-wrap"><span class="mi">Tools</span></div><div class="mi-wrap"><span class="mi">Extensions</span></div><div class="mi-wrap"><span class="mi">Help</span></div></div></div>
+    <span class="s-share">Share</span>
+  </div>
+  <div class="s-tools"><span>&#8630;</span><span>&#8631;</span><span>&#9113;</span><span class="sep"></span><span>100% &#9662;</span><span class="sep"></span><span>$</span><span>%</span><span>.0</span><span>.00</span><span>123</span><span class="sep"></span><span>Arial &#9662;</span><span class="sep"></span><span>&minus;</span><span class="box">10</span><span>+</span><span class="sep"></span><b>B</b><i>I</i><s>S</s><u>A</u><span class="sep"></span><span>&#9638;</span><span>&#8801;</span></div>
+  <div class="s-fx"><span class="ref">E2</span><span class="fx">fx</span><span>=AVERAGE(B2:D2)</span></div>
+  <div class="s-body"><div class="s-grid"><table><tr><th class="corner"></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th><th>K</th></tr><tr><th>1</th><td class="hd">Student</td><td class="hd n">Quiz 1</td><td class="hd n">Quiz 2</td><td class="hd n">Quiz 3</td><td class="hd n">Average</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>2</th><td>Ava M.</td><td class="n">88</td><td class="n">92</td><td class="n">85</td><td class="n active">88</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>3</th><td>Ben T.</td><td class="n">64</td><td class="n">70</td><td class="n">58</td><td class="n">64</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>4</th><td>Chloe R.</td><td class="n">95</td><td class="n">90</td><td class="n">98</td><td class="n">94</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>5</th><td>Diego S.</td><td class="n">72</td><td class="n">68</td><td class="n">75</td><td class="n">72</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>6</th><td>Emma L.</td><td class="n">81</td><td class="n">77</td><td class="n">84</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>7</th><td>Felix K.</td><td class="n">55</td><td class="n">62</td><td class="n">60</td><td class="n">59</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>8</th><td>Grace P.</td><td class="n">90</td><td class="n">94</td><td class="n">91</td><td class="n">92</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>9</th><td>Hana W.</td><td class="n">78</td><td class="n">85</td><td class="n">80</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>10</th><td>Isaac B.</td><td class="n">66</td><td class="n">71</td><td class="n">64</td><td class="n">67</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>11</th><td>Jade N.</td><td class="n">99</td><td class="n">96</td><td class="n">100</td><td class="n">98</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>12</th><td>Leo F.</td><td class="n">83</td><td class="n">79</td><td class="n">88</td><td class="n">83</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>13</th><td>Mia D.</td><td class="n">74</td><td class="n">69</td><td class="n">71</td><td class="n">71</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>14</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>15</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>16</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>17</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>18</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>19</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>20</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>21</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>22</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>23</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table></div></div>
+  <div class="s-tabs"><span>+</span><span>&#8801;</span><span class="sheet-tab">Period 3</span><span class="sheet-tab off">Period 5</span></div>
+</div></div>
+    <aside class="side">
+  <div class="side-chrome"><span class="sc-name"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg>PrepTip &#9662;</span><span class="sc-ic">&#128204;</span><span class="sc-ic">&times;</span></div>
+  <div class="xp"><div class="site-chip"><span class="fav"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg></span><div><b>Google Sheets</b><small>6 tips for this site</small></div></div>
+  <label for="s2a" class="search" ><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="ph">Search how to&hellip; e.g. &ldquo;freeze top row&rdquo;</span></label>
+  <div class="sec-h"><h4>Top tips for Google Sheets</h4><small>What teachers get stuck on most</small></div>
+  <label for="s3" class="tip-card link" ><div class="tc-top"><b>Color-code grades automatically</b><span class='hot'>Most used</span></div><p>Turn low scores red (or high scores green) so students who need help stand out at a glance.</p><div class="tc-meta"><span class="tag">Conditional formatting</span><span>3 steps &middot; 1 min</span><span class="go">&rarr;</span></div></label>
+  <div class="tip-card"><div class="tc-top"><b>Average a row of scores</b></div><p>Get each student&rsquo;s grade with one formula instead of a calculator.</p><div class="tc-meta"><span class="tag">Formulas</span><span>2 steps &middot; 1 min</span><span class="go">&rarr;</span></div></div><div class="tip-card"><div class="tc-top"><b>Keep the header row visible</b></div><p>Freeze names and column titles so they stay put while you scroll.</p><div class="tc-meta"><span class="tag">Freeze</span><span>2 steps &middot; 30 sec</span><span class="go">&rarr;</span></div></div><div class="tip-card"><div class="tc-top"><b>Sort students A&ndash;Z safely</b></div><p>Sort the roster without scores getting mixed up with the wrong student.</p><div class="tc-meta"><span class="tag">Sort range</span><span>3 steps &middot; 1 min</span><span class="go">&rarr;</span></div></div><div class="tip-card"><div class="tc-top"><b>Share view-only with co-teachers</b></div><p>Let others see the sheet without being able to change grades.</p><div class="tc-meta"><span class="tag">Sharing</span><span>3 steps &middot; 1 min</span><span class="go">&rarr;</span></div></div>
+  <div class="more">See all 6 Sheets tips &rarr;</div></div>
+</aside>
+  </div>
+</div></div>
+</section><section class="screen" id="screen-2a">
+  <div class="cap">
+    <div class="cap-num extra">2A</div>
+    <div class="cap-txt"><h2>Search returns nothing</h2><p>Instead of a dead end, the panel suggests shorter searches, the closest tip, and a way to request a new one.</p><p class="hint"><b>Try it:</b> Click &times; in the search bar to clear it.</p></div>
+    <div class="stepper"><label for="s2" class="step-btn" >&larr; Back</label><label for="s2b" class="step-btn primary" >Next &rarr;</label></div>
+  </div>
+  <div class="frame-scroll"><div class="browser">
+  <div class="tabstrip">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="tab"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg><span>Unit 4 Quiz Scores &ndash; Google Sheets</span><span class="tx">&times;</span></div>
+    <div class="tab-plus">+</div>
+  </div>
+  <div class="toolbar">
+    <span class="nav-btn">&larr;</span><span class="nav-btn">&rarr;</span><span class="nav-btn">&#8635;</span>
+    <div class="omni"><span class="lock">&#9679;</span>docs.google.com/spreadsheets/d/1Qz8&hellip;/edit#gid=0</div>
+    <div class="exts">
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.7 2.7 0 0 1 0 5.4H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.7 2.7 0 0 1 5.4 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></svg></span>
+      <div class="ext-wrap"><span class="ext-btn on" title="PrepTip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg></span></div>
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 4v16" stroke="currentColor" stroke-width="2"/></svg></span>
+      <span class="avatar">N</span>
+    </div>
+  </div>
+  <div class="viewport">
+    <div class="page"><div class="sheets">
+  <div class="s-top">
+    <span class="s-logo"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg></span>
+    <div><div class="s-title">Unit 4 Quiz Scores &ndash; Period 3 <span class="star">&#9734;</span></div>
+    <div class="s-menu"><div class="mi-wrap"><span class="mi">File</span></div><div class="mi-wrap"><span class="mi">Edit</span></div><div class="mi-wrap"><span class="mi">View</span></div><div class="mi-wrap"><span class="mi">Insert</span></div><div class="mi-wrap"><span class="mi">Format</span></div><div class="mi-wrap"><span class="mi">Data</span></div><div class="mi-wrap"><span class="mi">Tools</span></div><div class="mi-wrap"><span class="mi">Extensions</span></div><div class="mi-wrap"><span class="mi">Help</span></div></div></div>
+    <span class="s-share">Share</span>
+  </div>
+  <div class="s-tools"><span>&#8630;</span><span>&#8631;</span><span>&#9113;</span><span class="sep"></span><span>100% &#9662;</span><span class="sep"></span><span>$</span><span>%</span><span>.0</span><span>.00</span><span>123</span><span class="sep"></span><span>Arial &#9662;</span><span class="sep"></span><span>&minus;</span><span class="box">10</span><span>+</span><span class="sep"></span><b>B</b><i>I</i><s>S</s><u>A</u><span class="sep"></span><span>&#9638;</span><span>&#8801;</span></div>
+  <div class="s-fx"><span class="ref">E2</span><span class="fx">fx</span><span>=AVERAGE(B2:D2)</span></div>
+  <div class="s-body"><div class="s-grid"><table><tr><th class="corner"></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th><th>K</th></tr><tr><th>1</th><td class="hd">Student</td><td class="hd n">Quiz 1</td><td class="hd n">Quiz 2</td><td class="hd n">Quiz 3</td><td class="hd n">Average</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>2</th><td>Ava M.</td><td class="n">88</td><td class="n">92</td><td class="n">85</td><td class="n active">88</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>3</th><td>Ben T.</td><td class="n">64</td><td class="n">70</td><td class="n">58</td><td class="n">64</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>4</th><td>Chloe R.</td><td class="n">95</td><td class="n">90</td><td class="n">98</td><td class="n">94</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>5</th><td>Diego S.</td><td class="n">72</td><td class="n">68</td><td class="n">75</td><td class="n">72</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>6</th><td>Emma L.</td><td class="n">81</td><td class="n">77</td><td class="n">84</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>7</th><td>Felix K.</td><td class="n">55</td><td class="n">62</td><td class="n">60</td><td class="n">59</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>8</th><td>Grace P.</td><td class="n">90</td><td class="n">94</td><td class="n">91</td><td class="n">92</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>9</th><td>Hana W.</td><td class="n">78</td><td class="n">85</td><td class="n">80</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>10</th><td>Isaac B.</td><td class="n">66</td><td class="n">71</td><td class="n">64</td><td class="n">67</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>11</th><td>Jade N.</td><td class="n">99</td><td class="n">96</td><td class="n">100</td><td class="n">98</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>12</th><td>Leo F.</td><td class="n">83</td><td class="n">79</td><td class="n">88</td><td class="n">83</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>13</th><td>Mia D.</td><td class="n">74</td><td class="n">69</td><td class="n">71</td><td class="n">71</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>14</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>15</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>16</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>17</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>18</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>19</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>20</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>21</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>22</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>23</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table></div></div>
+  <div class="s-tabs"><span>+</span><span>&#8801;</span><span class="sheet-tab">Period 3</span><span class="sheet-tab off">Period 5</span></div>
+</div></div>
+    <aside class="side">
+  <div class="side-chrome"><span class="sc-name"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg>PrepTip &#9662;</span><span class="sc-ic">&#128204;</span><span class="sc-ic">&times;</span></div>
+  <div class="xp"><div class="site-chip"><span class="fav"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg></span><div><b>Google Sheets</b><small>6 tips for this site</small></div></div>
+  <div class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="val">print seating chart</span><label for="s2" class="clear" title="Clear search">&times;</label></div>
+  <div class="empty">
+    <div class="empty-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></div>
+    <h4>No Sheets tips for &ldquo;print seating chart&rdquo; yet</h4>
+    <p>Here are a few ways to keep going:</p>
+  </div>
+  <div class="next">
+    <div class="next-row"><b>Try fewer words</b><div class="chips"><span class="chip">print</span><span class="chip">seating</span><span class="chip">chart</span></div></div>
+    <div class="next-row"><b>Closest tip</b><div class="tip-card"><div class="tc-top"><b>Print just part of a sheet</b></div><p>Pick exactly which cells end up on paper.</p><div class="tc-meta"><span class="tag">Printing</span><span>3 steps &middot; 1 min</span><span class="go">&rarr;</span></div></div></div>
+    <div class="next-row"><b>Still stuck?</b><span class="btn outline full">Request this tip</span><small class="muted">We&rsquo;ll let you know when a guide is added.</small></div>
+  </div></div>
+</aside>
+  </div>
+</div></div>
+</section><section class="screen" id="screen-2b">
+  <div class="cap">
+    <div class="cap-num extra">2B</div>
+    <div class="cap-txt"><h2>Unsupported website</h2><p>Per Behavioral Requirement #5: the tip list is hidden, the badge goes gray, and the panel says &ldquo;No tips available for this site&rdquo; with next steps.</p><p class="hint"><b>Try it:</b> Click the <b>Google Sheets</b> chip to return to the main flow.</p></div>
+    <div class="stepper"><label for="s2a" class="step-btn" >&larr; Back</label><label for="s3" class="step-btn primary" >Next &rarr;</label></div>
+  </div>
+  <div class="frame-scroll"><div class="browser">
+  <div class="tabstrip">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="tab"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18" fill="none" stroke="currentColor" stroke-width="1.6"/></svg><span>Free Math Printables</span><span class="tx">&times;</span></div>
+    <div class="tab-plus">+</div>
+  </div>
+  <div class="toolbar">
+    <span class="nav-btn">&larr;</span><span class="nav-btn">&rarr;</span><span class="nav-btn">&#8635;</span>
+    <div class="omni"><span class="lock">&#9679;</span>funmathworksheets.example/printables</div>
+    <div class="exts">
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.7 2.7 0 0 1 0 5.4H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.7 2.7 0 0 1 5.4 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></svg></span>
+      <div class="ext-wrap"><span class="ext-btn muted" title="PrepTip: no tips for this site"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg></span></div>
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 4v16" stroke="currentColor" stroke-width="2"/></svg></span>
+      <span class="avatar">N</span>
+    </div>
+  </div>
+  <div class="viewport">
+    <div class="page"><div class="other-site">
+  <div class="os-nav"><b>FunMath Worksheets</b><span>Grades</span><span>Topics</span><span>Printables</span><span class="os-btn">Sign in</span></div>
+  <div class="os-hero"><h1>Free 2nd&ndash;5th grade math printables</h1><p>Thousands of worksheets, sorted by standard.</p><div class="os-search">Search worksheets&hellip;</div></div>
+  <div class="os-cards"><div><i></i><b>Place value</b><small>48 worksheets</small></div><div><i></i><b>Fractions</b><small>62 worksheets</small></div><div><i></i><b>Telling time</b><small>31 worksheets</small></div><div><i></i><b>Word problems</b><small>77 worksheets</small></div></div>
+</div></div>
+    <aside class="side">
+  <div class="side-chrome"><span class="sc-name"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg>PrepTip &#9662;</span><span class="sc-ic">&#128204;</span><span class="sc-ic">&times;</span></div>
+  <div class="xp"><div class="site-chip muted"><span class="fav"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></span><div><b>funmathworksheets.example</b><small>Not supported yet</small></div></div>
+  <div class="empty">
+    <div class="empty-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M3 12h18M12 3c3 3.2 3 14.8 0 18M12 3c-3 3.2-3 14.8 0 18" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></div>
+    <h4>No tips available for this site</h4>
+    <p>We don&rsquo;t have guides for this website yet. Here&rsquo;s what you can do instead:</p>
+  </div>
+  <div class="next">
+    <div class="next-row"><b>Looking for help with another tool?</b><div class="search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m15.5 15.5 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span class="ph">Search how to&hellip; e.g. &ldquo;freeze top row&rdquo;</span></div></div>
+    <div class="next-row"><b>Sites with tips</b><div class="chips"><label for="s2" class="chip link" >Google Sheets</label><span class="chip">Google Docs</span><span class="chip">Google Slides</span><span class="chip">Canva</span><span class="chip">Canvas</span><span class="chip">YouTube</span></div></div>
+    <div class="next-row"><b>Use this site a lot?</b><span class="btn outline full">Suggest tips for this site</span></div>
+  </div></div>
+</aside>
+  </div>
+</div></div>
+</section><section class="screen" id="screen-3">
+  <div class="cap">
+    <div class="cap-num">3</div>
+    <div class="cap-txt"><h2>Tip intro and where to start</h2><p>A two-sentence explanation in the panel while the real page highlights the Format menu and a guide cursor points at it.</p><p class="hint"><b>Try it:</b> Click <b>Format</b>, or click <b>Data</b> to see what happens on a wrong turn.</p></div>
+    <div class="stepper"><label for="s2" class="step-btn" >&larr; Back</label><label for="s4" class="step-btn primary" >Next &rarr;</label></div>
+  </div>
+  <div class="frame-scroll"><div class="browser">
+  <div class="tabstrip">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="tab"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg><span>Unit 4 Quiz Scores &ndash; Google Sheets</span><span class="tx">&times;</span></div>
+    <div class="tab-plus">+</div>
+  </div>
+  <div class="toolbar">
+    <span class="nav-btn">&larr;</span><span class="nav-btn">&rarr;</span><span class="nav-btn">&#8635;</span>
+    <div class="omni"><span class="lock">&#9679;</span>docs.google.com/spreadsheets/d/1Qz8&hellip;/edit#gid=0</div>
+    <div class="exts">
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.7 2.7 0 0 1 0 5.4H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.7 2.7 0 0 1 5.4 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></svg></span>
+      <div class="ext-wrap"><span class="ext-btn on" title="PrepTip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg></span></div>
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 4v16" stroke="currentColor" stroke-width="2"/></svg></span>
+      <span class="avatar">N</span>
+    </div>
+  </div>
+  <div class="viewport">
+    <div class="page"><div class="sheets">
+  <div class="s-top">
+    <span class="s-logo"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg></span>
+    <div><div class="s-title">Unit 4 Quiz Scores &ndash; Period 3 <span class="star">&#9734;</span></div>
+    <div class="s-menu"><div class="mi-wrap"><span class="mi">File</span></div><div class="mi-wrap"><span class="mi">Edit</span></div><div class="mi-wrap"><span class="mi">View</span></div><div class="mi-wrap"><span class="mi">Insert</span></div><div class="mi-wrap"><label for="s4" class="mi guide-target" >Format<span class="gcursor" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M5 3l17 10.2-7.6 1.6 4.6 8.4-3.3 1.8-4.6-8.4L5 22z" fill="#E8590C" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg></span><span class="coach coach-below"><small>Step 1 of 3</small>Click <b>Format</b> to start</span></label></div><div class="mi-wrap"><label for="s4a" class="mi" >Data</label></div><div class="mi-wrap"><span class="mi">Tools</span></div><div class="mi-wrap"><span class="mi">Extensions</span></div><div class="mi-wrap"><span class="mi">Help</span></div></div></div>
+    <span class="s-share">Share</span>
+  </div>
+  <div class="s-tools"><span>&#8630;</span><span>&#8631;</span><span>&#9113;</span><span class="sep"></span><span>100% &#9662;</span><span class="sep"></span><span>$</span><span>%</span><span>.0</span><span>.00</span><span>123</span><span class="sep"></span><span>Arial &#9662;</span><span class="sep"></span><span>&minus;</span><span class="box">10</span><span>+</span><span class="sep"></span><b>B</b><i>I</i><s>S</s><u>A</u><span class="sep"></span><span>&#9638;</span><span>&#8801;</span></div>
+  <div class="s-fx"><span class="ref">E2</span><span class="fx">fx</span><span>=AVERAGE(B2:D2)</span></div>
+  <div class="s-body"><div class="s-grid"><table><tr><th class="corner"></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th><th>K</th></tr><tr><th>1</th><td class="hd">Student</td><td class="hd n">Quiz 1</td><td class="hd n">Quiz 2</td><td class="hd n">Quiz 3</td><td class="hd n">Average</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>2</th><td>Ava M.</td><td class="n">88</td><td class="n">92</td><td class="n">85</td><td class="n active">88</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>3</th><td>Ben T.</td><td class="n">64</td><td class="n">70</td><td class="n">58</td><td class="n">64</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>4</th><td>Chloe R.</td><td class="n">95</td><td class="n">90</td><td class="n">98</td><td class="n">94</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>5</th><td>Diego S.</td><td class="n">72</td><td class="n">68</td><td class="n">75</td><td class="n">72</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>6</th><td>Emma L.</td><td class="n">81</td><td class="n">77</td><td class="n">84</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>7</th><td>Felix K.</td><td class="n">55</td><td class="n">62</td><td class="n">60</td><td class="n">59</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>8</th><td>Grace P.</td><td class="n">90</td><td class="n">94</td><td class="n">91</td><td class="n">92</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>9</th><td>Hana W.</td><td class="n">78</td><td class="n">85</td><td class="n">80</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>10</th><td>Isaac B.</td><td class="n">66</td><td class="n">71</td><td class="n">64</td><td class="n">67</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>11</th><td>Jade N.</td><td class="n">99</td><td class="n">96</td><td class="n">100</td><td class="n">98</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>12</th><td>Leo F.</td><td class="n">83</td><td class="n">79</td><td class="n">88</td><td class="n">83</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>13</th><td>Mia D.</td><td class="n">74</td><td class="n">69</td><td class="n">71</td><td class="n">71</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>14</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>15</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>16</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>17</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>18</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>19</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>20</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>21</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>22</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>23</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table></div></div>
+  <div class="s-tabs"><span>+</span><span>&#8801;</span><span class="sheet-tab">Period 3</span><span class="sheet-tab off">Period 5</span></div>
+</div></div>
+    <aside class="side">
+  <div class="side-chrome"><span class="sc-name"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg>PrepTip &#9662;</span><span class="sc-ic">&#128204;</span><span class="sc-ic">&times;</span></div>
+  <div class="xp"><div class="g-head">
+  <label for="s2" class="back" >&larr; All Sheets tips</label>
+  <h3>Color-code grades automatically</h3>
+  <div class="prog"><div class="bar"><i style="width:33%"></i></div><span>Step 1 of 3</span></div>
+</div>
+  <div class="intro"><b>What it does</b><p>Sheets can color cells for you based on a rule, like turning every average under 70 red. When scores change, the colors update on their own.</p></div>
+  <div class="live"><i></i>Following along on your sheet</div>
+  <ol class="steps"><li class="now"><span class="sm">1</span><div>Click <b>Format</b> in the top menu<small>It&rsquo;s highlighted in orange on your sheet.</small></div></li><li class="todo"><span class="sm">2</span><div>Click <b>Conditional formatting</b></div></li><li class="todo"><span class="sm">3</span><div>Set your rule</div></li></ol>
+  <div class="g-foot"><span class="btn ghost sm">Stop guide</span></div></div>
+</aside>
+  </div>
+</div></div>
+</section><section class="screen" id="screen-4">
+  <div class="cap">
+    <div class="cap-num">4</div>
+    <div class="cap-txt"><h2>Guided walkthrough</h2><p>The guide keeps pace with her clicks: Format is checked off and Conditional formatting is now highlighted inside the open menu.</p><p class="hint"><b>Try it:</b> Click <b>Conditional formatting</b>, or click <b>Data</b> to go off track.</p></div>
+    <div class="stepper"><label for="s3" class="step-btn" >&larr; Back</label><label for="s5" class="step-btn primary" >Next &rarr;</label></div>
+  </div>
+  <div class="frame-scroll"><div class="browser">
+  <div class="tabstrip">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="tab"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg><span>Unit 4 Quiz Scores &ndash; Google Sheets</span><span class="tx">&times;</span></div>
+    <div class="tab-plus">+</div>
+  </div>
+  <div class="toolbar">
+    <span class="nav-btn">&larr;</span><span class="nav-btn">&rarr;</span><span class="nav-btn">&#8635;</span>
+    <div class="omni"><span class="lock">&#9679;</span>docs.google.com/spreadsheets/d/1Qz8&hellip;/edit#gid=0</div>
+    <div class="exts">
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.7 2.7 0 0 1 0 5.4H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.7 2.7 0 0 1 5.4 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></svg></span>
+      <div class="ext-wrap"><span class="ext-btn on" title="PrepTip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg></span></div>
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 4v16" stroke="currentColor" stroke-width="2"/></svg></span>
+      <span class="avatar">N</span>
+    </div>
+  </div>
+  <div class="viewport">
+    <div class="page"><div class="sheets">
+  <div class="s-top">
+    <span class="s-logo"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg></span>
+    <div><div class="s-title">Unit 4 Quiz Scores &ndash; Period 3 <span class="star">&#9734;</span></div>
+    <div class="s-menu"><div class="mi-wrap"><span class="mi">File</span></div><div class="mi-wrap"><span class="mi">Edit</span></div><div class="mi-wrap"><span class="mi">View</span></div><div class="mi-wrap"><span class="mi">Insert</span></div><div class="mi-wrap"><span class="mi open">Format</span><div class="dropdown"><div class="dd-item">Theme</div><div class="dd-item">Number &rsaquo;</div><div class="dd-item">Text &rsaquo;</div><div class="dd-item">Alignment &rsaquo;</div><div class="dd-item">Wrapping &rsaquo;</div><div class="dd-item">Rotation &rsaquo;</div><div class="dd-item">Font size &rsaquo;</div><div class="dd-item">Merge cells &rsaquo;</div><hr><div class="dd-item">Convert to table</div><label for="s5" class="dd-item guide-target" >Conditional formatting<span class="gcursor" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M5 3l17 10.2-7.6 1.6 4.6 8.4-3.3 1.8-4.6-8.4L5 22z" fill="#E8590C" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg></span><span class="coach coach-right"><small>Step 2 of 3</small>Now click <b>Conditional formatting</b></span></label><div class="dd-item">Alternating colors</div><hr><div class="dd-item">Clear formatting</div></div></div><div class="mi-wrap"><label for="s4a" class="mi" >Data</label></div><div class="mi-wrap"><span class="mi">Tools</span></div><div class="mi-wrap"><span class="mi">Extensions</span></div><div class="mi-wrap"><span class="mi">Help</span></div></div></div>
+    <span class="s-share">Share</span>
+  </div>
+  <div class="s-tools"><span>&#8630;</span><span>&#8631;</span><span>&#9113;</span><span class="sep"></span><span>100% &#9662;</span><span class="sep"></span><span>$</span><span>%</span><span>.0</span><span>.00</span><span>123</span><span class="sep"></span><span>Arial &#9662;</span><span class="sep"></span><span>&minus;</span><span class="box">10</span><span>+</span><span class="sep"></span><b>B</b><i>I</i><s>S</s><u>A</u><span class="sep"></span><span>&#9638;</span><span>&#8801;</span></div>
+  <div class="s-fx"><span class="ref">E2</span><span class="fx">fx</span><span>=AVERAGE(B2:D2)</span></div>
+  <div class="s-body"><div class="s-grid"><table><tr><th class="corner"></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th><th>K</th></tr><tr><th>1</th><td class="hd">Student</td><td class="hd n">Quiz 1</td><td class="hd n">Quiz 2</td><td class="hd n">Quiz 3</td><td class="hd n">Average</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>2</th><td>Ava M.</td><td class="n">88</td><td class="n">92</td><td class="n">85</td><td class="n active">88</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>3</th><td>Ben T.</td><td class="n">64</td><td class="n">70</td><td class="n">58</td><td class="n">64</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>4</th><td>Chloe R.</td><td class="n">95</td><td class="n">90</td><td class="n">98</td><td class="n">94</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>5</th><td>Diego S.</td><td class="n">72</td><td class="n">68</td><td class="n">75</td><td class="n">72</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>6</th><td>Emma L.</td><td class="n">81</td><td class="n">77</td><td class="n">84</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>7</th><td>Felix K.</td><td class="n">55</td><td class="n">62</td><td class="n">60</td><td class="n">59</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>8</th><td>Grace P.</td><td class="n">90</td><td class="n">94</td><td class="n">91</td><td class="n">92</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>9</th><td>Hana W.</td><td class="n">78</td><td class="n">85</td><td class="n">80</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>10</th><td>Isaac B.</td><td class="n">66</td><td class="n">71</td><td class="n">64</td><td class="n">67</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>11</th><td>Jade N.</td><td class="n">99</td><td class="n">96</td><td class="n">100</td><td class="n">98</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>12</th><td>Leo F.</td><td class="n">83</td><td class="n">79</td><td class="n">88</td><td class="n">83</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>13</th><td>Mia D.</td><td class="n">74</td><td class="n">69</td><td class="n">71</td><td class="n">71</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>14</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>15</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>16</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>17</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>18</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>19</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>20</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>21</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>22</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>23</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table></div></div>
+  <div class="s-tabs"><span>+</span><span>&#8801;</span><span class="sheet-tab">Period 3</span><span class="sheet-tab off">Period 5</span></div>
+</div></div>
+    <aside class="side">
+  <div class="side-chrome"><span class="sc-name"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg>PrepTip &#9662;</span><span class="sc-ic">&#128204;</span><span class="sc-ic">&times;</span></div>
+  <div class="xp"><div class="g-head">
+  <label for="s2" class="back" >&larr; All Sheets tips</label>
+  <h3>Color-code grades automatically</h3>
+  <div class="prog"><div class="bar"><i style="width:66%"></i></div><span>Step 2 of 3</span></div>
+</div>
+  <div class="live"><i></i>Following along on your sheet</div>
+  <ol class="steps"><li class="done"><span class="sm"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div>Click <b>Format</b> in the top menu</div></li><li class="now"><span class="sm">2</span><div>Click <b>Conditional formatting</b><small>It&rsquo;s near the bottom of the Format menu.</small></div></li><li class="todo"><span class="sm">3</span><div>Set your rule</div></li></ol>
+  <div class="tiny-note">Clicked something else by accident? No problem: we&rsquo;ll notice and point you back.</div>
+  <div class="g-foot"><span class="btn ghost sm">Stop guide</span></div></div>
+</aside>
+  </div>
+</div></div>
+</section><section class="screen" id="screen-4a">
+  <div class="cap">
+    <div class="cap-num extra">4A</div>
+    <div class="cap-txt"><h2>Off-track recovery</h2><p>She opened Data by mistake. PrepTip notices, explains in plain words, and highlights Format again so she isn&rsquo;t stranded.</p><p class="hint"><b>Try it:</b> Click <b>Format</b> or <b>Take me back to step 2</b>.</p></div>
+    <div class="stepper"><label for="s4" class="step-btn" >&larr; Back</label><label for="s5" class="step-btn primary" >Next &rarr;</label></div>
+  </div>
+  <div class="frame-scroll"><div class="browser">
+  <div class="tabstrip">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="tab"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg><span>Unit 4 Quiz Scores &ndash; Google Sheets</span><span class="tx">&times;</span></div>
+    <div class="tab-plus">+</div>
+  </div>
+  <div class="toolbar">
+    <span class="nav-btn">&larr;</span><span class="nav-btn">&rarr;</span><span class="nav-btn">&#8635;</span>
+    <div class="omni"><span class="lock">&#9679;</span>docs.google.com/spreadsheets/d/1Qz8&hellip;/edit#gid=0</div>
+    <div class="exts">
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.7 2.7 0 0 1 0 5.4H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.7 2.7 0 0 1 5.4 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></svg></span>
+      <div class="ext-wrap"><span class="ext-btn on" title="PrepTip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg></span></div>
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 4v16" stroke="currentColor" stroke-width="2"/></svg></span>
+      <span class="avatar">N</span>
+    </div>
+  </div>
+  <div class="viewport">
+    <div class="page"><div class="sheets">
+  <div class="s-top">
+    <span class="s-logo"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg></span>
+    <div><div class="s-title">Unit 4 Quiz Scores &ndash; Period 3 <span class="star">&#9734;</span></div>
+    <div class="s-menu"><div class="mi-wrap"><span class="mi">File</span></div><div class="mi-wrap"><span class="mi">Edit</span></div><div class="mi-wrap"><span class="mi">View</span></div><div class="mi-wrap"><span class="mi">Insert</span></div><div class="mi-wrap"><label for="s4" class="mi guide-target" >Format<span class="gcursor" aria-hidden="true"><svg viewBox="0 0 28 28"><path d="M5 3l17 10.2-7.6 1.6 4.6 8.4-3.3 1.8-4.6-8.4L5 22z" fill="#E8590C" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"/></svg></span><span class="coach coach-below-l"><small>Back on track</small>Click <b>Format</b> instead</span></label></div><div class="mi-wrap"><span class="mi open">Data</span><div class="dropdown"><div class="dd-item">Sort sheet &rsaquo;</div><div class="dd-item">Sort range &rsaquo;</div><hr><div class="dd-item">Create a filter</div><div class="dd-item">Create group by view</div><div class="dd-item">Create filter view</div><div class="dd-item">Add a slicer</div><hr><div class="dd-item">Protect sheets and ranges</div><div class="dd-item">Named ranges</div><div class="dd-item">Named functions</div><hr><div class="dd-item">Data validation</div><div class="dd-item">Data cleanup &rsaquo;</div><div class="dd-item">Split text to columns</div></div></div><div class="mi-wrap"><span class="mi">Tools</span></div><div class="mi-wrap"><span class="mi">Extensions</span></div><div class="mi-wrap"><span class="mi">Help</span></div></div></div>
+    <span class="s-share">Share</span>
+  </div>
+  <div class="s-tools"><span>&#8630;</span><span>&#8631;</span><span>&#9113;</span><span class="sep"></span><span>100% &#9662;</span><span class="sep"></span><span>$</span><span>%</span><span>.0</span><span>.00</span><span>123</span><span class="sep"></span><span>Arial &#9662;</span><span class="sep"></span><span>&minus;</span><span class="box">10</span><span>+</span><span class="sep"></span><b>B</b><i>I</i><s>S</s><u>A</u><span class="sep"></span><span>&#9638;</span><span>&#8801;</span></div>
+  <div class="s-fx"><span class="ref">E2</span><span class="fx">fx</span><span>=AVERAGE(B2:D2)</span></div>
+  <div class="s-body"><div class="s-grid"><table><tr><th class="corner"></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th><th>K</th></tr><tr><th>1</th><td class="hd">Student</td><td class="hd n">Quiz 1</td><td class="hd n">Quiz 2</td><td class="hd n">Quiz 3</td><td class="hd n">Average</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>2</th><td>Ava M.</td><td class="n">88</td><td class="n">92</td><td class="n">85</td><td class="n active">88</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>3</th><td>Ben T.</td><td class="n">64</td><td class="n">70</td><td class="n">58</td><td class="n">64</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>4</th><td>Chloe R.</td><td class="n">95</td><td class="n">90</td><td class="n">98</td><td class="n">94</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>5</th><td>Diego S.</td><td class="n">72</td><td class="n">68</td><td class="n">75</td><td class="n">72</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>6</th><td>Emma L.</td><td class="n">81</td><td class="n">77</td><td class="n">84</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>7</th><td>Felix K.</td><td class="n">55</td><td class="n">62</td><td class="n">60</td><td class="n">59</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>8</th><td>Grace P.</td><td class="n">90</td><td class="n">94</td><td class="n">91</td><td class="n">92</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>9</th><td>Hana W.</td><td class="n">78</td><td class="n">85</td><td class="n">80</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>10</th><td>Isaac B.</td><td class="n">66</td><td class="n">71</td><td class="n">64</td><td class="n">67</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>11</th><td>Jade N.</td><td class="n">99</td><td class="n">96</td><td class="n">100</td><td class="n">98</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>12</th><td>Leo F.</td><td class="n">83</td><td class="n">79</td><td class="n">88</td><td class="n">83</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>13</th><td>Mia D.</td><td class="n">74</td><td class="n">69</td><td class="n">71</td><td class="n">71</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>14</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>15</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>16</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>17</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>18</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>19</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>20</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>21</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>22</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>23</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table></div></div>
+  <div class="s-tabs"><span>+</span><span>&#8801;</span><span class="sheet-tab">Period 3</span><span class="sheet-tab off">Period 5</span></div>
+</div></div>
+    <aside class="side">
+  <div class="side-chrome"><span class="sc-name"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg>PrepTip &#9662;</span><span class="sc-ic">&#128204;</span><span class="sc-ic">&times;</span></div>
+  <div class="xp"><div class="g-head">
+  <label for="s2" class="back" >&larr; All Sheets tips</label>
+  <h3>Color-code grades automatically</h3>
+  <div class="prog"><div class="bar"><i style="width:66%"></i></div><span>Step 2 of 3</span></div>
+</div>
+  <div class="offtrack">
+    <b>That&rsquo;s the Data menu: easy mix-up!</b>
+    <p>Conditional formatting lives under <b>Format</b>, the menu just to the left. We&rsquo;ve highlighted it again.</p>
+    <label for="s4" class="btn primary sm" >Take me back to step 2</label>
+  </div>
+  <ol class="steps"><li class="done"><span class="sm"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><div>Click <b>Format</b> in the top menu</div></li><li class="now warn"><span class="sm">2</span><div>Click <b>Conditional formatting</b><small>Re-open <b>Format</b> first, then pick it from the list.</small></div></li><li class="todo"><span class="sm">3</span><div>Set your rule</div></li></ol>
+  <div class="g-foot"><span class="btn ghost sm">Stop guide</span></div></div>
+</aside>
+  </div>
+</div></div>
+</section><section class="screen" id="screen-5">
+  <div class="cap">
+    <div class="cap-num">5</div>
+    <div class="cap-txt"><h2>Finish the task with guidance</h2><p>Guidance has gone as far as it can. The panel explains each part of the Conditional format rules window (numbered pins match the screen) and gives examples.</p><p class="hint"><b>Try it:</b> Click <b>Done</b> in the Sheets panel or <b>I&rsquo;m done</b>. Click <b>Minimize</b> to get the panel out of the way.</p></div>
+    <div class="stepper"><label for="s4" class="step-btn" >&larr; Back</label><label for="s6" class="step-btn primary" >Next &rarr;</label></div>
+  </div>
+  <div class="frame-scroll"><div class="browser">
+  <div class="tabstrip">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="tab"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg><span>Unit 4 Quiz Scores &ndash; Google Sheets</span><span class="tx">&times;</span></div>
+    <div class="tab-plus">+</div>
+  </div>
+  <div class="toolbar">
+    <span class="nav-btn">&larr;</span><span class="nav-btn">&rarr;</span><span class="nav-btn">&#8635;</span>
+    <div class="omni"><span class="lock">&#9679;</span>docs.google.com/spreadsheets/d/1Qz8&hellip;/edit#gid=0</div>
+    <div class="exts">
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.7 2.7 0 0 1 0 5.4H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.7 2.7 0 0 1 5.4 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></svg></span>
+      <div class="ext-wrap"><span class="ext-btn on" title="PrepTip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg></span></div>
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 4v16" stroke="currentColor" stroke-width="2"/></svg></span>
+      <span class="avatar">N</span>
+    </div>
+  </div>
+  <div class="viewport">
+    <div class="page"><div class="sheets">
+  <div class="s-top">
+    <span class="s-logo"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg></span>
+    <div><div class="s-title">Unit 4 Quiz Scores &ndash; Period 3 <span class="star">&#9734;</span></div>
+    <div class="s-menu"><div class="mi-wrap"><span class="mi">File</span></div><div class="mi-wrap"><span class="mi">Edit</span></div><div class="mi-wrap"><span class="mi">View</span></div><div class="mi-wrap"><span class="mi">Insert</span></div><div class="mi-wrap"><span class="mi">Format</span></div><div class="mi-wrap"><span class="mi">Data</span></div><div class="mi-wrap"><span class="mi">Tools</span></div><div class="mi-wrap"><span class="mi">Extensions</span></div><div class="mi-wrap"><span class="mi">Help</span></div></div></div>
+    <span class="s-share">Share</span>
+  </div>
+  <div class="s-tools"><span>&#8630;</span><span>&#8631;</span><span>&#9113;</span><span class="sep"></span><span>100% &#9662;</span><span class="sep"></span><span>$</span><span>%</span><span>.0</span><span>.00</span><span>123</span><span class="sep"></span><span>Arial &#9662;</span><span class="sep"></span><span>&minus;</span><span class="box">10</span><span>+</span><span class="sep"></span><b>B</b><i>I</i><s>S</s><u>A</u><span class="sep"></span><span>&#9638;</span><span>&#8801;</span></div>
+  <div class="s-fx"><span class="ref">E2</span><span class="fx">fx</span><span>=AVERAGE(B2:D2)</span></div>
+  <div class="s-body"><div class="s-grid"><table><tr><th class="corner"></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th><th>K</th></tr><tr><th>1</th><td class="hd">Student</td><td class="hd n">Quiz 1</td><td class="hd n">Quiz 2</td><td class="hd n">Quiz 3</td><td class="hd n">Average</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>2</th><td>Ava M.</td><td class="n">88</td><td class="n">92</td><td class="n">85</td><td class="n active">88</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>3</th><td>Ben T.</td><td class="n">64</td><td class="n">70</td><td class="n">58</td><td class="n">64</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>4</th><td>Chloe R.</td><td class="n">95</td><td class="n">90</td><td class="n">98</td><td class="n">94</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>5</th><td>Diego S.</td><td class="n">72</td><td class="n">68</td><td class="n">75</td><td class="n">72</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>6</th><td>Emma L.</td><td class="n">81</td><td class="n">77</td><td class="n">84</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>7</th><td>Felix K.</td><td class="n">55</td><td class="n">62</td><td class="n">60</td><td class="n">59</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>8</th><td>Grace P.</td><td class="n">90</td><td class="n">94</td><td class="n">91</td><td class="n">92</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>9</th><td>Hana W.</td><td class="n">78</td><td class="n">85</td><td class="n">80</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>10</th><td>Isaac B.</td><td class="n">66</td><td class="n">71</td><td class="n">64</td><td class="n">67</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>11</th><td>Jade N.</td><td class="n">99</td><td class="n">96</td><td class="n">100</td><td class="n">98</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>12</th><td>Leo F.</td><td class="n">83</td><td class="n">79</td><td class="n">88</td><td class="n">83</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>13</th><td>Mia D.</td><td class="n">74</td><td class="n">69</td><td class="n">71</td><td class="n">71</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>14</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>15</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>16</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>17</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>18</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>19</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>20</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>21</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>22</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>23</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table></div><aside class="cf">
+      <div class="cf-h"><span>Conditional format rules</span><span class="cf-x">&times;</span></div>
+      <div class="cf-tabs"><span class="on">Single color</span><span>Color scale</span></div>
+      <div class="cf-sec"><span class="pin">1</span><div class="cf-l">Apply to range</div>
+        <div class="cf-in">E2<span class="cf-grid">&#9638;</span></div></div>
+      <div class="cf-sec"><span class="pin">2</span><div class="cf-l">Format rules</div>
+        <div class="cf-sub">Format cells if&hellip;</div><div class="cf-in sel">Is not empty<span>&#9662;</span></div></div>
+      <div class="cf-sec"><span class="pin">3</span><div class="cf-l">Formatting style</div>
+        <div class="cf-style"><span class="cf-prev">Default</span><span class="cf-tools"><b>B</b><i>I</i><u>U</u><s>S</s><span class="fill-a">A</span><span class="fill-b">&#9698;</span></span></div></div>
+      <div class="cf-btns"><span class="pin p4">4</span><span class="cf-cancel">Cancel</span><label for="s6" class="cf-done" >Done</label></div>
+      <div class="cf-add">+ Add another rule</div>
+    </aside></div>
+  <div class="s-tabs"><span>+</span><span>&#8801;</span><span class="sheet-tab">Period 3</span><span class="sheet-tab off">Period 5</span></div>
+</div></div>
+    <aside class="side">
+  <div class="side-chrome"><span class="sc-name"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg>PrepTip &#9662;</span><span class="sc-ic">&#128204;</span><span class="sc-ic">&times;</span></div>
+  <div class="xp"><div class="g-head">
+  <label for="s2" class="back" >&larr; All Sheets tips</label>
+  <h3>Color-code grades automatically</h3>
+  <div class="prog"><div class="bar"><i style="width:100%"></i></div><span>Step 3 of 3 &middot; Your turn</span></div>
+</div>
+  <div class="arrived"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><div><b>You found it!</b><p>We can&rsquo;t choose your cells for you, so here&rsquo;s how to fill in this panel. Numbers match your screen.</p></div></div>
+  <ol class="howto">
+    <li><span class="pin">1</span><div><b>Apply to range</b><p>Type the cells to color, like <code>E2:E13</code> for the Average column, or click &#9638; and drag over them.</p></div></li>
+    <li><span class="pin">2</span><div><b>Format cells if&hellip;</b><p>Pick a condition. For struggling students choose <b>Less than</b>, then type your cutoff (like <code>70</code>).</p></div></li>
+    <li><span class="pin">3</span><div><b>Formatting style</b><p>Choose a fill color. A light red works well for &ldquo;needs help.&rdquo;</p></div></li>
+    <li><span class="pin">4</span><div><b>Click Done</b><p>Your colors appear right away and update as you enter new scores.</p></div></li>
+  </ol>
+  <div class="ideas"><h4>Ideas for your class</h4>
+    <div class="idea"><span class="sw red"></span><div><b>Flag low grades</b><small>Less than &rarr; 70 &rarr; red</small></div></div>
+    <div class="idea"><span class="sw yel"></span><div><b>Spot missing work</b><small>Is empty &rarr; yellow</small></div></div>
+    <div class="idea"><span class="sw grn"></span><div><b>Celebrate top scores</b><small>Greater than or equal to &rarr; 90 &rarr; green</small></div></div>
+  </div>
+  <div class="g-foot"><label for="s6" class="btn primary sm" >I&rsquo;m done</label><label for="s5a" class="btn ghost sm" >Minimize</label><label for="s3" class="btn ghost sm" >Restart guide</label></div></div>
+</aside>
+  </div>
+</div></div>
+</section><section class="screen" id="screen-5a">
+  <div class="cap">
+    <div class="cap-num extra">5A</div>
+    <div class="cap-txt"><h2>Out of the way: show tip again</h2><p>Minimized to a slim rail so she can work in Sheets&rsquo; own panel. One click brings the instructions back if she gets confused.</p><p class="hint"><b>Try it:</b> Click <b>Show tip again</b>.</p></div>
+    <div class="stepper"><label for="s5" class="step-btn" >&larr; Back</label><label for="s6" class="step-btn primary" >Next &rarr;</label></div>
+  </div>
+  <div class="frame-scroll"><div class="browser">
+  <div class="tabstrip">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="tab"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg><span>Unit 4 Quiz Scores &ndash; Google Sheets</span><span class="tx">&times;</span></div>
+    <div class="tab-plus">+</div>
+  </div>
+  <div class="toolbar">
+    <span class="nav-btn">&larr;</span><span class="nav-btn">&rarr;</span><span class="nav-btn">&#8635;</span>
+    <div class="omni"><span class="lock">&#9679;</span>docs.google.com/spreadsheets/d/1Qz8&hellip;/edit#gid=0</div>
+    <div class="exts">
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.7 2.7 0 0 1 0 5.4H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.7 2.7 0 0 1 5.4 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></svg></span>
+      <div class="ext-wrap"><span class="ext-btn on" title="PrepTip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg></span></div>
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 4v16" stroke="currentColor" stroke-width="2"/></svg></span>
+      <span class="avatar">N</span>
+    </div>
+  </div>
+  <div class="viewport">
+    <div class="page"><div class="sheets">
+  <div class="s-top">
+    <span class="s-logo"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg></span>
+    <div><div class="s-title">Unit 4 Quiz Scores &ndash; Period 3 <span class="star">&#9734;</span></div>
+    <div class="s-menu"><div class="mi-wrap"><span class="mi">File</span></div><div class="mi-wrap"><span class="mi">Edit</span></div><div class="mi-wrap"><span class="mi">View</span></div><div class="mi-wrap"><span class="mi">Insert</span></div><div class="mi-wrap"><span class="mi">Format</span></div><div class="mi-wrap"><span class="mi">Data</span></div><div class="mi-wrap"><span class="mi">Tools</span></div><div class="mi-wrap"><span class="mi">Extensions</span></div><div class="mi-wrap"><span class="mi">Help</span></div></div></div>
+    <span class="s-share">Share</span>
+  </div>
+  <div class="s-tools"><span>&#8630;</span><span>&#8631;</span><span>&#9113;</span><span class="sep"></span><span>100% &#9662;</span><span class="sep"></span><span>$</span><span>%</span><span>.0</span><span>.00</span><span>123</span><span class="sep"></span><span>Arial &#9662;</span><span class="sep"></span><span>&minus;</span><span class="box">10</span><span>+</span><span class="sep"></span><b>B</b><i>I</i><s>S</s><u>A</u><span class="sep"></span><span>&#9638;</span><span>&#8801;</span></div>
+  <div class="s-fx"><span class="ref">E2</span><span class="fx">fx</span><span>=AVERAGE(B2:D2)</span></div>
+  <div class="s-body"><div class="s-grid"><table><tr><th class="corner"></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th><th>K</th></tr><tr><th>1</th><td class="hd">Student</td><td class="hd n">Quiz 1</td><td class="hd n">Quiz 2</td><td class="hd n">Quiz 3</td><td class="hd n">Average</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>2</th><td>Ava M.</td><td class="n">88</td><td class="n">92</td><td class="n">85</td><td class="n active">88</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>3</th><td>Ben T.</td><td class="n">64</td><td class="n">70</td><td class="n">58</td><td class="n">64</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>4</th><td>Chloe R.</td><td class="n">95</td><td class="n">90</td><td class="n">98</td><td class="n">94</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>5</th><td>Diego S.</td><td class="n">72</td><td class="n">68</td><td class="n">75</td><td class="n">72</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>6</th><td>Emma L.</td><td class="n">81</td><td class="n">77</td><td class="n">84</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>7</th><td>Felix K.</td><td class="n">55</td><td class="n">62</td><td class="n">60</td><td class="n">59</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>8</th><td>Grace P.</td><td class="n">90</td><td class="n">94</td><td class="n">91</td><td class="n">92</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>9</th><td>Hana W.</td><td class="n">78</td><td class="n">85</td><td class="n">80</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>10</th><td>Isaac B.</td><td class="n">66</td><td class="n">71</td><td class="n">64</td><td class="n">67</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>11</th><td>Jade N.</td><td class="n">99</td><td class="n">96</td><td class="n">100</td><td class="n">98</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>12</th><td>Leo F.</td><td class="n">83</td><td class="n">79</td><td class="n">88</td><td class="n">83</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>13</th><td>Mia D.</td><td class="n">74</td><td class="n">69</td><td class="n">71</td><td class="n">71</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>14</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>15</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>16</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>17</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>18</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>19</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>20</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>21</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>22</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>23</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table></div><aside class="cf">
+      <div class="cf-h"><span>Conditional format rules</span><span class="cf-x">&times;</span></div>
+      <div class="cf-tabs"><span class="on">Single color</span><span>Color scale</span></div>
+      <div class="cf-sec"><span class="pin">1</span><div class="cf-l">Apply to range</div>
+        <div class="cf-in">E2<span class="cf-grid">&#9638;</span></div></div>
+      <div class="cf-sec"><span class="pin">2</span><div class="cf-l">Format rules</div>
+        <div class="cf-sub">Format cells if&hellip;</div><div class="cf-in sel">Is not empty<span>&#9662;</span></div></div>
+      <div class="cf-sec"><span class="pin">3</span><div class="cf-l">Formatting style</div>
+        <div class="cf-style"><span class="cf-prev">Default</span><span class="cf-tools"><b>B</b><i>I</i><u>U</u><s>S</s><span class="fill-a">A</span><span class="fill-b">&#9698;</span></span></div></div>
+      <div class="cf-btns"><span class="pin p4">4</span><span class="cf-cancel">Cancel</span><label for="s6" class="cf-done" >Done</label></div>
+      <div class="cf-add">+ Add another rule</div>
+    </aside></div>
+  <div class="s-tabs"><span>+</span><span>&#8801;</span><span class="sheet-tab">Period 3</span><span class="sheet-tab off">Period 5</span></div>
+</div></div>
+    <aside class="side rail">
+      <div class="rail-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg></div>
+      <div class="rail-steps"><i class="d"></i><i class="d"></i><i class="c"></i></div>
+      <label for="s5" class="rail-btn" ><span>?</span><em>Show tip again</em></label>
+    </aside>
+  </div>
+</div></div>
+</section><section class="screen" id="screen-6">
+  <div class="cap">
+    <div class="cap-num">6</div>
+    <div class="cap-txt"><h2>Was this helpful?</h2><p>The formatting is applied and the result is visible. Feedback takes one tap, has an optional comment box, and is skippable.</p><p class="hint"><b>Try it:</b> Pick a thumb, then <b>Submit</b> or <b>Skip</b>.</p></div>
+    <div class="stepper"><label for="s5" class="step-btn" >&larr; Back</label><span class="step-btn off">Next &rarr;</span></div>
+  </div>
+  <div class="frame-scroll"><div class="browser">
+  <div class="tabstrip">
+    <div class="dots"><i></i><i></i><i></i></div>
+    <div class="tab"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg><span>Unit 4 Quiz Scores &ndash; Google Sheets</span><span class="tx">&times;</span></div>
+    <div class="tab-plus">+</div>
+  </div>
+  <div class="toolbar">
+    <span class="nav-btn">&larr;</span><span class="nav-btn">&rarr;</span><span class="nav-btn">&#8635;</span>
+    <div class="omni"><span class="lock">&#9679;</span>docs.google.com/spreadsheets/d/1Qz8&hellip;/edit#gid=0</div>
+    <div class="exts">
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.5 11H19V7a2 2 0 0 0-2-2h-4V3.5a2.5 2.5 0 0 0-5 0V5H4a2 2 0 0 0-2 2v3.8h1.5a2.7 2.7 0 0 1 0 5.4H2V20a2 2 0 0 0 2 2h3.8v-1.5a2.7 2.7 0 0 1 5.4 0V22H17a2 2 0 0 0 2-2v-4h1.5a2.5 2.5 0 0 0 0-5z"/></svg></span>
+      <div class="ext-wrap"><span class="ext-btn on" title="PrepTip"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg></span></div>
+      <span class="ext-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M14 4v16" stroke="currentColor" stroke-width="2"/></svg></span>
+      <span class="avatar">N</span>
+    </div>
+  </div>
+  <div class="viewport">
+    <div class="page"><div class="sheets">
+  <div class="s-top">
+    <span class="s-logo"><svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="#0F9D58"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="#87CEAC"/><path d="M3.5 9h9v7h-9zM3.5 11.3h9M3.5 13.6h9M7 9v7" fill="none" stroke="#fff" stroke-width="1.1"/></svg></span>
+    <div><div class="s-title">Unit 4 Quiz Scores &ndash; Period 3 <span class="star">&#9734;</span></div>
+    <div class="s-menu"><div class="mi-wrap"><span class="mi">File</span></div><div class="mi-wrap"><span class="mi">Edit</span></div><div class="mi-wrap"><span class="mi">View</span></div><div class="mi-wrap"><span class="mi">Insert</span></div><div class="mi-wrap"><span class="mi">Format</span></div><div class="mi-wrap"><span class="mi">Data</span></div><div class="mi-wrap"><span class="mi">Tools</span></div><div class="mi-wrap"><span class="mi">Extensions</span></div><div class="mi-wrap"><span class="mi">Help</span></div></div></div>
+    <span class="s-share">Share</span>
+  </div>
+  <div class="s-tools"><span>&#8630;</span><span>&#8631;</span><span>&#9113;</span><span class="sep"></span><span>100% &#9662;</span><span class="sep"></span><span>$</span><span>%</span><span>.0</span><span>.00</span><span>123</span><span class="sep"></span><span>Arial &#9662;</span><span class="sep"></span><span>&minus;</span><span class="box">10</span><span>+</span><span class="sep"></span><b>B</b><i>I</i><s>S</s><u>A</u><span class="sep"></span><span>&#9638;</span><span>&#8801;</span></div>
+  <div class="s-fx"><span class="ref">E2</span><span class="fx">fx</span><span>=AVERAGE(B2:D2)</span></div>
+  <div class="s-body"><div class="s-grid"><table><tr><th class="corner"></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th><th>I</th><th>J</th><th>K</th></tr><tr><th>1</th><td class="hd">Student</td><td class="hd n">Quiz 1</td><td class="hd n">Quiz 2</td><td class="hd n">Quiz 3</td><td class="hd n">Average</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>2</th><td>Ava M.</td><td class="n">88</td><td class="n">92</td><td class="n">85</td><td class="n active">88</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>3</th><td>Ben T.</td><td class="n">64</td><td class="n">70</td><td class="n">58</td><td class="n bad">64</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>4</th><td>Chloe R.</td><td class="n">95</td><td class="n">90</td><td class="n">98</td><td class="n">94</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>5</th><td>Diego S.</td><td class="n">72</td><td class="n">68</td><td class="n">75</td><td class="n">72</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>6</th><td>Emma L.</td><td class="n">81</td><td class="n">77</td><td class="n">84</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>7</th><td>Felix K.</td><td class="n">55</td><td class="n">62</td><td class="n">60</td><td class="n bad">59</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>8</th><td>Grace P.</td><td class="n">90</td><td class="n">94</td><td class="n">91</td><td class="n">92</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>9</th><td>Hana W.</td><td class="n">78</td><td class="n">85</td><td class="n">80</td><td class="n">81</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>10</th><td>Isaac B.</td><td class="n">66</td><td class="n">71</td><td class="n">64</td><td class="n bad">67</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>11</th><td>Jade N.</td><td class="n">99</td><td class="n">96</td><td class="n">100</td><td class="n">98</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>12</th><td>Leo F.</td><td class="n">83</td><td class="n">79</td><td class="n">88</td><td class="n">83</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>13</th><td>Mia D.</td><td class="n">74</td><td class="n">69</td><td class="n">71</td><td class="n">71</td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>14</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>15</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>16</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>17</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>18</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>19</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>20</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>21</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>22</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr><tr><th>23</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table></div></div>
+  <div class="s-tabs"><span>+</span><span>&#8801;</span><span class="sheet-tab">Period 3</span><span class="sheet-tab off">Period 5</span></div>
+</div></div>
+    <aside class="side">
+  <div class="side-chrome"><span class="sc-name"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="6" fill="#E8590C"/><path d="M12 4.6a5.4 5.4 0 0 0-3.2 9.75c.5.37.8.93.8 1.55v.6h4.8v-.6c0-.62.3-1.18.8-1.55A5.4 5.4 0 0 0 12 4.6Z" fill="#fff"/><rect x="9.6" y="17.4" width="4.8" height="1.6" rx=".8" fill="#fff"/><path d="M12 8.2v3.4M10.6 10.4h2.8" stroke="#E8590C" stroke-width="1.3" stroke-linecap="round"/></svg>PrepTip &#9662;</span><span class="sc-ic">&#128204;</span><span class="sc-ic">&times;</span></div>
+  <div class="xp"><div class="g-head"><label for="s2" class="back" >&larr; All Sheets tips</label><h3>Color-code grades automatically</h3>
+    <div class="prog"><div class="bar"><i style="width:100%"></i></div><span>Complete</span></div></div>
+  <div class="win"><span class="win-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><h4>Nice work!</h4><p>Your rule is on: <b>3 averages under 70</b> are now red, and they&rsquo;ll update as you enter new scores.</p></div>
+  <div class="fb">
+    <input type="checkbox" id="fb-sent" class="vh"><input type="checkbox" id="fb-skip" class="vh">
+    <input type="radio" name="thumb" id="th-up" class="vh"><input type="radio" name="thumb" id="th-down" class="vh">
+    <div class="fb-form">
+      <h4>Were these instructions helpful?</h4>
+      <div class="thumbs"><label for="th-up" class="thumb up"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>Yes</label><label for="th-down" class="thumb down"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>No</label></div>
+      <textarea id="fb-comment" rows="3" placeholder="What would make this tip better? (optional)"></textarea>
+      <div class="fb-actions"><label for="fb-sent" class="btn primary sm">Submit</label><label for="fb-skip" class="skip">Skip</label></div>
+    </div>
+    <div class="fb-thanks sent"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><div><b>Thanks for the feedback!</b><p>It helps us improve tips for every teacher.</p></div></div>
+    <div class="fb-thanks skipped"><div><b>No problem.</b><p>Get back to your lesson. We&rsquo;ll be here next time.</p></div></div>
+  </div>
+  <div class="more"><label for="s2" class="" >Browse more Sheets tips &rarr;</label></div></div>
+</aside>
+  </div>
+</div></div>
+</section>
+</main>
+</body></html>
