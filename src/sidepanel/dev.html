@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PrepTip panel (dev)</title>
+  <!-- DEV ONLY: the real panel plus a fake chrome.* API. Serve the repo root, e.g.
+       npx http-server -p 5517 -c-1, then open /src/sidepanel/dev.html?reset=1
+       Params: ?url=...  ?reset=1  ?teacher=1  ?fail=1  ?inject=1. Console helpers: see dev-chrome-stub.js. -->
+  <link rel="stylesheet" href="sidepanel.css">
+  <style>
+    /* Make a wide browser window look like the ~380px side panel. */
+    @media (min-width: 520px) {
+      html { background: #EDEFF3; }
+      body { max-width: 380px; margin: 0 auto; box-shadow: 0 0 0 1px #DADCE0, 0 10px 40px rgba(30, 36, 51, .12); }
+    }
+  </style>
+  <script src="dev-chrome-stub.js"></script>
+  <script type="module" src="sidepanel.js"></script>
+</head>
+<body>
+  <header id="header" class="bar"></header>
+  <div id="notice"></div>
+  <main id="view" class="xp stack"></main>
+  <footer id="footer" class="foot"></footer>
+</body>
+</html>

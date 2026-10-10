@@ -17,7 +17,9 @@ async function rest(path, { method = 'GET', body, prefer } = {}) {
     try { detail = (await res.json()).message || ''; } catch { /* empty body */ }
     throw new Error(`Supabase ${method} ${path.split('?')[0]} failed (${res.status}) ${detail}`.trim());
   }
-  return res.status === 204 ? null : res.json();
+  // Inserts with `Prefer: return=minimal` answer 201 with an empty body.
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
 // Websites plus every tip with its ordered steps. The catalog is small, so we fetch it whole.
