@@ -23,7 +23,14 @@ function minutes(tip) {
   return n > 0 ? `~${n} min` : '';
 }
 
-function tipCard(tip, { featured = false, site = null } = {}) {
+// Shows "N teachers found this helpful" from the feedback table (state.ratings, see loadRatings in sidepanel.js).
+function helpfulLine(rating) {
+  const n = rating?.helpful || 0;
+  if (!n) return "";
+  return `<span class="tc-rating">${THUMB}${n === 1 ? "1 teacher" : `${n} teachers`} found this helpful</span>`;
+}
+
+function tipCard(state, tip, { featured = false, site = null } = {}) {
   const steps = tip.tip_steps?.length || 0;
   const mins = minutes(tip);
   return `
@@ -36,6 +43,7 @@ function tipCard(tip, { featured = false, site = null } = {}) {
         <span class="feat">${esc(tip.feature_name)}</span>
         <span class="go" aria-hidden="true">&rarr;</span>
       </span>
+      ${helpfulLine(state.ratings?.[tip.tip_id])}
     </button>`;
 }
 
@@ -224,7 +232,7 @@ export function resultsHtml(state, ctx) {
   if (!supported) return q ? anywhereResults(state, q) : '';
   if (!q) {
     return sectionHead(`Top tips for ${esc(ctx.site.name)}`, 'What teachers get stuck on most') +
-      `<div class="cards">${ctx.tips.map((t, i) => tipCard(t, { featured: i === 0 })).join('')}</div>`;
+      `<div class="cards">${ctx.tips.map((t, i) => tipCard(state, t, { featured: i === 0 })).join('')}</div>`;
   }
   return siteResults(state, ctx, q);
 }
@@ -240,13 +248,13 @@ function siteResults(state, ctx, q) {
 
   if (here.length) {
     html += sectionHead(`${here.length === 1 ? '1 match' : `${here.length} matches`} on ${short}`);
-    html += `<div class="cards">${here.map((t) => tipCard(t)).join('')}</div>`;
+    html += `<div class="cards">${here.map((t) => tipCard(state, t)).join('')}</div>`;
   } else {
     html += `<p class="tiny-note">No ${short} tips for &ldquo;${esc(q)}&rdquo; yet, but other sites have some.</p>`;
   }
   if (elsewhere.length) {
     html += sectionHead('On other sites');
-    html += `<div class="cards">${elsewhere.map((t) => tipCard(t, { site: siteName(state, t.url_pattern) })).join('')}</div>`;
+    html += `<div class="cards">${elsewhere.map((t) => tipCard(state, t, { site: siteName(state, t.url_pattern) })).join('')}</div>`;
   }
   html += `<div class="next"><div class="next-row"><b>Not quite it?</b>${requestBlock(state, 'Request a tip')}</div></div>`;
   return html;
@@ -273,7 +281,7 @@ function noResults(state, ctx, q) {
 function anywhereResults(state, q) {
   const all = searchTips(state.catalog.tips, q);
   if (!all.length) return `<p class="tiny-note">No tips match &ldquo;${esc(q)}&rdquo;. Try fewer words, or request a tip below.</p>`;
-  return `<div class="cards">${all.map((t) => tipCard(t, { site: siteName(state, t.url_pattern) })).join('')}</div>`;
+  return `<div class="cards">${all.map((t) => tipCard(state, t, { site: siteName(state, t.url_pattern) })).join('')}</div>`;
 }
 
 // ---------- unsupported site (R5, mockup 2B) ----------

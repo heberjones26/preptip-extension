@@ -41,7 +41,7 @@ tips: [{
 `menu`, `button`, `link`, `search`, `dialog`, `panel`, `print`, `grid`, `cell`, `formula_bar`, `slide`, `editor`, `player`.
 Examples: `menu:Format > Conditional formatting`, `menu:View > Freeze > 1 row`, `button:Share`, `panel:Conditional format rules`.
 
-RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), and call `rpc/register_teacher`. It cannot read feedback or users.
+RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), call `rpc/register_teacher`, and call `rpc/tip_ratings` (per-tip helpful/total counts, used for "N teachers found this helpful" and never cached). It cannot read feedback rows or users.
 
 ## Messages
 

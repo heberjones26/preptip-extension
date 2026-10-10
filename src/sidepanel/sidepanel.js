@@ -1,7 +1,7 @@
 // PrepTip side panel: state, chrome events, and click handling.
 // Rendering lives in views.js; talking to the on-page guide lives in guide-bridge.js.
 import { MSG, STORAGE } from '../lib/protocol.js';
-import { getCatalog, registerTeacher, submitFeedback, requestTip } from '../lib/supabase.js';
+import { getCatalog, getTipRatings, registerTeacher, submitFeedback, requestTip } from '../lib/supabase.js';
 import { matchSite, tipsForSite } from '../lib/sites.js';
 import * as views from './views.js';
 import * as bridge from './guide-bridge.js';
@@ -16,6 +16,7 @@ const state = {
   teacher: null,            // { userId, firstName, lastName, email }
   setup: newSetup(),
   catalog: null,
+  ratings: {},              // { [tip_id]: { helpful, total } } read live from feedback
   retrying: false,
   windowId: null,
   tab: null,                // { id, url } of the active tab in this window
@@ -106,12 +107,14 @@ async function init() {
 }
 
 async function loadCatalog({ force = false } = {}) {
+  const ratings = loadRatings();
   try {
     state.catalog = await getCatalog({ force });
   } catch (err) {
     console.warn('PrepTip: could not load tips', err);
     state.catalog = null;
   }
+  await ratings;
   state.retrying = false;
   updateSite();
 
@@ -121,6 +124,15 @@ async function loadCatalog({ force = false } = {}) {
     return render();
   }
   await showHome();
+}
+
+// Helpful counts are nice-to-have: if they fail to load, cards just don't show them.
+async function loadRatings() {
+  try {
+    state.ratings = await getTipRatings();
+  } catch (err) {
+    console.warn('PrepTip: could not load helpful counts', err);
+  }
 }
 
 // Home = resume a saved guide for this tab, or show the tips list.
@@ -457,6 +469,7 @@ async function sendFeedback() {
       text: text || null
     });
     f.phase = 'sent';
+    loadRatings(); // so "Back to tips" already shows the new count
   } catch (err) {
     console.warn('PrepTip: feedback failed', err);
     f.phase = 'form';

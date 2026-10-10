@@ -48,6 +48,13 @@ export async function getCatalog({ force = false } = {}) {
   }
 }
 
+// { [tip_id]: { helpful, total } } from the feedback table. Never cached, so a new
+// thumbs-up shows the next time the panel loads.
+export async function getTipRatings() {
+  const rows = await rest('rpc/tip_ratings');
+  return Object.fromEntries(rows.map((r) => [r.tip_id, { helpful: r.helpful_count, total: r.rating_count }]));
+}
+
 // Finds or creates the teacher by email and returns their user_id.
 export function registerTeacher({ firstName, lastName, email }) {
   return rest('rpc/register_teacher', {
