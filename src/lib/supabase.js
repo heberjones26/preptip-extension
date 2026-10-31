@@ -2,11 +2,10 @@
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, CATALOG_TTL_MS } from '../config.js';
 import { STORAGE } from './protocol.js';
 
-// `token` is a signed-in teacher's Auth access token; without it requests run as the public (anon) role.
-async function rest(path, { method = 'GET', body, prefer, token } = {}) {
+// Errors carry the HTTP status and Postgres error code (e.g. '23505' when a username is taken).
+async function rest(path, { method = 'GET', body, prefer } = {}) {
   const headers = { apikey: SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' };
   if (prefer) headers.Prefer = prefer;
-  if (token) headers.Authorization = `Bearer ${token}`;
 
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     method,
@@ -15,9 +14,12 @@ async function rest(path, { method = 'GET', body, prefer, token } = {}) {
   });
 
   if (!res.ok) {
-    let detail = '';
-    try { detail = (await res.json()).message || ''; } catch { /* empty body */ }
-    throw new Error(`Supabase ${method} ${path.split('?')[0]} failed (${res.status}) ${detail}`.trim());
+    let info = {};
+    try { info = (await res.json()) || {}; } catch { /* empty body */ }
+    const err = new Error(`Supabase ${method} ${path.split('?')[0]} failed (${res.status}) ${info.message || ''}`.trim());
+    err.status = res.status;
+    err.code = info.code || null;
+    throw err;
   }
   // Inserts with `Prefer: return=minimal` answer 201 with an empty body.
   const text = await res.text();
@@ -57,62 +59,30 @@ export async function getTipRatings() {
   return Object.fromEntries(rows.map((r) => [r.tip_id, { helpful: r.helpful_count, total: r.rating_count }]));
 }
 
-// ---------- Sign-in: Supabase Auth email codes (OTP) ----------
+// ---------- Accounts: a unique username and a password ----------
+// The database hashes the password; it never stores or returns it.
 
-// Errors carry Auth's HTTP status and error code (e.g. 429 'over_email_send_rate_limit', 403 'otp_expired').
-async function authCall(path, { body, token } = {}) {
-  const headers = { apikey: SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' };
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/${path}`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body || {})
-  });
-
-  const text = await res.text();
-  let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
-  if (!res.ok) {
-    const err = new Error(`Supabase Auth ${path} failed (${res.status}) ${data?.msg || data?.error_description || ''}`.trim());
-    err.status = res.status;
-    err.code = data?.error_code || data?.code || data?.error || null;
-    throw err;
-  }
-  return data;
-}
-
-// True when a PrepTip account already uses this email. Lets setup warn before sending a code.
-export async function emailHasAccount(email) {
-  return (await rest('rpc/teacher_email_exists', { method: 'POST', body: { p_email: email } })) === true;
-}
-
-// Emails the teacher a 6-digit code. Nothing is created in PrepTip until the code is verified.
-export function sendSignInCode(email) {
-  return authCall('otp', { body: { email, create_user: true } });
-}
-
-// Checks the code and returns the Auth session ({ access_token, ... }).
-export function verifySignInCode(email, code) {
-  return authCall('verify', { body: { type: 'email', email, token: code } });
-}
-
-// With a verified session: returns the teacher's existing account, or creates one with this name.
-// -> { userId, firstName, lastName, email, isNew }
-export async function signInTeacher(accessToken, { firstName, lastName }) {
-  const rows = await rest('rpc/sign_in_teacher', {
-    method: 'POST',
-    token: accessToken,
-    body: { p_first_name: firstName || null, p_last_name: lastName || null }
-  });
+function toAccount(rows) {
   const row = Array.isArray(rows) ? rows[0] : rows;
-  if (!row?.user_id) throw new Error('No account returned');
-  return { userId: row.user_id, firstName: row.first_name || '', lastName: row.last_name || '', email: row.email, isNew: !!row.is_new };
+  return row?.user_id ? { userId: row.user_id, username: row.username } : null;
 }
 
-// The Auth session is only used to prove the email, so it's ended right after sign-in.
-export function endAuthSession(accessToken) {
-  return authCall('logout', { token: accessToken }).catch(() => {});
+// -> { userId, username }. Throws with code '23505' when the username is taken.
+export async function createAccount({ username, password }) {
+  const account = toAccount(await rest('rpc/create_teacher_account', {
+    method: 'POST',
+    body: { p_username: username, p_password: password }
+  }));
+  if (!account) throw new Error('No account returned');
+  return account;
+}
+
+// -> { userId, username }, or null when the username or password is wrong.
+export async function signIn({ username, password }) {
+  return toAccount(await rest('rpc/sign_in_teacher', {
+    method: 'POST',
+    body: { p_username: username, p_password: password }
+  }));
 }
 
 export function submitFeedback({ userId, tipId, isHelpful = null, text = null }) {

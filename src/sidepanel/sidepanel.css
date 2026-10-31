@@ -227,7 +227,6 @@ button.chip.link:hover { background: #DCF2E4; }
   background: #FEF2F2; color: #B42318; font-size: 13px; font-weight: 600;
 }
 .form .alt { text-align: center; font-size: 13px; color: var(--ink-3); }
-.field input.code-input { font-size: 20px; font-weight: 800; letter-spacing: .3em; text-align: center; }
 .form .offtrack .btn { width: 100%; }
 
 .thanks { display: flex; gap: 10px; align-items: flex-start; }
