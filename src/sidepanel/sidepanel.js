@@ -1,7 +1,10 @@
 // PrepTip side panel: state, chrome events, and click handling.
 // Rendering lives in views.js; talking to the on-page guide lives in guide-bridge.js.
 import { MSG, STORAGE } from '../lib/protocol.js';
-import { getCatalog, getTipRatings, registerTeacher, submitFeedback, requestTip } from '../lib/supabase.js';
+import {
+  getCatalog, getTipRatings, submitFeedback, requestTip,
+  emailHasAccount, sendSignInCode, verifySignInCode, signInTeacher, endAuthSession
+} from '../lib/supabase.js';
 import { matchSite, tipsForSite } from '../lib/sites.js';
 import * as views from './views.js';
 import * as bridge from './guide-bridge.js';
@@ -30,12 +33,17 @@ const state = {
   feedback: null            // { tip, isHelpful, reasons, text, phase, error }
 };
 
-function newSetup(teacher) {
+// Setup screens: 0 welcome, 1 pin, 2 name + email, 3 enter the emailed code, 4 done.
+function newSetup({ step = 0, mode = 'signup' } = {}) {
   return {
-    step: 0,
-    first: teacher?.firstName || '',
-    last: teacher?.lastName || '',
-    email: teacher?.email || '',
+    step,
+    mode,                   // 'signup' (name + email) | 'signin' (email only)
+    first: '',
+    last: '',
+    email: '',
+    code: '',
+    notice: null,           // 'exists' | 'missing' on the form, 'resent' on the code screen
+    welcomeBack: false,     // the verified email already had an account
     saving: false,
     error: ''
   };
@@ -365,26 +373,52 @@ function onGuideMessage(msg, sender) {
 }
 
 // ---------------------------------------------------------------------------
-// Setup (R2)
+// Setup and sign-in (R2). Nothing is created until the teacher types the code we email them.
 // ---------------------------------------------------------------------------
-function startSetup() {
+
+// Forget the teacher on this browser and go straight to the sign-in form.
+async function signOut() {
   if (state.guide) {
     bridge.clearGuide(state.guide.tabId);
     forgetGuide(state.guide.tabId);
     state.guide = null;
   }
-  state.setup = newSetup(state.teacher);
+  state.feedback = null;
+  resetListState();
+  state.teacher = null;
+  state.setupDone = false;
+  await chrome.storage.local.remove([STORAGE.TEACHER, STORAGE.SETUP_DONE]);
+  state.setup = newSetup({ step: 2, mode: 'signin' });
   state.view = 'setup';
   render();
 }
 
-async function saveTeacher(form) {
+function setSetupMode(mode) {
   const s = state.setup;
-  s.first = form.first.value.trim();
-  s.last = form.last.value.trim();
-  s.email = form.email.value.trim().toLowerCase();
+  const form = $('#setup-form');
+  // Keep whatever was typed; the re-render rebuilds the form from state.
+  if (form?.first) s.first = form.first.value.trim();
+  if (form?.last) s.last = form.last.value.trim();
+  if (form?.email) s.email = form.email.value.trim();
+  s.mode = mode;
+  s.notice = null;
+  s.error = '';
+  render();
+}
 
-  if (!s.first) s.error = 'Please add your first name.';
+function offlineOr(message) {
+  return navigator.onLine === false ? 'You seem to be offline. Check your connection and try again.' : message;
+}
+
+// Name + email form: make sure the email fits the mode, then email a code.
+async function submitDetails(form) {
+  const s = state.setup;
+  if (form.first) s.first = form.first.value.trim();
+  if (form.last) s.last = form.last.value.trim();
+  s.email = form.email.value.trim().toLowerCase();
+  s.notice = null;
+
+  if (s.mode === 'signup' && !s.first) s.error = 'Please add your first name.';
   else if (!isValidEmail(s.email)) s.error = 'That email doesn’t look quite right. Try something like name@school.edu.';
   else s.error = '';
   if (s.error) return render();
@@ -392,32 +426,86 @@ async function saveTeacher(form) {
   s.saving = true;
   render();
   try {
-    const userId = toUserId(await registerTeacher({ firstName: s.first, lastName: s.last, email: s.email }));
-    if (userId == null) throw new Error('No user id returned');
-    state.teacher = { userId, firstName: s.first, lastName: s.last, email: s.email };
-    state.setupDone = true;
-    await chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher, [STORAGE.SETUP_DONE]: true });
-    s.step = 3;
+    // One account per email: don't start a second one, and don't sign in to one that isn't there.
+    const exists = await emailHasAccount(s.email);
+    if (s.mode === 'signup' && exists) s.notice = 'exists';
+    else if (s.mode === 'signin' && !exists) s.notice = 'missing';
+    else await requestCode();
   } catch (err) {
-    console.warn('PrepTip: register failed', err);
-    s.error = navigator.onLine === false
-      ? 'You seem to be offline. Check your connection and try again.'
-      : 'We couldn’t save that right now. Please try again in a moment.';
+    console.warn('PrepTip: could not start sign-in', err);
+    s.error = offlineOr(codeSendError(err));
   }
   s.saving = false;
   render();
 }
 
-// rpc/register_teacher returns a bare number, but accept { user_id } or [n] too.
-function toUserId(res) {
-  if (typeof res === 'number' || typeof res === 'string') return res;
-  if (Array.isArray(res)) return toUserId(res[0]);
-  if (res && typeof res === 'object') return res.user_id ?? res.register_teacher ?? null;
-  return null;
+// Throws on failure; callers turn that into a message.
+async function requestCode() {
+  const s = state.setup;
+  await sendSignInCode(s.email);
+  s.code = '';
+  s.error = '';
+  s.step = 3;
+}
+
+function codeSendError(err) {
+  if (err.status === 429) return 'We just sent you a code. Please wait a minute before asking for another one.';
+  return 'We couldn’t send a code to that email right now. Please try again in a moment.';
+}
+
+async function resendCode() {
+  const s = state.setup;
+  s.saving = true;
+  s.notice = null;
+  render();
+  try {
+    await requestCode();
+    s.notice = 'resent';
+  } catch (err) {
+    console.warn('PrepTip: resend failed', err);
+    s.error = offlineOr(codeSendError(err));
+  }
+  s.saving = false;
+  render();
+}
+
+// Code screen: verify it, then sign in to (or create) the account for that email.
+async function submitCode(form) {
+  const s = state.setup;
+  s.code = form.code.value.replace(/\s+/g, '');
+  s.notice = null;
+  if (!/^\d{6,10}$/.test(s.code)) {
+    s.error = 'Type the 6-digit code from the email.';
+    return render();
+  }
+
+  s.saving = true;
+  s.error = '';
+  render();
+  try {
+    const session = await verifySignInCode(s.email, s.code);
+    if (!session?.access_token) throw new Error('No session returned');
+    const names = s.mode === 'signup' ? { firstName: s.first, lastName: s.last } : {};
+    const account = await signInTeacher(session.access_token, names);
+    endAuthSession(session.access_token);
+
+    state.teacher = { userId: account.userId, firstName: account.firstName, lastName: account.lastName, email: account.email };
+    state.setupDone = true;
+    await chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher, [STORAGE.SETUP_DONE]: true });
+    s.welcomeBack = !account.isNew;
+    s.step = 4;
+  } catch (err) {
+    console.warn('PrepTip: sign-in failed', err);
+    if (err.status === 403 || err.code === 'otp_expired') s.error = 'That code didn’t work. It may have expired. Check the email or send a new code.';
+    else if (err.status === 429) s.error = 'Too many tries. Please wait a minute, then try again.';
+    else s.error = offlineOr('We couldn’t sign you in right now. Please try again in a moment.');
+  }
+  s.saving = false;
+  render();
 }
 
 async function finishSetup() {
-  state.setup = newSetup(state.teacher);
+  state.setup = newSetup();
   if (!state.catalog) {
     state.view = 'loading';
     render();
@@ -484,10 +572,18 @@ async function sendFeedback() {
 const actions = {
   // setup
   'setup-next': () => { state.setup.step += 1; state.setup.error = ''; render(); },
-  'setup-back': () => { state.setup.step = Math.max(0, state.setup.step - 1); state.setup.error = ''; render(); },
+  'setup-back': () => {
+    const s = state.setup;
+    s.step = Math.max(0, s.step - 1);
+    s.error = '';
+    s.notice = null;
+    render();
+  },
+  'setup-mode': (el) => setSetupMode(el.dataset.mode),
+  'signin-existing': () => { setSetupMode('signin'); submitDetails($('#setup-form')); },
+  'resend-code': () => resendCode(),
   'setup-finish': () => finishSetup(),
-  'cancel-setup': () => finishSetup(),
-  'change-teacher': () => startSetup(),
+  'sign-out': () => signOut(),
 
   // list + search
   'retry': () => { state.retrying = true; render(); loadCatalog({ force: true }); },
@@ -573,7 +669,8 @@ function wireDomEvents() {
 
   document.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (e.target.id === 'setup-form') saveTeacher(e.target);
+    if (e.target.id === 'setup-form') submitDetails(e.target);
+    if (e.target.id === 'code-form') submitCode(e.target);
     if (e.target.id === 'request-form') sendRequest($('#request-text')?.value || '');
   });
 }

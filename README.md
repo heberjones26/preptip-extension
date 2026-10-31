@@ -26,7 +26,7 @@ Teachers are expected to use general-purpose tools such as Google Sheets, Canva 
 | On-page guidance | Content script that draws highlights inside a Shadow DOM | Lets us point at the real Google Sheets menus without the page's styles breaking ours, or ours breaking the page |
 | Background logic | MV3 service worker using `declarativeNetRequest`, `webRequest` and `webNavigation` | Chrome checks flagged URLs and blocks them before the page loads (R6–R7), and the extension never has to read page contents to do it |
 | Database + API | Supabase: hosted PostgreSQL with an auto-generated REST API | No server code for us to write or host. The free tier covers a class project, and teammates can add or edit tips in Supabase's table editor without touching code. |
-| Security | Postgres row-level security policies and two small database functions ([migrations](supabase/migrations/)) | The extension uses Supabase's public "publishable" key. RLS limits that key to reading tips, adding feedback, registering a teacher and reading helpful counts. It can't read or change anyone's feedback or personal data. |
+| Security | Postgres row-level security policies, a few small database functions ([migrations](supabase/migrations/)) and Supabase Auth email codes | The extension uses Supabase's public "publishable" key. RLS limits that key to reading tips, adding feedback, checking whether an email already has an account and reading helpful counts. Creating or signing in to an account needs the 6-digit code Supabase Auth emails to that address, and each email can have only one account. It can't read or change anyone's feedback or personal data. |
 | Tooling | Git and GitHub; Node.js only for the optional tests and checks (built-in `node:test`, no dependencies) | Nothing to `npm install` before running the extension |
 
 ## How to Get It Running
@@ -89,7 +89,7 @@ If you have access to the Supabase project, you can also open **Table Editor →
 
 | PRD | Try this |
 |---|---|
-| R2 setup | The first click on the icon shows step-by-step setup. "Change teacher" at the bottom of the panel runs it again |
+| R2 setup | The first click on the icon shows step-by-step setup. Enter your name and email, then the code we email you. "Sign out" at the bottom of the panel signs you out; sign back in with just your email and a new code |
 | R3/R4, S1 | On a Google Sheet: green badge on the icon, a one-time "tips are ready" pop-up, and the Sheets tip list |
 | S2 search | Search "make bad grades red" or "freeze" |
 | R5 | Open wikipedia.org: the panel says "No tips available for this site" |

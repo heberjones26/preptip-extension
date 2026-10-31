@@ -112,7 +112,7 @@ export function footer(state) {
   const t = state.teacher;
   const name = t ? [t.firstName, t.lastName].filter(Boolean).join(' ') : '';
   return `${name ? `<span>Signed in as ${esc(name)}</span><span aria-hidden="true">&middot;</span>` : ''}
-    <button type="button" class="linkish" data-action="change-teacher">Change teacher</button>`;
+    <button type="button" class="linkish" data-action="sign-out">Sign out</button>`;
 }
 
 // ---------- setup (R2) ----------
@@ -149,31 +149,80 @@ function setupPin() {
     </div>`;
 }
 
+// The one-account-per-email alerts on the form.
+function formNotice(s) {
+  if (s.notice === 'exists') {
+    return `
+      <div class="offtrack" role="alert">
+        <b>This email already has a PrepTip account</b>
+        <p>Each email can only have one account. Sign in to it instead. We&rsquo;ll email you a code.</p>
+        <button type="button" class="btn primary sm" data-action="signin-existing" ${s.saving ? 'disabled' : ''}>Sign in with this email</button>
+      </div>`;
+  }
+  if (s.notice === 'missing') {
+    return `
+      <div class="offtrack" role="alert">
+        <b>No account uses this email yet</b>
+        <p>Check the spelling, or create a new account with it.</p>
+        <button type="button" class="btn primary sm" data-action="setup-mode" data-mode="signup">Create an account</button>
+      </div>`;
+  }
+  return '';
+}
+
 function setupForm(state) {
   const s = state.setup;
   const dis = s.saving ? 'disabled' : '';
+  const signup = s.mode === 'signup';
   return `
-    <h2>Tell us who you are</h2>
-    <p class="lede">We use this to keep your feedback and tip requests together. No password needed.</p>
+    <h2>${signup ? 'Tell us who you are' : 'Sign in to PrepTip'}</h2>
+    <p class="lede">${signup
+      ? 'We use this to keep your feedback and tip requests together. We&rsquo;ll email you a code to confirm it&rsquo;s you. No password needed.'
+      : 'Enter the email you signed up with. We&rsquo;ll email you a code. No password needed.'}</p>
     <form id="setup-form" class="form" novalidate>
-      <div class="two">
+      ${signup ? `<div class="two">
         <label class="field"><span>First name</span><input name="first" autocomplete="given-name" maxlength="60" value="${esc(s.first)}" ${dis}></label>
         <label class="field"><span>Last name</span><input name="last" autocomplete="family-name" maxlength="60" value="${esc(s.last)}" ${dis}></label>
-      </div>
+      </div>` : ''}
       <label class="field"><span>School email</span><input name="email" type="email" autocomplete="email" maxlength="120" placeholder="you@school.edu" value="${esc(s.email)}" ${dis}></label>
+      ${formNotice(s)}
       ${s.error ? `<p class="form-error" role="alert">${esc(s.error)}</p>` : ''}
       <div class="row">
         <button type="button" class="btn ghost" data-action="setup-back" ${dis}>Back</button>
-        <button type="submit" class="btn primary grow" ${dis}>${s.saving ? 'Saving…' : 'Save and continue'}</button>
+        <button type="submit" class="btn primary grow" ${dis}>${s.saving ? 'Checking…' : 'Email me a code'}</button>
       </div>
+      ${s.notice ? '' : `<p class="alt">${signup
+        ? `Already have an account? <button type="button" class="linkish" data-action="setup-mode" data-mode="signin" ${dis}>Sign in</button>`
+        : `New to PrepTip? <button type="button" class="linkish" data-action="setup-mode" data-mode="signup" ${dis}>Create an account</button>`}</p>`}
+    </form>`;
+}
+
+function setupCode(state) {
+  const s = state.setup;
+  const dis = s.saving ? 'disabled' : '';
+  return `
+    <h2>Check your email</h2>
+    <p class="lede">We sent a 6-digit code to <b>${esc(s.email)}</b>. Type it below to ${s.mode === 'signup' ? 'create your account' : 'sign in'}.</p>
+    <form id="code-form" class="form" novalidate>
+      <label class="field"><span>Code</span><input name="code" class="code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="10" value="${esc(s.code)}" ${dis}></label>
+      ${s.notice === 'resent' ? `<p class="tiny-note" role="status">A new code is on its way.</p>` : ''}
+      ${s.error ? `<p class="form-error" role="alert">${esc(s.error)}</p>` : ''}
+      <div class="row">
+        <button type="button" class="btn ghost" data-action="setup-back" ${dis}>Back</button>
+        <button type="submit" class="btn primary grow" ${dis}>${s.saving ? 'Checking…' : 'Verify'}</button>
+      </div>
+      <p class="alt">No email? Check spam, or <button type="button" class="linkish" data-action="resend-code" ${dis}>send a new code</button>.</p>
     </form>`;
 }
 
 function setupDone(state) {
   const sites = state.catalog?.websites || [];
+  const name = esc(state.teacher?.firstName || 'teacher');
   return `
     <div class="win"><span class="win-ic">${CHECK}</span>
-      <h4>You&rsquo;re set, ${esc(state.teacher?.firstName || 'teacher')}!</h4>
+      <h4>${state.setup.welcomeBack ? `Welcome back, ${name}!` : `You&rsquo;re set, ${name}!`}</h4>
+      ${state.setup.welcomeBack && state.setup.mode === 'signup'
+        ? '<p>This email already had a PrepTip account, so we signed you in to it instead of making a new one.</p>' : ''}
       <p>Open any of these sites and PrepTip will have tips ready.</p>
     </div>
     ${sites.length ? `<div class="chips center">${sites.map((w) => `<span class="chip">${esc(w.name)}</span>`).join('')}</div>` : ''}
@@ -182,13 +231,11 @@ function setupDone(state) {
 
 export function setupView(state) {
   const step = state.setup.step;
-  const screens = [setupWelcome, setupPin, setupForm, setupDone];
+  const screens = [setupWelcome, setupPin, setupForm, setupCode, setupDone];
   const dots = screens.map((_, i) => `<i class="${i === step ? 'on' : i < step ? 'done' : ''}"></i>`).join('');
-  const cancel = state.setupDone && step < 3
-    ? '<button type="button" class="linkish" data-action="cancel-setup">Cancel</button>' : '';
   return `
     <div class="setup">
-      <div class="dots" role="img" aria-label="Step ${step + 1} of ${screens.length}">${dots}${cancel}</div>
+      <div class="dots" role="img" aria-label="Step ${step + 1} of ${screens.length}">${dots}</div>
       ${screens[step](state)}
     </div>`;
 }
