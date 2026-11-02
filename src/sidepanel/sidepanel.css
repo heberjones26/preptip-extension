@@ -16,7 +16,7 @@
   --ok-soft: #E9F7EE;
   --warn: #B45309;
   --warn-soft: #FFF7E6;
-  --font: "Nunito", "Segoe UI", system-ui, sans-serif;
+  --font: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -38,7 +38,7 @@ button:disabled { cursor: default; }
 /* vertical rhythm, like .xp > * + * in the mockup */
 .stack > * + * { margin-top: 14px; }
 
-/* ---------------- header / notice / footer ---------------- */
+/* ---------------- header / footer ---------------- */
 .bar {
   position: sticky; top: 0; z-index: 5;
   height: 46px; flex: none;
@@ -56,21 +56,6 @@ button:disabled { cursor: default; }
   display: grid; place-items: center;
   background: var(--brand-soft); color: var(--brand-dk); font-size: 12px; font-weight: 800;
 }
-
-#notice:empty { display: none; }
-#notice { padding: 10px 16px 0; }
-.redirect {
-  display: flex; align-items: center; gap: 8px;
-  padding: 7px 8px 7px 11px; border-radius: 10px;
-  background: #EEF4FF; color: #1E3A8A; font-size: 12.5px;
-}
-.redirect svg { width: 16px; height: 16px; flex: none; }
-.redirect span { flex: 1; min-width: 0; }
-.redirect .x {
-  border: 0; background: none; width: 24px; height: 24px; border-radius: 6px;
-  font-size: 17px; line-height: 1; color: #3B5BA9;
-}
-.redirect .x:hover { background: rgba(30, 58, 138, .08); }
 
 .xp { flex: 1; padding: 16px 16px 20px; }
 
@@ -115,12 +100,11 @@ button:disabled { cursor: default; }
 .back:hover { color: var(--brand-dk); }
 
 /* ---------------- site chip, search ---------------- */
-.site-chip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--ok-soft); }
+.site-chip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--brand-soft); }
 .site-chip .fav { width: 30px; height: 30px; border-radius: 8px; background: #fff; display: grid; place-items: center; flex: none; }
 .site-chip .fav svg { width: 16px; height: 19px; }
 .site-chip > div { min-width: 0; }
 .site-chip b { display: block; font-size: 14.5px; }
-.site-chip small { color: var(--ok); font-weight: 700; font-size: 12px; }
 .site-chip.muted { background: var(--soft); }
 .site-chip.muted small { color: var(--ink-3); }
 .site-chip.muted .fav svg { width: 18px; height: 18px; color: var(--ink-3); }
@@ -275,8 +259,8 @@ button.chip.link:hover { background: #DCF2E4; }
 /* ---------------- guide (S3–S5) ---------------- */
 .g-head h3 { margin: 6px 0 10px; font-size: 18px; font-weight: 800; line-height: 1.25; }
 .prog { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 800; color: var(--brand-dk); white-space: nowrap; }
-.prog .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; }
-.prog .bar i { display: block; height: 100%; background: var(--brand); border-radius: 3px; transition: width .3s; }
+.prog-track { flex: 1; min-width: 0; height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; }
+.prog-track i { display: block; height: 100%; background: var(--brand); border-radius: 3px; transition: width .3s; }
 
 .intro { background: var(--soft-2); border-radius: 12px; padding: 12px 14px; }
 .intro summary {
@@ -288,9 +272,9 @@ button.chip.link:hover { background: #DCF2E4; }
 .intro summary::after { content: "\203A"; margin-left: auto; font-size: 16px; transition: transform .15s; }
 .intro[open] summary::after { transform: rotate(90deg); }
 .intro p { margin: 6px 0 0; font-size: 14px; line-height: 1.5; }
-.where-h { display: block; margin-top: 10px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); }
-.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 5px; }
-.crumb { background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; font-size: 13px; font-weight: 700; }
+.where-h { display: block; margin-top: 14px; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); }
+.crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 5px; color: var(--ink-2); }
+.crumb { font-size: 13px; font-weight: 600; }
 .crumbs .sep { color: var(--ink-3); font-weight: 800; }
 
 .live { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; font-weight: 700; color: var(--ok); }
@@ -299,8 +283,8 @@ button.chip.link:hover { background: #DCF2E4; }
 .live.wait i { background: var(--ink-3); }
 @keyframes blink { 50% { opacity: .3; } }
 
-.steps { list-style: none; margin: 14px 0 0; padding: 0; }
-.steps li { display: flex; gap: 12px; position: relative; padding-bottom: 16px; font-size: 14px; color: var(--ink-3); }
+.steps { list-style: none; margin: 18px 0 0; padding: 0; }
+.steps li { display: flex; gap: 12px; position: relative; padding-bottom: 20px; font-size: 14px; color: var(--ink-3); }
 .steps li:last-child { padding-bottom: 0; }
 .steps li:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 30px; bottom: 2px; width: 2px; background: var(--line); }
 .steps .sm { width: 28px; height: 28px; border-radius: 50%; flex: none; display: grid; place-items: center; font-weight: 800; font-size: 13px; background: var(--soft); color: var(--ink-3); position: relative; z-index: 1; }
@@ -320,11 +304,10 @@ button.chip.link:hover { background: #DCF2E4; }
 .offtrack b { color: #7A3E06; font-size: 14.5px; }
 .offtrack p { margin: 4px 0 10px; font-size: 13.5px; line-height: 1.45; color: #6B4A1E; }
 
-.yt > * + * { margin-top: 10px; }
-.arrived { display: flex; gap: 10px; background: var(--ok-soft); border-radius: 12px; padding: 12px; }
-.arrived > svg { width: 22px; height: 22px; flex: none; color: #fff; background: var(--ok); border-radius: 50%; padding: 4px; }
-.arrived b { font-size: 14.5px; }
-.arrived p { margin: 2px 0 0; font-size: 13px; line-height: 1.45; color: var(--ink-2); }
+.yt { margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.yt > * + * { margin-top: 12px; }
+.yt h4 { margin: 0; font-size: 14px; font-weight: 700; color: var(--ink-2); }
+.yt-lead { margin-bottom: 0; font-size: 14px; line-height: 1.45; color: var(--ink); }
 .yt-block { margin: 0; font-size: 14px; line-height: 1.5; padding: 0 2px; }
 .howto { list-style: none; margin: 0; padding: 0; }
 .howto li { display: flex; gap: 12px; padding: 10px 0; }

@@ -2,6 +2,7 @@
 // Never loaded by the extension (sidepanel.html doesn't include it).
 //
 // URL params:  ?url=<page the fake tab is on>   ?reset=1 clears fake storage   ?teacher=1 skips setup
+//              ?demo=1 uses dev-catalog.json instead of the live tip catalog
 // Console:     ptDev.status(true, 'Format')    ptDev.status(false)
 //              ptDev.offtrack('Data')         ptDev.backOnTrack()      ptDev.stepDone()
 //              ptDev.setUrl(url)  (same tab)   ptDev.switchTab(url)     ptDev.redirect('https://bit.ly/x')
@@ -124,9 +125,17 @@
 
   // ---------- fetch interception: never write to the real database from dev ----------
   const realFetch = window.fetch.bind(window);
+  let demoCatalogPromise;
   window.fetch = async function (input, init = {}) {
     const url = typeof input === 'string' ? input : input.url;
     const method = (init.method || 'GET').toUpperCase();
+    if (method === 'GET' && params.get('demo') === '1' && url.includes('/rest/v1/')) {
+      demoCatalogPromise ||= realFetch(new URL('dev-catalog.json', location.href)).then((r) => r.json());
+      const demo = await demoCatalogPromise;
+      const rows = url.includes('/websites?') ? demo.websites : demo.tips;
+      log('using local demo catalog', url.includes('/websites?') ? 'websites' : 'tips');
+      return new Response(JSON.stringify(rows), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
     if (method === 'GET' && window.ptDev.failCatalog && url.includes('/rest/v1/')) {
       log('fetch blocked (failCatalog)', url);
       throw new TypeError('Failed to fetch');

@@ -1,0 +1,945 @@
+{
+  "websites": [
+    {
+      "url_pattern": "classroom.google.com",
+      "name": "Google Classroom"
+    },
+    {
+      "url_pattern": "kahoot.com",
+      "name": "Kahoot!"
+    },
+    {
+      "url_pattern": "classdojo.com",
+      "name": "ClassDojo"
+    }
+  ],
+  "tips": [
+    {
+      "tip_id": 1,
+      "url_pattern": "classroom.google.com",
+      "title": "Create an assignment",
+      "summary": "Post homework, projects, and classwork.",
+      "description": "Post homework, projects, and classwork.",
+      "feature_name": "Assignments",
+      "estimated_required_minutes": 2,
+      "keywords": "post homework projects classwork create",
+      "tip_steps": [
+        {
+          "step_id": 1,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Classwork",
+          "step_description": "Open Classwork for this class."
+        },
+        {
+          "step_id": 2,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Create",
+          "step_description": "Choose Create to start a classwork post."
+        },
+        {
+          "step_id": 3,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Add the assignment title, instructions, attachments, and due date, then choose Assign, Schedule, or Save draft."
+        }
+      ]
+    },
+    {
+      "tip_id": 2,
+      "url_pattern": "classroom.google.com",
+      "title": "Grade and return assignments",
+      "summary": "Review student work and enter grades.",
+      "description": "Review student work and enter grades.",
+      "feature_name": "Grading",
+      "estimated_required_minutes": 2,
+      "keywords": "grade return review student work score",
+      "tip_steps": [
+        {
+          "step_id": 4,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Classwork",
+          "step_description": "Open Classwork, then choose the assignment you want to review."
+        },
+        {
+          "step_id": 5,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Review a student's work, enter a grade or feedback, then return it when ready."
+        }
+      ]
+    },
+    {
+      "tip_id": 3,
+      "url_pattern": "classroom.google.com",
+      "title": "Post a class announcement",
+      "summary": "Share reminders, updates, and instructions.",
+      "description": "Share reminders, updates, and instructions.",
+      "feature_name": "Announcements",
+      "estimated_required_minutes": 2,
+      "keywords": "announcement reminder update instructions stream",
+      "tip_steps": [
+        {
+          "step_id": 6,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "link:Stream",
+          "step_description": "Open the class Stream."
+        },
+        {
+          "step_id": 7,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Announce something to your class",
+          "step_description": "Start a new announcement."
+        },
+        {
+          "step_id": 8,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Write the announcement, choose the class and students, then post or schedule it."
+        }
+      ]
+    },
+    {
+      "tip_id": 4,
+      "url_pattern": "classroom.google.com",
+      "title": "Find missing work",
+      "summary": "Identify students who haven't submitted assignments.",
+      "description": "Identify students who haven't submitted assignments.",
+      "feature_name": "Work status",
+      "estimated_required_minutes": 2,
+      "keywords": "missing late not submitted work status students",
+      "tip_steps": [
+        {
+          "step_id": 9,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Classwork",
+          "step_description": "Open Classwork, then choose the assignment you want to review."
+        },
+        {
+          "step_id": 10,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Use the work-status list or status filter to find students marked Missing, then follow up as needed."
+        }
+      ]
+    },
+    {
+      "tip_id": 5,
+      "url_pattern": "classroom.google.com",
+      "title": "Post class materials",
+      "summary": "Upload presentations, worksheets, and documents.",
+      "description": "Upload presentations, worksheets, and documents.",
+      "feature_name": "Materials",
+      "estimated_required_minutes": 2,
+      "keywords": "upload presentations worksheets documents resource classwork",
+      "tip_steps": [
+        {
+          "step_id": 11,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Classwork",
+          "step_description": "Open Classwork."
+        },
+        {
+          "step_id": 12,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Create",
+          "step_description": "Choose Create to add a class resource."
+        },
+        {
+          "step_id": 13,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Choose Material, add a title and attachments, optionally choose a topic, then post or schedule it."
+        }
+      ]
+    },
+    {
+      "tip_id": 6,
+      "url_pattern": "classroom.google.com",
+      "title": "Create a quiz assignment",
+      "summary": "Create a test or quiz with Google Forms.",
+      "description": "Create a test or quiz with Google Forms.",
+      "feature_name": "Quiz assignments",
+      "estimated_required_minutes": 2,
+      "keywords": "quiz test Google Forms questions auto grade",
+      "tip_steps": [
+        {
+          "step_id": 14,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Classwork",
+          "step_description": "Open Classwork."
+        },
+        {
+          "step_id": 15,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Create",
+          "step_description": "Choose Create to start a quiz assignment."
+        },
+        {
+          "step_id": 16,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Choose Quiz assignment, edit the attached Google Form, set assignment details, and assign or schedule it."
+        }
+      ]
+    },
+    {
+      "tip_id": 7,
+      "url_pattern": "classroom.google.com",
+      "title": "Give feedback on student work",
+      "summary": "Leave comments and suggestions on assignments.",
+      "description": "Leave comments and suggestions on assignments.",
+      "feature_name": "Feedback",
+      "estimated_required_minutes": 2,
+      "keywords": "comments suggestions feedback student work comment bank",
+      "tip_steps": [
+        {
+          "step_id": 17,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Classwork",
+          "step_description": "Open Classwork, then choose the assignment you want to review."
+        },
+        {
+          "step_id": 18,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Add a private comment or feedback on the work, then save or return the assignment."
+        }
+      ]
+    },
+    {
+      "tip_id": 8,
+      "url_pattern": "classroom.google.com",
+      "title": "Open the gradebook",
+      "summary": "View and manage student grades.",
+      "description": "View and manage student grades.",
+      "feature_name": "Grades",
+      "estimated_required_minutes": 2,
+      "keywords": "gradebook student grades scores download",
+      "tip_steps": [
+        {
+          "step_id": 19,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Grades",
+          "step_description": "Open Grades for the class."
+        },
+        {
+          "step_id": 20,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Review the gradebook, update a student's score if needed, or download a copy from the Grades page."
+        }
+      ]
+    },
+    {
+      "tip_id": 9,
+      "url_pattern": "classroom.google.com",
+      "title": "Schedule an assignment",
+      "summary": "Set an assignment to become available later.",
+      "description": "Set an assignment to become available later.",
+      "feature_name": "Scheduling",
+      "estimated_required_minutes": 2,
+      "keywords": "schedule publish later assignment due date",
+      "tip_steps": [
+        {
+          "step_id": 21,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Classwork",
+          "step_description": "Open Classwork."
+        },
+        {
+          "step_id": 22,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Create",
+          "step_description": "Create an assignment and fill in its details."
+        },
+        {
+          "step_id": 23,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Open the menu beside Assign, choose Schedule, set the publish date and time, and confirm Schedule."
+        }
+      ]
+    },
+    {
+      "tip_id": 10,
+      "url_pattern": "classroom.google.com",
+      "title": "Manage students in a class",
+      "summary": "Add, remove, and organize students into classes.",
+      "description": "Add, remove, and organize students into classes.",
+      "feature_name": "People",
+      "estimated_required_minutes": 2,
+      "keywords": "students invite add remove organize class roster",
+      "tip_steps": [
+        {
+          "step_id": 24,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:People",
+          "step_description": "Open the class People page."
+        },
+        {
+          "step_id": 25,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Invite students",
+          "step_description": "Choose the student invite control."
+        },
+        {
+          "step_id": 26,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Invite students by email or class code. To remove a student, use the menu beside their name."
+        }
+      ]
+    },
+    {
+      "tip_id": 11,
+      "url_pattern": "kahoot.com",
+      "title": "Create a quiz",
+      "summary": "Build a custom multiple-choice quiz.",
+      "description": "Build a custom multiple-choice quiz.",
+      "feature_name": "Quiz creation",
+      "estimated_required_minutes": 2,
+      "keywords": "create build custom multiple choice quiz kahoot",
+      "tip_steps": [
+        {
+          "step_id": 27,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Create",
+          "step_description": "Start a new kahoot."
+        },
+        {
+          "step_id": 28,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Add question",
+          "step_description": "Add your first question."
+        },
+        {
+          "step_id": 29,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Enter the question and answer choices, mark the correct answer, and save the kahoot."
+        }
+      ]
+    },
+    {
+      "tip_id": 12,
+      "url_pattern": "kahoot.com",
+      "title": "Host a live game",
+      "summary": "Run an interactive classroom competition.",
+      "description": "Run an interactive classroom competition.",
+      "feature_name": "Live games",
+      "estimated_required_minutes": 2,
+      "keywords": "host live game classroom competition start",
+      "tip_steps": [
+        {
+          "step_id": 30,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Library",
+          "step_description": "Open your library and choose a kahoot."
+        },
+        {
+          "step_id": 31,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Host live",
+          "step_description": "Choose Host live to set up a game."
+        },
+        {
+          "step_id": 32,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Choose the game experience and settings, share the PIN with students, then start when they have joined."
+        }
+      ]
+    },
+    {
+      "tip_id": 13,
+      "url_pattern": "kahoot.com",
+      "title": "Find a ready-made kahoot",
+      "summary": "Find and reuse quizzes made by other teachers.",
+      "description": "Find and reuse quizzes made by other teachers.",
+      "feature_name": "Discover",
+      "estimated_required_minutes": 2,
+      "keywords": "premade ready made search discover reuse teacher quizzes",
+      "tip_steps": [
+        {
+          "step_id": 33,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Discover",
+          "step_description": "Browse Discover for existing kahoots."
+        },
+        {
+          "step_id": 34,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "search:Search",
+          "step_description": "Search for a topic or quiz."
+        },
+        {
+          "step_id": 35,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Preview a result, then save it to your library or duplicate it if that option is available."
+        }
+      ]
+    },
+    {
+      "tip_id": 14,
+      "url_pattern": "kahoot.com",
+      "title": "Assign a homework challenge",
+      "summary": "Assign a kahoot students complete independently.",
+      "description": "Assign a kahoot students complete independently.",
+      "feature_name": "Assignments",
+      "estimated_required_minutes": 2,
+      "keywords": "homework challenge assign self paced due date",
+      "tip_steps": [
+        {
+          "step_id": 36,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Library",
+          "step_description": "Open your library and choose a kahoot."
+        },
+        {
+          "step_id": 37,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Assign",
+          "step_description": "Choose Assign to make a self-paced challenge."
+        },
+        {
+          "step_id": 38,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Set the deadline and options, then share the assignment link or PIN with students."
+        }
+      ]
+    },
+    {
+      "tip_id": 15,
+      "url_pattern": "kahoot.com",
+      "title": "Review game reports",
+      "summary": "Review student scores and class results.",
+      "description": "Review student scores and class results.",
+      "feature_name": "Reports",
+      "estimated_required_minutes": 2,
+      "keywords": "performance reports scores results students analytics",
+      "tip_steps": [
+        {
+          "step_id": 39,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Reports",
+          "step_description": "Open Reports."
+        },
+        {
+          "step_id": 40,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Select a game report to review class results, player scores, and question-by-question performance."
+        }
+      ]
+    },
+    {
+      "tip_id": 16,
+      "url_pattern": "kahoot.com",
+      "title": "Add from the question bank",
+      "summary": "Find existing questions to add to a kahoot.",
+      "description": "Find existing questions to add to a kahoot.",
+      "feature_name": "Question bank",
+      "estimated_required_minutes": 2,
+      "keywords": "question bank existing questions add quiz",
+      "tip_steps": [
+        {
+          "step_id": 41,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Create",
+          "step_description": "Open the kahoot creator."
+        },
+        {
+          "step_id": 42,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Add question",
+          "step_description": "Choose Add question to browse question types and sources."
+        },
+        {
+          "step_id": 43,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Open the question bank, search or browse, and add a question to your kahoot."
+        }
+      ]
+    },
+    {
+      "tip_id": 17,
+      "url_pattern": "kahoot.com",
+      "title": "Add a true or false question",
+      "summary": "Quickly check student understanding with a true-or-false question.",
+      "description": "Quickly check student understanding with a true-or-false question.",
+      "feature_name": "True/false",
+      "estimated_required_minutes": 2,
+      "keywords": "true false question quick check understanding",
+      "tip_steps": [
+        {
+          "step_id": 44,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Create",
+          "step_description": "Open the kahoot creator."
+        },
+        {
+          "step_id": 45,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Add question",
+          "step_description": "Choose Add question."
+        },
+        {
+          "step_id": 46,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Select True/False, write a statement, mark the correct response, and save it."
+        }
+      ]
+    },
+    {
+      "tip_id": 18,
+      "url_pattern": "kahoot.com",
+      "title": "Collect responses with a poll",
+      "summary": "Collect student opinions and responses.",
+      "description": "Collect student opinions and responses.",
+      "feature_name": "Polls",
+      "estimated_required_minutes": 2,
+      "keywords": "poll opinions responses survey question",
+      "tip_steps": [
+        {
+          "step_id": 47,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Create",
+          "step_description": "Open the kahoot creator."
+        },
+        {
+          "step_id": 48,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Add question",
+          "step_description": "Choose Add question."
+        },
+        {
+          "step_id": 49,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Select Poll if it is available on your plan, enter the prompt and choices, and save it."
+        }
+      ]
+    },
+    {
+      "tip_id": 19,
+      "url_pattern": "kahoot.com",
+      "title": "Play in team mode",
+      "summary": "Let students compete in groups.",
+      "description": "Let students compete in groups.",
+      "feature_name": "Team mode",
+      "estimated_required_minutes": 2,
+      "keywords": "team groups teams competition live game",
+      "tip_steps": [
+        {
+          "step_id": 50,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Library",
+          "step_description": "Choose a kahoot from your library."
+        },
+        {
+          "step_id": 51,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Host live",
+          "step_description": "Start a live game setup."
+        },
+        {
+          "step_id": 52,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Choose Team mode in the game experience settings, set team options, and start the game."
+        }
+      ]
+    },
+    {
+      "tip_id": 20,
+      "url_pattern": "kahoot.com",
+      "title": "Generate quiz questions with AI",
+      "summary": "Generate questions from a topic or learning material.",
+      "description": "Generate questions from a topic or learning material.",
+      "feature_name": "AI quiz generator",
+      "estimated_required_minutes": 2,
+      "keywords": "AI generate quiz questions topic learning material",
+      "tip_steps": [
+        {
+          "step_id": 53,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Create",
+          "step_description": "Start a new kahoot."
+        },
+        {
+          "step_id": 54,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Generate with AI",
+          "step_description": "Choose the AI question generator."
+        },
+        {
+          "step_id": 55,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Enter a topic or add learning material, review the generated questions, edit them, and save."
+        }
+      ]
+    },
+    {
+      "tip_id": 21,
+      "url_pattern": "classdojo.com",
+      "title": "Award behavior points",
+      "summary": "Recognize positive behavior and participation.",
+      "description": "Recognize positive behavior and participation.",
+      "feature_name": "Points",
+      "estimated_required_minutes": 2,
+      "keywords": "behavior points reward positive participation skills",
+      "tip_steps": [
+        {
+          "step_id": 56,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Class",
+          "step_description": "Open your class view."
+        },
+        {
+          "step_id": 57,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Give points",
+          "step_description": "Open the point-awarding controls."
+        },
+        {
+          "step_id": 58,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Choose a student and a skill to award a point. Check the selected student before confirming."
+        }
+      ]
+    },
+    {
+      "tip_id": 22,
+      "url_pattern": "classdojo.com",
+      "title": "Message a parent",
+      "summary": "Send a private message directly to a student's family.",
+      "description": "Send a private message directly to a student's family.",
+      "feature_name": "Messaging",
+      "estimated_required_minutes": 2,
+      "keywords": "parent message family chat private",
+      "tip_steps": [
+        {
+          "step_id": 59,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Messages",
+          "step_description": "Open Messages or Chats."
+        },
+        {
+          "step_id": 60,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Choose the family conversation, write your message, and send it when ready."
+        }
+      ]
+    },
+    {
+      "tip_id": 23,
+      "url_pattern": "classdojo.com",
+      "title": "Post a class story",
+      "summary": "Share classroom photos, videos, and updates with families.",
+      "description": "Share classroom photos, videos, and updates with families.",
+      "feature_name": "Class Story",
+      "estimated_required_minutes": 2,
+      "keywords": "class story photos videos updates families post",
+      "tip_steps": [
+        {
+          "step_id": 61,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Class Story",
+          "step_description": "Open the class story feed."
+        },
+        {
+          "step_id": 62,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Create post",
+          "step_description": "Start a new story post."
+        },
+        {
+          "step_id": 63,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Add an update or media, check the audience, and publish the post."
+        }
+      ]
+    },
+    {
+      "tip_id": 24,
+      "url_pattern": "classdojo.com",
+      "title": "Share student portfolio work",
+      "summary": "Share student projects and completed work.",
+      "description": "Share student projects and completed work.",
+      "feature_name": "Portfolios",
+      "estimated_required_minutes": 2,
+      "keywords": "student portfolio projects completed work activity share",
+      "tip_steps": [
+        {
+          "step_id": 64,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Portfolios",
+          "step_description": "Open the portfolio area for your class."
+        },
+        {
+          "step_id": 65,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Choose a student or portfolio post, review the work, and share or approve it using the available controls."
+        }
+      ]
+    },
+    {
+      "tip_id": 25,
+      "url_pattern": "classdojo.com",
+      "title": "Record attendance",
+      "summary": "Record student attendance for your class.",
+      "description": "Record student attendance for your class.",
+      "feature_name": "Attendance",
+      "estimated_required_minutes": 2,
+      "keywords": "attendance absent present record students",
+      "tip_steps": [
+        {
+          "step_id": 66,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Attendance",
+          "step_description": "Open the attendance tool for your class."
+        },
+        {
+          "step_id": 67,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Mark each student present or absent and save the attendance record."
+        }
+      ]
+    },
+    {
+      "tip_id": 26,
+      "url_pattern": "classdojo.com",
+      "title": "Set a classroom timer",
+      "summary": "Set a timer for an activity or transition.",
+      "description": "Set a timer for an activity or transition.",
+      "feature_name": "Timer",
+      "estimated_required_minutes": 2,
+      "keywords": "classroom timer activity transition countdown",
+      "tip_steps": [
+        {
+          "step_id": 68,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Tools",
+          "step_description": "Open the classroom tools menu."
+        },
+        {
+          "step_id": 69,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Timer",
+          "step_description": "Choose Timer."
+        },
+        {
+          "step_id": 70,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Set the time and start the countdown for the activity."
+        }
+      ]
+    },
+    {
+      "tip_id": 27,
+      "url_pattern": "classdojo.com",
+      "title": "Pick a student at random",
+      "summary": "Randomly select a student to participate.",
+      "description": "Randomly select a student to participate.",
+      "feature_name": "Random picker",
+      "estimated_required_minutes": 2,
+      "keywords": "random student picker choose participate",
+      "tip_steps": [
+        {
+          "step_id": 71,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Tools",
+          "step_description": "Open the classroom tools menu."
+        },
+        {
+          "step_id": 72,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Random",
+          "step_description": "Choose the random student picker."
+        },
+        {
+          "step_id": 73,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Use the picker to select a student, then reset or remove the student from the draw if your class needs it."
+        }
+      ]
+    },
+    {
+      "tip_id": 28,
+      "url_pattern": "classdojo.com",
+      "title": "Make student groups",
+      "summary": "Organize students into groups for an activity.",
+      "description": "Organize students into groups for an activity.",
+      "feature_name": "Groups",
+      "estimated_required_minutes": 2,
+      "keywords": "group maker organize students teams",
+      "tip_steps": [
+        {
+          "step_id": 74,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Tools",
+          "step_description": "Open the classroom tools menu."
+        },
+        {
+          "step_id": 75,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Group Maker",
+          "step_description": "Choose Group Maker."
+        },
+        {
+          "step_id": 76,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Choose how many groups or students per group, generate the groups, and adjust them as needed."
+        }
+      ]
+    },
+    {
+      "tip_id": 29,
+      "url_pattern": "classdojo.com",
+      "title": "Send a class announcement",
+      "summary": "Send important information to families.",
+      "description": "Send important information to families.",
+      "feature_name": "Announcements",
+      "estimated_required_minutes": 2,
+      "keywords": "class announcement families message all parents",
+      "tip_steps": [
+        {
+          "step_id": 77,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Messages",
+          "step_description": "Open Messages or Chats."
+        },
+        {
+          "step_id": 78,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:New message",
+          "step_description": "Start a new message."
+        },
+        {
+          "step_id": 79,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Choose the class or family group, write the announcement, and send it."
+        }
+      ]
+    },
+    {
+      "tip_id": 30,
+      "url_pattern": "classdojo.com",
+      "title": "Review behavior reports",
+      "summary": "Review student behavior and participation patterns.",
+      "description": "Review student behavior and participation patterns.",
+      "feature_name": "Reports",
+      "estimated_required_minutes": 2,
+      "keywords": "behavior reports participation patterns points progress",
+      "tip_steps": [
+        {
+          "step_id": 80,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Reports",
+          "step_description": "Open Reports for your class."
+        },
+        {
+          "step_id": 81,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Choose a student or date range and review the points and behavior patterns shown in the report."
+        }
+      ]
+    }
+  ]
+}
