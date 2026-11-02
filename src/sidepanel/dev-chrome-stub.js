@@ -2,6 +2,7 @@
 // Never loaded by the extension (sidepanel.html doesn't include it).
 //
 // URL params:  ?url=<page the fake tab is on>   ?reset=1 clears fake storage   ?teacher=1 skips setup
+//              ?demo=1 uses dev-catalog.json instead of the live tip catalog
 // Console:     ptDev.status(true, 'Format')    ptDev.status(false)
 //              ptDev.offtrack('Data')         ptDev.backOnTrack()      ptDev.stepDone()
 //              ptDev.setUrl(url)  (same tab)   ptDev.switchTab(url)     ptDev.redirect('https://bit.ly/x')
@@ -124,9 +125,35 @@
 
   // ---------- fetch interception: never write to the real database from dev ----------
   const realFetch = window.fetch.bind(window);
+  let demoCatalogPromise;
+  const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+  // Fake accounts, checked like the database does (usernames ignore case).
+  const findAccount = (name) => window.ptDev.accounts.find((a) => a.username.toLowerCase() === String(name).trim().toLowerCase());
+  const asRow = (a) => ({ user_id: a.user_id, username: a.username });
+
+  function fakeCreateAccount(body) {
+    if (findAccount(body.p_username)) return json({ code: '23505', message: 'That username is taken' }, 409);
+    const account = { user_id: window.ptDev.accounts.length + 1, username: body.p_username.trim(), password: body.p_password };
+    window.ptDev.accounts.push(account);
+    return json([asRow(account)]);
+  }
+
+  function fakeSignIn(body) {
+    const a = findAccount(body.p_username);
+    return json(a && a.password === body.p_password ? [asRow(a)] : []);
+  }
+
   window.fetch = async function (input, init = {}) {
     const url = typeof input === 'string' ? input : input.url;
     const method = (init.method || 'GET').toUpperCase();
+    if (method === 'GET' && params.get('demo') === '1' && url.includes('/rest/v1/')) {
+      demoCatalogPromise ||= realFetch(new URL('dev-catalog.json', location.href)).then((r) => r.json());
+      const demo = await demoCatalogPromise;
+      const rows = url.includes('/websites?') ? demo.websites : demo.tips;
+      log('using local demo catalog', url.includes('/websites?') ? 'websites' : 'tips');
+      return new Response(JSON.stringify(rows), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }
     if (method === 'GET' && window.ptDev.failCatalog && url.includes('/rest/v1/')) {
       log('fetch blocked (failCatalog)', url);
       throw new TypeError('Failed to fetch');
