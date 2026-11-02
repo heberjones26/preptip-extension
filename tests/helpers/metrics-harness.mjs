@@ -22,7 +22,7 @@ export function metricsHarness({ modern = true, preview = false, hidden = false 
   const sent = [];
   const timers = new Map();
   const wall = new Date('2026-11-02T09:00:00');
-  const saved = { [STORAGE.TEACHER]: { userId: 1 }, [STORAGE.SETUP_DONE]: true };
+  const saved = { [STORAGE.TEACHER]: { userId: 1, username: 'teacher1' }, [STORAGE.SETUP_DONE]: true };
   const storage = {
     async get(keys) { keys = typeof keys === 'string' ? [keys] : keys; return Object.fromEntries(keys.filter((k) => k in saved).map((k) => [k, structuredClone(saved[k])])); },
     async set(value) {

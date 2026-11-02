@@ -3,8 +3,10 @@
 // If you rename anything here, search the repo for the old string. See docs/ARCHITECTURE.md.
 
 export const MSG = {
-  // side panel -> content script (chrome.tabs.sendMessage)
+  // side panel -> background (service worker): usage/engagement tracking (OKR 3 & 4)
   ENGAGEMENT: 'PT_ENGAGEMENT',
+
+  // side panel -> content script (chrome.tabs.sendMessage)
   PING: 'PT_PING',
   GUIDE_SHOW: 'PT_GUIDE_SHOW',
   GUIDE_CLEAR: 'PT_GUIDE_CLEAR',
@@ -29,7 +31,6 @@ export const MSG = {
 
 export const STORAGE = {
   // chrome.storage.local
-  TEACHER: 'pt.teacher',            // { userId, firstName, lastName, email }
   TEACHER: 'pt.teacher',            // { userId, username, gradeLevel }
   SETUP_DONE: 'pt.setupDone',       // true once first-run setup is finished
   CATALOG: 'pt.catalog',            // { fetchedAt, websites, tips }

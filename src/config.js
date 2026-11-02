@@ -1,6 +1,7 @@
 // Supabase project: is404_teacherTips.
 // The publishable key is meant to ship in client code. What it can do is limited by the
-// RLS policies in supabase/migrations: read the tip catalog, submit feedback, register a teacher.
+// RLS policies in supabase/migrations: read the tip catalog, submit feedback, create an account and
+// sign in (through database functions; the users table itself stays closed).
 export const SUPABASE_URL = 'https://eithnvohtxqzbqejxsor.supabase.co';
 export const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_sDe6DDTaHck8BsraqOPTTA_h3pkUZ2z';
 

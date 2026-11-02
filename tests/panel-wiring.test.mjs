@@ -52,7 +52,9 @@ test('panel and service-worker integration', async (t) => {
   let registrationId = 1;
   t.mock.method(globalThis, 'fetch', async (url) => {
     assert.ok(String(url).includes('/rest/v1/'), `Unexpected fetch: ${url}`);
-    return new Response(JSON.stringify(String(url).includes('register_teacher') ? registrationId : []), { status: 200 });
+    const body = String(url).includes('create_teacher_account') || String(url).includes('sign_in_teacher')
+      ? [{ user_id: registrationId, username: `test${registrationId}` }] : [];
+    return new Response(JSON.stringify(body), { status: 200 });
   });
   const originals = new Map(['document', 'window', 'chrome', 'performance', 'setTimeout', 'clearTimeout'].map((k) => [k, Object.getOwnPropertyDescriptor(globalThis, k)]));
   Object.assign(globalThis, { document, window, chrome, performance: { now: h.env.now }, setTimeout: h.env.schedule, clearTimeout: h.env.cancel });
@@ -107,11 +109,11 @@ test('panel and service-worker integration', async (t) => {
   });
   await t.test('teacher setup transitions record A → B → A consistently', async () => {
     for (const id of [2, 1]) {
-      click('change-teacher'); registrationId = id;
+      click('sign-out'); await settle(); registrationId = id;
       document.emit('submit', { preventDefault() {}, target: {
-        id: 'setup-form', first: { value: 'Test' }, last: { value: 'Teacher' }, email: { value: `test${id}@example.com` }
+        id: 'setup-form', username: { value: `test${id}` }, password: { value: 'password123' }
       } });
-      await settle(); click('setup-finish'); await settle();
+      await settle(); await settle(); await settle(); click('setup-finish'); await settle();
     }
     assert.equal(totals().openings, 3); assert.equal(allOpenings(), 3);
   });
