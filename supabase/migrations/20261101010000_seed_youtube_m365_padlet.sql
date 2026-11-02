@@ -13,22 +13,17 @@
 do $$
 declare t bigint;
 begin
-  if exists (select 1 from public.tips where url_pattern = 'youtube.com' and title = 'Start a video at the right moment') then
+  -- Guard on one of OUR own titles (not "Start a video…", which the team already has in the catalog
+  -- — guarding on that would skip this whole block). youtube.com also already exists as a website.
+  if exists (select 1 from public.tips where url_pattern = 'youtube.com' and title = 'Turn on captions') then
     raise notice 'youtube tips already seeded — skipping';
   else
     -- The website row may already exist in the live catalog; add it only if missing, then seed the tips.
     insert into public.websites (url_pattern, name)
       select 'youtube.com', 'YouTube' where not exists (select 1 from public.websites where url_pattern = 'youtube.com');
 
-    insert into public.tips (url_pattern, title, summary, description, feature_name, estimated_required_minutes, keywords)
-      values ('youtube.com', 'Start a video at the right moment',
-        'Share a link that begins exactly where your clip starts, skipping the intro.',
-        'Instead of telling students "skip to 3:40," you can share a link that jumps straight there. YouTube adds the start time to the link for you.',
-        'Share with start time', 2, 'start time, timestamp, skip intro, begin at, share clip, jump to') returning tip_id into t;
-    insert into public.tip_steps (tip_id, step_order, step_type, target_element, step_description) values
-      (t, 1, 'guided', 'button:Share', 'Click Share under the video.'),
-      (t, 2, 'guided', 'panel:Share', 'In the Share box, tick the Start at checkbox.'),
-      (t, 3, 'your_turn', null, 'Type the start time (for example 3:40), then click Copy. Paste that link wherever your students will see it.');
+    -- "Start a video at the right moment" is intentionally omitted: the team already has a YouTube
+    -- timestamp tip in the catalog, so we skip ours to avoid a duplicate and seed the other nine.
 
     insert into public.tips (url_pattern, title, summary, description, feature_name, estimated_required_minutes, keywords)
       values ('youtube.com', 'Turn on captions',
