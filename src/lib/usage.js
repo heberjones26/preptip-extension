@@ -57,4 +57,3 @@ export function weeklyReport(data, week) {
     averageOfficeDays: rows.length ? rows.reduce((sum, r) => sum + r.distinctOfficeDays, 0) / rows.length : null
   };
 }
-

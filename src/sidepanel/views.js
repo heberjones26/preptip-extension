@@ -105,15 +105,6 @@ export function header(state) {
   return `<span class="brand">${LOGO}<b>PrepTip</b></span>${who}`;
 }
 
-export function redirectNotice(redirect) {
-  if (!redirect) return '';
-  return `
-    <div class="redirect" role="status">
-      ${INFO}<span>You were redirected here from <b>${esc(hostOf(redirect.from))}</b></span>
-      <button type="button" class="x" data-action="dismiss-redirect" aria-label="Dismiss">&times;</button>
-    </div>`;
-}
-
 export function footer(state) {
   if (state.view === 'setup' || !state.setupDone) return '';
   const name = state.teacher?.username || '';
@@ -267,7 +258,7 @@ export function tipsView(state, ctx) {
   return `
     ${browsing ? '<button type="button" class="back" data-action="end-browse">&larr; Back</button>' : ''}
     <div class="site-chip"><span class="fav">${siteIcon(site)}</span>
-      <div><b>${esc(site.name)}</b><small>${plural(tips.length, 'tip')} for this site</small></div>
+      <div><b>${esc(site.name)}</b></div>
       ${recForGrade ? `<span class="rec-badge"><span class="gl">${CAP}</span>For ${esc(gradeLabel(grade))}</span>` : ''}
     </div>
     ${browsing ? `<p class="tiny-note">You&rsquo;re not on ${esc(site.name)} right now, so tips open as a step list. Open ${esc(site.name)} to get the orange highlights.</p>` : ''}
@@ -282,7 +273,7 @@ export function resultsHtml(state, ctx) {
   const supported = ctx.site && ctx.tips.length;
   if (!supported) return q ? anywhereResults(state, q) : '';
   if (!q) {
-    return sectionHead(`Top tips for ${esc(ctx.site.name)}`, 'What teachers get stuck on most') +
+    return sectionHead(`Top tips for ${esc(ctx.site.name)}`) +
       `<div class="cards">${ctx.tips.map((t, i) => tipCard(state, t, { featured: i === 0 })).join('')}</div>`;
   }
   return siteResults(state, ctx, q);
@@ -394,8 +385,7 @@ function stepItem(g, step, i) {
 
   // The current step.
   if (step.step_type === 'your_turn') {
-    const { lead } = splitActions(step.step_description);
-    return `<li class="now"><span class="sm">${n}</span><div>Your turn: ${esc(lead || stepText(step))}</div></li>`;
+    return '';
   }
   const { head, rest } = firstSentence(step.step_description);
   const path = targetPath(step);
@@ -461,13 +451,7 @@ function yourTurnCard(step) {
   const body = items.length
     ? `<ol class="howto">${items.map((t, i) => `<li><span class="pin">${i + 1}</span><div><p>${esc(t)}</p></div></li>`).join('')}</ol>`
     : `<p class="yt-block">${esc(step.step_description)}</p>`;
-  return `
-    <div class="yt">
-      <div class="arrived">${CHECK}<div><b>${esc(lead || 'Your turn')}</b><p>${items.length
-        ? 'This part is up to you. Follow these in order:'
-        : 'This part is up to you. Here’s what to do:'}</p></div></div>
-      ${body}
-    </div>`;
+  return `<section class="yt" aria-label="Instructions for this step"><h4>Follow these instructions</h4>${lead ? `<p class="yt-lead">${esc(lead)}</p>` : ''}${body}</section>`;
 }
 
 export function guideView(state) {
@@ -478,6 +462,7 @@ export function guideView(state) {
   const total = steps.length;
   const pct = Math.round(((g.stepIndex + 1) / total) * 100);
   const yourTurn = step.step_type === 'your_turn';
+  const overview = steps.map((s, i) => stepItem(g, s, i)).join('');
 
   const buttons = yourTurn
     ? `<button type="button" class="btn primary sm" data-action="step-done">I&rsquo;m done</button>`
@@ -490,12 +475,12 @@ export function guideView(state) {
     <div class="g-head">
       <button type="button" class="back" data-action="stop-guide">&larr; All ${esc(shortSiteName(siteName(state, tip.url_pattern)))} tips</button>
       <h3>${esc(tip.title)}</h3>
-      <div class="prog"><div class="bar"><i style="width:${pct}%"></i></div><span>Step ${g.stepIndex + 1} of ${total}${yourTurn ? ' &middot; Your turn' : ''}</span></div>
+      <div class="prog"><div class="prog-track"><i style="width:${pct}%"></i></div><span>Step ${g.stepIndex + 1} of ${total}</span></div>
     </div>
     ${offtrackBanner(g, step)}
     ${introCard(g)}
     ${liveLine(state, g, step)}
-    <ol class="steps">${steps.map((s, i) => stepItem(g, s, i)).join('')}</ol>
+    ${overview ? `<ol class="steps">${overview}</ol>` : ''}
     ${yourTurn ? yourTurnCard(step) : ''}
     ${menuHint}
     <div class="g-foot">
@@ -541,7 +526,7 @@ export function feedbackView(state) {
     <div class="g-head">
       <button type="button" class="back" data-action="back-to-tips">&larr; All ${short} tips</button>
       <h3>${esc(tip.title)}</h3>
-      <div class="prog"><div class="bar"><i style="width:100%"></i></div><span>Complete</span></div>
+      <div class="prog"><div class="prog-track"><i style="width:100%"></i></div><span>Complete</span></div>
     </div>
     <div class="win"><span class="win-ic">${CHECK}</span><h4>Nice work!</h4><p>You finished every step of &ldquo;${esc(tip.title)}&rdquo;.</p></div>
     <div class="fb">${card}</div>

@@ -371,7 +371,7 @@
       --brand: #E8590C; --brand-dk: #C2410C; --brand-soft: #FFF1E7; --brand-ring: rgba(232, 89, 12, .38);
       --ink: #1E2433; --ink-2: #4A5468; --ink-3: #7A8396;
       position: fixed; top: 0; left: 0; width: 0; height: 0;
-      font-family: "Nunito", "Segoe UI", system-ui, sans-serif;
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       pointer-events: none;
     }
     [hidden] { display: none !important; }
@@ -404,7 +404,7 @@
     /* Dark coach tooltip */
     .coach {
       position: fixed; width: max-content; max-width: 240px; pointer-events: none;
-      background: var(--ink); color: #fff; font: 600 13px/1.35 "Nunito", "Segoe UI", system-ui, sans-serif;
+      background: var(--ink); color: #fff; font: 600 13px/1.35 "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       padding: 8px 12px; border-radius: 10px; box-shadow: 0 8px 20px rgba(0, 0, 0, .2);
     }
     .coach small {
@@ -424,7 +424,7 @@
     .nudge {
       position: fixed; top: 10px; right: 16px; width: 270px; pointer-events: auto;
       background: #fff; border-radius: 14px; padding: 14px; color: var(--ink);
-      font: 14px/1.4 "Nunito", "Segoe UI", system-ui, sans-serif;
+      font: 14px/1.4 "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       box-shadow: 0 10px 30px rgba(30, 36, 51, .22), 0 0 0 1px rgba(30, 36, 51, .06);
       animation: pop .2s ease-out;
     }
@@ -445,7 +445,7 @@
     .nudge-row { display: flex; gap: 8px; }
     .btn {
       display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
-      font: 700 13px/1.2 "Nunito", "Segoe UI", system-ui, sans-serif;
+      font: 700 13px/1.2 "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       border-radius: 10px; padding: 7px 13px; border: 1.5px solid transparent;
     }
     .btn.primary { background: var(--brand); color: #fff; }
@@ -692,7 +692,7 @@
       : `Step ${Number(guide.stepIndex) + 1}`;
 
     if (guide.stepType === 'your_turn') {
-      return { small: stepLabel, before: firstSentence(guide.description, 90) || 'Your turn', bold: '', after: '' };
+      return { small: stepLabel, before: firstSentence(guide.description, 90) || 'Follow these instructions', bold: '', after: '' };
     }
     const label = guide.kind === 'search' ? 'search box' : currentLabel();
     if (guide.kind === 'search') return { small: stepLabel, before: 'Click the ', bold: label, after: '' };

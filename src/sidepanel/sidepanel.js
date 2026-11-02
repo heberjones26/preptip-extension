@@ -30,8 +30,6 @@ const state = {
   browseSite: null,         // a site picked from "Sites with tips" while on an unsupported page
   query: '',
   request: newRequest(),
-  redirect: null,           // { from, to, at, kind } for this tab, if it applies
-  dismissedRedirects: new Set(),
   guide: null,              // { tip, stepIndex, tabId, live, canHighlight, status, offtrack }
   feedback: null            // { tip, isHelpful, reasons, text, phase, error }
 };
@@ -86,7 +84,6 @@ function mainHtml() {
 function render() {
   if (state.view !== 'guide') engagement.stop(); // dwell only counts while a tip is open
   $('#header').innerHTML = views.header(state);
-  $('#notice').innerHTML = state.view === 'setup' ? '' : views.redirectNotice(visibleRedirect());
   $('#view').innerHTML = mainHtml();
   $('#view').dataset.view = state.view;
   $('#footer').innerHTML = views.footer(state);
@@ -155,7 +152,17 @@ async function loadCatalog({ force = false } = {}) {
 // Helpful counts are nice-to-have: if they fail to load, cards just don't show them.
 async function loadRatings() {
   try {
-    state.ratings = await getTipRatings();
+    const fresh = await getTipRatings();
+    // Keep a just-submitted vote visible if the aggregate endpoint is briefly stale.
+    for (const [tipId, previous] of Object.entries(state.ratings)) {
+      const current = fresh[tipId] || {};
+      fresh[tipId] = {
+        helpful: Math.max(Number(previous.helpful || 0), Number(current.helpful || 0)),
+        total: Math.max(Number(previous.total || 0), Number(current.total || 0))
+      };
+    }
+    state.ratings = fresh;
+    if (state.view === 'tips') render();
   } catch (err) {
     console.warn('PrepTip: could not load helpful counts', err);
   }
@@ -192,7 +199,6 @@ async function refreshActiveTab({ silent = false } = {}) {
     state.tab = { id: tab.id, url: tab.url || tab.pendingUrl || '' };
     state.windowId = tab.windowId;
     updateSite();
-    await loadRedirect();
     return;
   }
   await onActiveTab(tab);
@@ -207,7 +213,6 @@ async function onActiveTab(tab) {
   state.tab = { id: tab.id, url };
   state.windowId = tab.windowId;
   updateSite();
-  await loadRedirect();
 
   if (!state.catalog || ['setup', 'loading', 'error'].includes(state.view)) return render();
 
@@ -239,29 +244,6 @@ function resetListState() {
   state.browseSite = null;
   state.query = '';
   state.request = newRequest();
-}
-
-// ---------------------------------------------------------------------------
-// Redirect note (supports R6): written by background.js as pt.redirect.<tabId>
-// ---------------------------------------------------------------------------
-async function loadRedirect() {
-  state.redirect = null;
-  if (!state.tab) return;
-  const key = STORAGE.redirectKey(state.tab.id);
-  try {
-    const { [key]: info } = await chrome.storage.session.get(key);
-    if (info && info.from && hostOf(info.to) === hostOf(state.tab.url)) state.redirect = info;
-  } catch { /* session storage unavailable */ }
-}
-
-function visibleRedirect() {
-  const r = state.redirect;
-  if (!r || !isWebUrl(state.tab?.url)) return null;
-  return state.dismissedRedirects.has(redirectId(r)) ? null : r;
-}
-
-function redirectId(r) {
-  return `${state.tab?.id}:${r.at}:${r.from}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -558,8 +540,15 @@ async function sendFeedback() {
       isHelpful: f.isHelpful,
       text: text || null
     });
+    if (f.isHelpful !== null) {
+      const rating = state.ratings[f.tip.tip_id] || { helpful: 0, total: 0 };
+      state.ratings[f.tip.tip_id] = {
+        helpful: Number(rating.helpful || 0) + (f.isHelpful ? 1 : 0),
+        total: Number(rating.total || 0) + 1
+      };
+    }
     f.phase = 'sent';
-    loadRatings(); // so "Back to tips" already shows the new count
+    loadRatings(); // refresh from the aggregate; list view also redraws if it is already open
   } catch (err) {
     console.warn('PrepTip: feedback failed', err);
     f.phase = 'form';
@@ -635,10 +624,6 @@ const actions = {
     if (box) { box.focus(); box.setSelectionRange(box.value.length, box.value.length); }
   },
   'close-request': () => { state.request = newRequest(); render(); },
-  'dismiss-redirect': () => {
-    if (state.redirect) state.dismissedRedirects.add(redirectId(state.redirect));
-    render();
-  },
 
   // guide
   'stop-guide': () => exitGuide(),
@@ -740,13 +725,6 @@ function wireChromeEvents() {
     onGuideMessage(msg, sender);
   });
 
-  // background.js may record a redirect after the panel is already open.
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'session' || !state.tab) return;
-    if (STORAGE.redirectKey(state.tab.id) in changes) loadRedirect().then(() => {
-      if (state.view !== 'setup') $('#notice').innerHTML = views.redirectNotice(visibleRedirect());
-    });
-  });
 }
 
 init();
