@@ -1,14 +1,12 @@
 // PrepTip side panel: state, chrome events, and click handling.
 // Rendering lives in views.js; talking to the on-page guide lives in guide-bridge.js.
+import { createPanelEngagement } from './engagement-tracking.js';
 import { MSG, STORAGE } from '../lib/protocol.js';
-import {
-  getCatalog, getTipRatings, submitFeedback, requestTip,
-  createAccount, signIn
-} from '../lib/supabase.js';
+import { getCatalog, getTipRatings, registerTeacher, submitFeedback, requestTip } from '../lib/supabase.js';
 import { matchSite, tipsForSite } from '../lib/sites.js';
 import * as views from './views.js';
 import * as bridge from './guide-bridge.js';
-import { hostOf, isWebUrl } from './text.js';
+import { isValidEmail, hostOf, isWebUrl } from './text.js';
 
 // ---------------------------------------------------------------------------
 // State. Everything the screens need lives here; render() turns it into HTML.
@@ -16,7 +14,7 @@ import { hostOf, isWebUrl } from './text.js';
 const state = {
   view: 'loading',          // 'setup' | 'loading' | 'error' | 'tips' | 'guide' | 'feedback'
   setupDone: false,
-  teacher: null,            // { userId, username }
+  teacher: null,            // { userId, firstName, lastName, email }
   setup: newSetup(),
   catalog: null,
   ratings: {},              // { [tip_id]: { helpful, total } } read live from feedback
@@ -33,15 +31,12 @@ const state = {
   feedback: null            // { tip, isHelpful, reasons, text, phase, error }
 };
 
-// Setup screens: 0 welcome, 1 pin, 2 username + password, 3 done.
-function newSetup({ step = 0, mode = 'signup' } = {}) {
+function newSetup(teacher) {
   return {
-    step,
-    mode,                   // 'signup' (create an account) | 'signin'
-    username: '',
-    password: '',
-    confirm: '',            // signup only: the password typed again
-    notice: null,           // 'taken' when signup picks a username that already exists
+    step: 0,
+    first: teacher?.firstName || '',
+    last: teacher?.lastName || '',
+    email: teacher?.email || '',
     saving: false,
     error: ''
   };
@@ -79,6 +74,7 @@ function mainHtml() {
 }
 
 function render() {
+  if (state.view !== 'guide') engagement.stop();
   $('#header').innerHTML = views.header(state);
   $('#notice').innerHTML = state.view === 'setup' ? '' : views.redirectNotice(visibleRedirect());
   $('#view').innerHTML = mainHtml();
@@ -98,6 +94,12 @@ function renderResults() {
 // ---------------------------------------------------------------------------
 // Startup
 // ---------------------------------------------------------------------------
+const engagement = createPanelEngagement();
+function recordUsage() {
+  const userId = state.teacher?.userId;
+  if (state.setupDone && userId != null) engagement.open(userId);
+}
+
 async function init() {
   wireDomEvents();
   wireChromeEvents();
@@ -105,13 +107,8 @@ async function init() {
   const local = await chrome.storage.local.get([STORAGE.TEACHER, STORAGE.SETUP_DONE]);
   state.teacher = local[STORAGE.TEACHER] || null;
   state.setupDone = local[STORAGE.SETUP_DONE] === true;
-  // Accounts from before usernames (name + email) no longer exist in the database.
-  if (state.teacher && !state.teacher.username) {
-    state.teacher = null;
-    state.setupDone = false;
-    await chrome.storage.local.remove([STORAGE.TEACHER, STORAGE.SETUP_DONE]);
-  }
   if (!state.setupDone) state.view = 'setup';
+  recordUsage();
 
   await refreshActiveTab({ silent: true });
   render();
@@ -282,6 +279,7 @@ function resetStepStatus() {
 }
 
 function startGuide(tip, stepIndex = 0) {
+  engagement.stop();
   state.guide = {
     tip,
     stepIndex,
@@ -377,96 +375,60 @@ function onGuideMessage(msg, sender) {
 }
 
 // ---------------------------------------------------------------------------
-// Setup and sign-in (R2): a unique username and a password.
+// Setup (R2)
 // ---------------------------------------------------------------------------
-
-const USERNAME_RE = /^[A-Za-z0-9._-]{3,30}$/; // same rule as the database
-
-// Forget the teacher on this browser and go straight to the sign-in form.
-async function signOut() {
+function startSetup() {
   if (state.guide) {
     bridge.clearGuide(state.guide.tabId);
     forgetGuide(state.guide.tabId);
     state.guide = null;
   }
-  state.feedback = null;
-  resetListState();
-  state.teacher = null;
-  state.setupDone = false;
-  await chrome.storage.local.remove([STORAGE.TEACHER, STORAGE.SETUP_DONE]);
-  state.setup = newSetup({ step: 2, mode: 'signin' });
+  state.setup = newSetup(state.teacher);
   state.view = 'setup';
   render();
 }
 
-// Keep whatever was typed; every render rebuilds the form from state.
-function readAccountForm(form) {
+async function saveTeacher(form) {
   const s = state.setup;
-  if (!form) return;
-  s.username = form.username.value.trim();
-  s.password = form.password.value;
-  if (form.confirm) s.confirm = form.confirm.value;
-}
+  s.first = form.first.value.trim();
+  s.last = form.last.value.trim();
+  s.email = form.email.value.trim().toLowerCase();
 
-function setSetupMode(mode) {
-  const s = state.setup;
-  readAccountForm($('#setup-form'));
-  s.mode = mode;
-  s.notice = null;
-  s.error = '';
-  render();
-}
-
-function offlineOr(message) {
-  return navigator.onLine === false ? 'You seem to be offline. Check your connection and try again.' : message;
-}
-
-function accountFormError(s) {
-  if (!USERNAME_RE.test(s.username)) {
-    return s.mode === 'signup'
-      ? 'Usernames are 3 to 30 letters or numbers. You can also use . - and _ (no spaces).'
-      : 'Type the username you signed up with.';
-  }
-  if (s.mode === 'signin') return s.password ? '' : 'Type your password.';
-  if (s.password.length < 8) return 'Passwords need at least 8 characters.';
-  if (s.password !== s.confirm) return 'The two passwords don’t match. Type them again.';
-  return '';
-}
-
-async function submitAccount(form) {
-  const s = state.setup;
-  readAccountForm(form);
-  s.notice = null;
-  s.error = accountFormError(s);
+  if (!s.first) s.error = 'Please add your first name.';
+  else if (!isValidEmail(s.email)) s.error = 'That email doesn’t look quite right. Try something like name@school.edu.';
+  else s.error = '';
   if (s.error) return render();
 
   s.saving = true;
   render();
   try {
-    const account = s.mode === 'signup'
-      ? await createAccount({ username: s.username, password: s.password })
-      : await signIn({ username: s.username, password: s.password });
-    if (!account) {
-      s.error = 'That username and password don’t match. Check them and try again.';
-    } else {
-      state.teacher = account;
-      state.setupDone = true;
-      await chrome.storage.local.set({ [STORAGE.TEACHER]: account, [STORAGE.SETUP_DONE]: true });
-      s.password = '';
-      s.confirm = '';
-      s.step = 3;
-    }
+    const userId = toUserId(await registerTeacher({ firstName: s.first, lastName: s.last, email: s.email }));
+    if (userId == null) throw new Error('No user id returned');
+    state.teacher = { userId, firstName: s.first, lastName: s.last, email: s.email };
+    state.setupDone = true;
+    await chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher, [STORAGE.SETUP_DONE]: true });
+    recordUsage();
+    s.step = 3;
   } catch (err) {
-    console.warn('PrepTip: account request failed', err);
-    if (err.code === '23505') s.notice = 'taken'; // one account per username
-    else s.error = offlineOr('We couldn’t reach PrepTip right now. Please try again in a moment.');
+    console.warn('PrepTip: register failed', err);
+    s.error = navigator.onLine === false
+      ? 'You seem to be offline. Check your connection and try again.'
+      : 'We couldn’t save that right now. Please try again in a moment.';
   }
   s.saving = false;
   render();
 }
 
+// rpc/register_teacher returns a bare number, but accept { user_id } or [n] too.
+function toUserId(res) {
+  if (typeof res === 'number' || typeof res === 'string') return res;
+  if (Array.isArray(res)) return toUserId(res[0]);
+  if (res && typeof res === 'object') return res.user_id ?? res.register_teacher ?? null;
+  return null;
+}
+
 async function finishSetup() {
-  state.setup = newSetup();
+  state.setup = newSetup(state.teacher);
   if (!state.catalog) {
     state.view = 'loading';
     render();
@@ -533,20 +495,14 @@ async function sendFeedback() {
 const actions = {
   // setup
   'setup-next': () => { state.setup.step += 1; state.setup.error = ''; render(); },
-  'setup-back': () => {
-    const s = state.setup;
-    s.step = Math.max(0, s.step - 1);
-    s.error = '';
-    s.notice = null;
-    render();
-  },
-  'setup-mode': (el) => setSetupMode(el.dataset.mode),
+  'setup-back': () => { state.setup.step = Math.max(0, state.setup.step - 1); state.setup.error = ''; render(); },
   'setup-finish': () => finishSetup(),
-  'sign-out': () => signOut(),
+  'cancel-setup': () => finishSetup(),
+  'change-teacher': () => startSetup(),
 
   // list + search
   'retry': () => { state.retrying = true; render(); loadCatalog({ force: true }); },
-  'open-tip': (el) => { const tip = findTip(el.dataset.tipId); if (tip) startGuide(tip, 0); },
+  'open-tip': (el) => { const tip = findTip(el.dataset.tipId); if (tip) { startGuide(tip, 0); engagement.click(tip.tip_id); } },
   'clear-search': () => { state.query = ''; render(); $('#search')?.focus(); },
   'set-query': (el) => { state.query = el.dataset.q || ''; render(); $('#search')?.focus(); },
   'browse-site': (el) => {
@@ -628,7 +584,7 @@ function wireDomEvents() {
 
   document.addEventListener('submit', (e) => {
     e.preventDefault();
-    if (e.target.id === 'setup-form') submitAccount(e.target);
+    if (e.target.id === 'setup-form') saveTeacher(e.target);
     if (e.target.id === 'request-form') sendRequest($('#request-text')?.value || '');
   });
 }

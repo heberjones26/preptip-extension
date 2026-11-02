@@ -34,6 +34,10 @@ export function isWebUrl(url) {
   return /^https?:\/\//i.test(url || '');
 }
 
+export function isValidEmail(email) {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((email || '').trim());
+}
+
 // "role:Viewer" -> "Viewer". Some path segments carry a little prefix of their own.
 export function cleanSegment(seg) {
   return (seg || '').replace(/^[a-z_]+:/i, '').trim();

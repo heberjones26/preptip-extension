@@ -11,7 +11,7 @@ Requirement numbers (R1–R10) refer to "Behavioral Requirements" in the PRD. Sc
 | `manifest.json` | Permissions, content scripts, side panel | — |
 | `src/config.js` | Supabase URL + publishable key | ES module |
 | `src/lib/protocol.js` | Message types + storage keys (**the contract**) | ES module |
-| `src/lib/supabase.js` | `getCatalog`, `getTipRatings`, `createAccount`, `signIn`, `submitFeedback`, `requestTip` | ES module |
+| `src/lib/supabase.js` | `getCatalog`, `registerTeacher`, `submitFeedback`, `requestTip` | ES module |
 | `src/lib/sites.js` | `matchSite`, `tipsForSite`, `searchTips`, `parseTarget` | ES module |
 | `src/background.js` | Service worker: badge, panel behavior, nudge info, redirect detection, malicious-URL blocking | ES module |
 | `src/blocked/*` | Warning page shown in place of a blocked URL (R7) | page |
@@ -41,17 +41,7 @@ tips: [{
 `menu`, `button`, `link`, `search`, `dialog`, `panel`, `print`, `grid`, `cell`, `formula_bar`, `slide`, `editor`, `player`.
 Examples: `menu:Format > Conditional formatting`, `menu:View > Freeze > 1 row`, `button:Share`, `panel:Conditional format rules`.
 
-RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), call `rpc/create_teacher_account` and `rpc/sign_in_teacher`, and call `rpc/tip_ratings` (per-tip helpful/total counts, used for "N teachers found this helpful" and never cached). It cannot read feedback rows or users.
-
-### Sign-in (R2)
-
-Each account is a unique username and a password. No email, and no Supabase Auth.
-
-- `rpc/create_teacher_account(p_username, p_password)` → `[{ user_id, username }]`. Usernames are 3–30 letters, numbers, `.`, `-` or `_`, unique ignoring case (unique index on `lower(username)`). A taken username fails with code `23505` (HTTP 409); the panel then shows "… is already taken" and offers to sign in. Passwords need 8+ characters and are stored as bcrypt hashes (`pgcrypto`).
-- `rpc/sign_in_teacher(p_username, p_password)` → `[{ user_id, username }]`, or `[]` when the username or password is wrong.
-- The panel keeps `pt.teacher` (`{ userId, username }`) and `pt.setupDone`. A saved teacher from the old name + email setup has no `username`, so the panel signs it out on load.
-
-"Sign out" removes `pt.teacher` and `pt.setupDone`, clears any running guide, and shows the sign-in form.
+RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), call `rpc/register_teacher`, and call `rpc/tip_ratings` (per-tip helpful/total counts, used for "N teachers found this helpful" and never cached). It cannot read feedback rows or users.
 
 ## Messages
 
@@ -98,7 +88,7 @@ The panel filters by `sender.tab.id === activeTabId` and by `tipId`/`stepIndex`.
 
 ## Storage
 
-`chrome.storage.local`: `pt.teacher` (`{ userId, username }`), `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
+`chrome.storage.local`: `pt.teacher`, `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
 `chrome.storage.session`: `pt.redirect.<tabId>` (`{ from, to, at, kind }`, written by background, shown by the panel as "You were redirected here from …"), `pt.guide.<tabId>` (`{ tipId, stepIndex }`, written by the panel so a guide resumes after the panel reopens), `pt.allowedDomains`, and the background-only `pt.lastUrl.<tabId>` (the tab's last committed URL, used as the "from" of client redirects; it lives in storage because the service worker can be killed at any time).
 
 ## declarativeNetRequest rule ids

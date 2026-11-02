@@ -15,7 +15,7 @@ Teachers are expected to use general-purpose tools such as Google Sheets, Canva 
 | `websites` | Each supported tool, keyed by a URL pattern such as `docs.google.com/spreadsheets` |
 | `tips` | A how-to for one website: title, summary, description, feature name, estimated minutes and search keywords |
 | `tip_steps` | The ordered steps of a tip. `step_type` is `guided` (PrepTip highlights it) or `your_turn` (the teacher fills something in). `target_element` names what to highlight, e.g. `menu:Format > Conditional formatting` |
-| `users` | Teachers, created by the extension's first-run setup: a unique username and a hashed password |
+| `users` | Teachers, created by the extension's first-run setup (name + email) |
 | `feedback` | A teacher's 👍/👎 and optional comment on a tip. A row with no `tip_id` is a "request a tip" submission |
 
 ## Tech Stack
@@ -26,7 +26,7 @@ Teachers are expected to use general-purpose tools such as Google Sheets, Canva 
 | On-page guidance | Content script that draws highlights inside a Shadow DOM | Lets us point at the real Google Sheets menus without the page's styles breaking ours, or ours breaking the page |
 | Background logic | MV3 service worker using `declarativeNetRequest`, `webRequest` and `webNavigation` | Chrome checks flagged URLs and blocks them before the page loads (R6–R7), and the extension never has to read page contents to do it |
 | Database + API | Supabase: hosted PostgreSQL with an auto-generated REST API | No server code for us to write or host. The free tier covers a class project, and teammates can add or edit tips in Supabase's table editor without touching code. |
-| Security | Postgres row-level security policies and a few small database functions ([migrations](supabase/migrations/)) | The extension uses Supabase's public "publishable" key. RLS limits that key to reading tips, adding feedback, creating an account, signing in and reading helpful counts. Passwords are hashed with bcrypt inside the database and never sent back. The key can't read the users table or anyone's feedback. |
+| Security | Postgres row-level security policies and two small database functions ([migrations](supabase/migrations/)) | The extension uses Supabase's public "publishable" key. RLS limits that key to reading tips, adding feedback, registering a teacher and reading helpful counts. It can't read or change anyone's feedback or personal data. |
 | Tooling | Git and GitHub; Node.js only for the optional tests and checks (built-in `node:test`, no dependencies) | Nothing to `npm install` before running the extension |
 
 ## How to Get It Running
@@ -46,7 +46,7 @@ You need **Google Chrome 116 or newer** (Edge and Brave work too) and a Google a
 4. **Load the extension.** Click **Load unpacked**, then select the `preptip-extension` folder, the one that directly contains `manifest.json`. A **PrepTip** card with an orange lightbulb icon appears. It should not show a red **Errors** button.
 5. **Pin it to the toolbar.** Click the puzzle-piece icon to the right of the address bar, then click the pin next to **PrepTip**.
 6. **Open a supported site.** Go to `https://sheets.new` to create a blank Google Sheet, or open any Sheet you already have. The PrepTip icon shows a green number, which is how many tips exist for Google Sheets.
-7. **Open PrepTip and finish setup.** Click the PrepTip icon. The side panel opens on the right and walks you through four short setup steps. Create an account with a username and a password (at least 8 characters). When you finish, the panel lists the Google Sheets tips.
+7. **Open PrepTip and finish setup.** Click the PrepTip icon. The side panel opens on the right and walks you through four short setup steps. Enter a first name and an email address (no password; this only links your feedback to you). When you finish, the panel lists the Google Sheets tips.
 
 **If something looks wrong:**
 - **The panel says "No tips available for this site".** Check that the address starts with `docs.google.com/spreadsheets`.
@@ -89,7 +89,7 @@ If you have access to the Supabase project, you can also open **Table Editor →
 
 | PRD | Try this |
 |---|---|
-| R2 setup | The first click on the icon shows step-by-step setup, ending with "Create your account" (username + password). Usernames are unique: try one that's taken to see the warning. "Sign out" at the bottom of the panel signs you out, and "Sign in" gets you back in |
+| R2 setup | The first click on the icon shows step-by-step setup. "Change teacher" at the bottom of the panel runs it again |
 | R3/R4, S1 | On a Google Sheet: green badge on the icon, a one-time "tips are ready" pop-up, and the Sheets tip list |
 | S2 search | Search "make bad grades red" or "freeze" |
 | R5 | Open wikipedia.org: the panel says "No tips available for this site" |
@@ -126,5 +126,5 @@ The extension picks it up within 10 minutes, or right away after you reload it. 
 ## Known limits
 
 - **YouTube downloads (R9) are intentionally not implemented.** Saving YouTube videos breaks YouTube's Terms of Service and gets extensions removed from the Chrome Web Store. Instead, the button copies a link and shows how to add the video with Google Slides' built-in **Insert → Video**.
-- Accounts are a username and password checked by a database function. There's no password reset and no limit on wrong guesses, and the extension remembers the account by its id. That's fine for a class prototype; a real launch would use Supabase Auth sessions.
+- Teacher identity is a name and email with no verification. That's fine for a class prototype; a real launch would need proper sign-in.
 - The blocklist is a small local file, not a live threat feed.

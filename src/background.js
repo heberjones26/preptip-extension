@@ -8,6 +8,7 @@
 import { MSG, STORAGE } from './lib/protocol.js';
 import { getCatalog } from './lib/supabase.js';
 import { matchSite, tipsForSite } from './lib/sites.js';
+import { createMetricsRecorder } from './lib/metrics.js';
 
 // ---------------------------------------------------------------------------------------------
 // Constants
@@ -328,10 +329,20 @@ function respondAsync(promise, sendResponse) {
   return true;
 }
 
+let recordMetrics;
+
 function onMessage(msg, sender, sendResponse) {
   if (!msg || typeof msg.type !== 'string') return false;
 
   switch (msg.type) {
+    case MSG.ENGAGEMENT:
+      if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('src/sidepanel/sidepanel.html')) {
+        sendResponse({ ok: false, error: 'Not allowed' });
+        return false;
+      }
+      recordMetrics ||= createMetricsRecorder(chrome.storage.local);
+      return respondAsync(recordMetrics(msg, sender.documentId), sendResponse);
+
     case MSG.GET_SITE_INFO:
       return respondAsync(getSiteInfo(sender), sendResponse);
 

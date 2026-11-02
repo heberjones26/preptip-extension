@@ -226,8 +226,6 @@ button.chip.link:hover { background: #DCF2E4; }
   margin: 0; padding: 8px 11px; border-radius: 10px;
   background: #FEF2F2; color: #B42318; font-size: 13px; font-weight: 600;
 }
-.form .alt { text-align: center; font-size: 13px; color: var(--ink-3); }
-.form .offtrack .btn { width: 100%; }
 
 .thanks { display: flex; gap: 10px; align-items: flex-start; }
 .thanks > svg { width: 22px; height: 22px; flex: none; background: var(--ok); color: #fff; border-radius: 50%; padding: 4px; }
@@ -247,6 +245,7 @@ button.chip.link:hover { background: #DCF2E4; }
 .dots i { width: 8px; height: 8px; border-radius: 4px; background: #DDE1E8; transition: width .2s; }
 .dots i.done { background: #F6C3A5; }
 .dots i.on { width: 22px; background: var(--brand); }
+.dots .linkish { margin-left: auto; color: var(--ink-3); }
 .hero { width: 64px; height: 64px; margin: 6px 0 0; }
 .hero svg { width: 64px; height: 64px; filter: drop-shadow(0 6px 14px rgba(232, 89, 12, .3)); }
 .features { list-style: none; margin: 0; padding: 0; }
