@@ -23,6 +23,15 @@ export const WAND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 
 
 export const STEPS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="4.5" cy="6" r="1.6" fill="currentColor"/><circle cx="4.5" cy="12" r="1.6" fill="currentColor"/><circle cx="4.5" cy="18" r="1.6" fill="currentColor"/></svg>';
 
+// Graduation cap — the grade-level affordance.
+export const CAP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 2 9l10 5 8-4v6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><path d="M6 11.5V16c0 1.1 2.7 2.5 6 2.5s6-1.4 6-2.5v-4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>';
+
+// Stacked books — the Teacher Resources link.
+export const BOOKS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a1.5 1.5 0 0 1 1.5 1.5V19a1.2 1.2 0 0 0-1.2-1.2H4zM20 5.5A1.5 1.5 0 0 0 18.5 4H14a1.5 1.5 0 0 0-1.5 1.5V19a1.2 1.2 0 0 1 1.2-1.2H20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
+
+// Open-in-new-tab arrow, for external resource links.
+export const EXTERNAL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M12 5H6a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
 // A little Google-style document, recolored per product.
 function googleDoc(fill, fold, lines) {
   return `<svg viewBox="0 0 16 20" aria-hidden="true"><path d="M0 2a2 2 0 0 1 2-2h8l6 6v12a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2z" fill="${fill}"/><path d="M10 0l6 6h-4a2 2 0 0 1-2-2z" fill="${fold}"/>${lines}</svg>`;

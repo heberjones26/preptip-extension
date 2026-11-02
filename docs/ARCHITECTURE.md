@@ -13,6 +13,8 @@ Requirement numbers (R1–R10) refer to "Behavioral Requirements" in the PRD. Sc
 | `src/lib/protocol.js` | Message types + storage keys (**the contract**) | ES module |
 | `src/lib/supabase.js` | `getCatalog`, `registerTeacher`, `submitFeedback`, `requestTip` | ES module |
 | `src/lib/sites.js` | `matchSite`, `tipsForSite`, `searchTips`, `parseTarget` | ES module |
+| `src/data/segments.js` | Grade bands + site→grade tags + `fitsGrade`/`splitByGrade` (recommend-by-grade) | ES module |
+| `src/data/resources.js` | `RESOURCES` — curated teacher-built sites (blurb + link, no steps) | ES module |
 | `src/background.js` | Service worker: badge, panel behavior, nudge info, redirect detection, malicious-URL blocking | ES module |
 | `src/blocked/*` | Warning page shown in place of a blocked URL (R7) | page |
 | `src/data/blocklist.json` | Flagged domains | data |
@@ -42,6 +44,21 @@ tips: [{
 Examples: `menu:Format > Conditional formatting`, `menu:View > Freeze > 1 row`, `button:Share`, `panel:Conditional format rules`.
 
 RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), call `rpc/register_teacher`, and call `rpc/tip_ratings` (per-tip helpful/total counts, used for "N teachers found this helpful" and never cached). It cannot read feedback rows or users.
+RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), **insert** into `events` (usage events of a known type), call `rpc/create_teacher_account` and `rpc/sign_in_teacher`, and call `rpc/tip_ratings` (per-tip helpful/total counts, used for "N teachers found this helpful" and never cached), `rpc/okr_tip_completions` (OKR 2 totals) and `rpc/resource_opens` (per-resource open counts). It cannot read feedback, users or events rows.
+
+### Sign-in (R2)
+
+Each account is a unique username and a password. No email, and no Supabase Auth.
+
+- `rpc/create_teacher_account(p_username, p_password)` → `[{ user_id, username }]`. Usernames are 3–30 letters, numbers, `.`, `-` or `_`, unique ignoring case (unique index on `lower(username)`). A taken username fails with code `23505` (HTTP 409); the panel then shows "… is already taken" and offers to sign in. Passwords need 8+ characters and are stored as bcrypt hashes (`pgcrypto`).
+- `rpc/sign_in_teacher(p_username, p_password)` → `[{ user_id, username }]`, or `[]` when the username or password is wrong.
+- The panel keeps `pt.teacher` (`{ userId, username, gradeLevel }`) and `pt.setupDone`. A saved teacher from the old name + email setup has no `username`, so the panel signs it out on load. `gradeLevel` is the teacher's chosen grade band (or null); it's picked on the "You're set" screen and lives only in the browser.
+
+"Sign out" removes `pt.teacher` and `pt.setupDone`, clears any running guide, and shows the sign-in form.
+
+### Usage events & OKRs
+
+`events` ([supabase/migrations/20261101000000_usage_events.sql](../supabase/migrations/20261101000000_usage_events.sql)) is a shared, insert-only table behind the OKR dashboard. The side panel logs `tip_open` (a teacher opened a tip), `tip_complete` (finished 100% of its steps) and `resource_open` (opened a Common Teacher Resource) via `logEvent()` in `src/lib/supabase.js`. `okr_tip_completions()` and `resource_opens()` return only aggregate totals. `app_open` and `tip_dwell_success` are reserved for the team's Objective-B tracking. The dashboard itself is a separate static site in [`dashboard/`](../dashboard/) (reads aggregates, never embedded in the extension).
 
 ## Messages
 
@@ -89,6 +106,7 @@ The panel filters by `sender.tab.id === activeTabId` and by `tipId`/`stepIndex`.
 ## Storage
 
 `chrome.storage.local`: `pt.teacher`, `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
+`chrome.storage.local`: `pt.teacher` (`{ userId, username, gradeLevel }`), `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
 `chrome.storage.session`: `pt.redirect.<tabId>` (`{ from, to, at, kind }`, written by background, shown by the panel as "You were redirected here from …"), `pt.guide.<tabId>` (`{ tipId, stepIndex }`, written by the panel so a guide resumes after the panel reopens), `pt.allowedDomains`, and the background-only `pt.lastUrl.<tabId>` (the tab's last committed URL, used as the "from" of client redirects; it lives in storage because the service worker can be killed at any time).
 
 ## declarativeNetRequest rule ids

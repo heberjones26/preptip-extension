@@ -3,6 +3,10 @@
 import { createPanelEngagement } from './engagement-tracking.js';
 import { MSG, STORAGE } from '../lib/protocol.js';
 import { getCatalog, getTipRatings, registerTeacher, submitFeedback, requestTip } from '../lib/supabase.js';
+import {
+  getCatalog, getTipRatings, submitFeedback, requestTip,
+  createAccount, signIn, requestResource, logEvent
+} from '../lib/supabase.js';
 import { matchSite, tipsForSite } from '../lib/sites.js';
 import * as views from './views.js';
 import * as bridge from './guide-bridge.js';
@@ -12,9 +16,12 @@ import { isValidEmail, hostOf, isWebUrl } from './text.js';
 // State. Everything the screens need lives here; render() turns it into HTML.
 // ---------------------------------------------------------------------------
 const state = {
-  view: 'loading',          // 'setup' | 'loading' | 'error' | 'tips' | 'guide' | 'feedback'
+  view: 'loading',          // 'setup' | 'loading' | 'error' | 'tips' | 'guide' | 'feedback' | 'resources'
   setupDone: false,
   teacher: null,            // { userId, firstName, lastName, email }
+  teacher: null,            // { userId, username, gradeLevel }
+  resourceGradeOnly: true,  // Teacher Resources view: show only my-grade matches (vs. all)
+  resourceCategory: '',     // Teacher Resources view: category filter ('' = all)
   setup: newSetup(),
   catalog: null,
   ratings: {},              // { [tip_id]: { helpful, total } } read live from feedback
@@ -37,6 +44,16 @@ function newSetup(teacher) {
     first: teacher?.firstName || '',
     last: teacher?.lastName || '',
     email: teacher?.email || '',
+// Setup screens: 0 welcome, 1 pin, 2 username + password, 3 done (+ grade pick).
+function newSetup({ step = 0, mode = 'signup', grade = '' } = {}) {
+  return {
+    step,
+    mode,                   // 'signup' (create an account) | 'signin'
+    username: '',
+    password: '',
+    confirm: '',            // signup only: the password typed again
+    notice: null,           // 'taken' when signup picks a username that already exists
+    grade,                  // chosen grade band ('' = all grades / not set)
     saving: false,
     error: ''
   };
@@ -66,6 +83,7 @@ function mainHtml() {
     case 'error': return views.errorView(state);
     case 'guide': return views.guideView(state);
     case 'feedback': return views.feedbackView(state);
+    case 'resources': return views.resourcesView(state);
     default: {
       const ctx = tipsContext();
       return ctx.site && ctx.tips.length ? views.tipsView(state, ctx) : views.unsupportedView(state, ctx);
@@ -328,6 +346,8 @@ function completeStep() {
 
 function finishGuide() {
   const g = state.guide;
+  // OKR 2 numerator: a tip was followed through 100% of its steps.
+  logEvent({ type: 'tip_complete', userId: state.teacher?.userId, tipId: g.tip.tip_id, urlPattern: g.tip.url_pattern });
   bridge.clearGuide(g.tabId);
   forgetGuide(g.tabId);
   state.guide = null;
@@ -409,6 +429,20 @@ async function saveTeacher(form) {
     await chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher, [STORAGE.SETUP_DONE]: true });
     recordUsage();
     s.step = 3;
+    const account = s.mode === 'signup'
+      ? await createAccount({ username: s.username, password: s.password })
+      : await signIn({ username: s.username, password: s.password });
+    if (!account) {
+      s.error = 'That username and password don’t match. Check them and try again.';
+    } else {
+      // Grade is picked on the "You're set" screen next, so it starts null and set-grade persists it.
+      state.teacher = { ...account, gradeLevel: s.grade || null };
+      state.setupDone = true;
+      await chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher, [STORAGE.SETUP_DONE]: true });
+      s.password = '';
+      s.confirm = '';
+      s.step = 3;
+    }
   } catch (err) {
     console.warn('PrepTip: register failed', err);
     s.error = navigator.onLine === false
@@ -464,6 +498,28 @@ async function sendRequest(text) {
   render();
 }
 
+async function sendResourceRequest(text) {
+  const r = state.request;
+  r.text = text;
+  if (!text.trim()) {
+    r.error = 'Tell us which site we should add.';
+    return render();
+  }
+  r.saving = true;
+  r.error = '';
+  render();
+  try {
+    await requestResource({ userId: state.teacher?.userId ?? null, text: text.trim() });
+    r.sent = true;
+    r.open = false;
+  } catch (err) {
+    console.warn('PrepTip: resource request failed', err);
+    r.error = 'We couldn’t send that. Check your connection and try again.';
+  }
+  r.saving = false;
+  render();
+}
+
 async function sendFeedback() {
   const f = state.feedback;
   if (!f || !views.canSubmitFeedback(f)) return;
@@ -503,6 +559,39 @@ const actions = {
   // list + search
   'retry': () => { state.retrying = true; render(); loadCatalog({ force: true }); },
   'open-tip': (el) => { const tip = findTip(el.dataset.tipId); if (tip) { startGuide(tip, 0); engagement.click(tip.tip_id); } },
+  'sign-out': () => signOut(),
+  'set-grade': (el) => {
+    state.setup.grade = el.dataset.grade || '';
+    if (state.teacher) {
+      // On the "You're set" screen / "Change grade", a teacher already exists — persist right away.
+      state.teacher = { ...state.teacher, gradeLevel: state.setup.grade || null };
+      chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher }).catch(() => {});
+    }
+    render();
+  },
+
+  // grade + resources
+  'change-grade': () => {
+    if (state.guide) { bridge.clearGuide(state.guide.tabId); forgetGuide(state.guide.tabId); state.guide = null; }
+    state.setup = newSetup({ step: 3, grade: state.teacher?.gradeLevel || '' }); // "You're set" screen holds the picker
+    state.view = 'setup';
+    render();
+    window.scrollTo(0, 0);
+  },
+  'open-resources': () => { state.request = newRequest(); state.resourceCategory = ''; state.view = 'resources'; render(); window.scrollTo(0, 0); },
+  'close-resources': () => showHome(),
+  'toggle-resource-filter': () => { state.resourceGradeOnly = !state.resourceGradeOnly; render(); },
+  'set-resource-category': (el) => { state.resourceCategory = el.dataset.cat || ''; render(); window.scrollTo(0, 0); },
+
+  // list + search
+  'retry': () => { state.retrying = true; render(); loadCatalog({ force: true }); },
+  'open-tip': (el) => {
+    const tip = findTip(el.dataset.tipId);
+    if (!tip) return;
+    // OKR 2 denominator: a teacher opened a tip / started a walkthrough.
+    logEvent({ type: 'tip_open', userId: state.teacher?.userId, tipId: tip.tip_id, urlPattern: tip.url_pattern });
+    startGuide(tip, 0);
+  },
   'clear-search': () => { state.query = ''; render(); $('#search')?.focus(); },
   'set-query': (el) => { state.query = el.dataset.q || ''; render(); $('#search')?.focus(); },
   'browse-site': (el) => {
@@ -586,6 +675,13 @@ function wireDomEvents() {
     e.preventDefault();
     if (e.target.id === 'setup-form') saveTeacher(e.target);
     if (e.target.id === 'request-form') sendRequest($('#request-text')?.value || '');
+    if (e.target.id === 'resource-request-form') sendResourceRequest($('#request-text')?.value || '');
+  });
+
+  // Log when a teacher opens a Common Teacher Resource (doesn't block the link from opening).
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a.res-open');
+    if (a) logEvent({ type: 'resource_open', userId: state.teacher?.userId, label: a.dataset.res || null });
   });
 }
 
