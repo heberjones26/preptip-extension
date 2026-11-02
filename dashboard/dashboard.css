@@ -145,6 +145,8 @@ main.wrap { padding-top: 22px; padding-bottom: 44px; }
 
 .loading { color: var(--n500); font-size: 0.9rem; }
 .foot-note { color: var(--n500); font-size: 0.82rem; margin: 6px 0 0; }
+.page-foot { display: flex; gap: 8px; align-items: center; margin: 24px 0 8px; padding-top: 16px; border-top: 1px solid var(--n200); color: var(--n500); font-size: 0.8rem; }
+.page-foot .dot { color: var(--n300); }
 .foot-note code { font-family: var(--mono); color: var(--n700); background: var(--n100); padding: 1px 6px; border-radius: 6px; font-size: 0.85em; }
 
 /* ---- Insight panels (tip performance, resource popularity) ---- */

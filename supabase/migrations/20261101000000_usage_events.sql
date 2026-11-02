@@ -10,6 +10,7 @@ create table public.events (
   tip_id      bigint references public.tips(tip_id) on delete set null,
   url_pattern text,
   label       text,   -- free-text name for events not tied to a tip (e.g. the resource opened)
+  session_id  text,   -- a panel-open session, linking app_open to the tip_dwell_success events in it (OKR 4)
   created_at  timestamptz not null default now()
 );
 
@@ -62,12 +63,53 @@ $$;
 revoke all on function public.resource_opens() from public;
 grant execute on function public.resource_opens() to anon, authenticated;
 
--- ── Objective B (Carlos owns these) ─────────────────────────────────────────────────────────
--- The shared events above already capture what OKR 3 & 4 need. Carlos adds the aggregate functions
--- (same security-definer pattern as above) plus the extension logging for the events marked (Carlos):
---   app_open           (Carlos) one row each time the side panel opens  → OKR 3 days-open, OKR 4 denominator
---   tip_open           (logged here, by Conner's walkthrough code)       → OKR 4 engagement numerator input
---   tip_dwell_success  (Carlos) one row when a teacher stays on a tip ≥10s → OKR 4 "successful use"
--- Suggested signatures, returning totals only:
---   create function public.okr_app_usage()      returns table (teachers bigint, avg_days_open numeric) ...
---   create function public.okr_tip_engagement() returns table (opens bigint, engaged bigint) ...
+-- ── Objective B (OKR 3 & 4): aggregates over the usage events ────────────────────────────────
+-- The extension's engagement tracking (Carlos) writes `app_open` and `tip_dwell_success` rows to this
+-- table (alongside its per-browser store), so these functions can summarise across all teachers for the
+-- dashboard. Both expose only totals, never raw rows.
+
+-- OKR 3: teachers open the app ~3 of 5 office days. Counts distinct office days (Mon–Fri) with an
+-- app_open per teacher, for the current ISO week.
+create or replace function public.okr_app_usage()
+returns table (teachers bigint, qualifying bigint, avg_office_days numeric)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with per_teacher as (
+    select user_id,
+           count(distinct created_at::date) filter (where extract(isodow from created_at) between 1 and 5) as office_days
+    from public.events
+    where event_type = 'app_open'
+      and user_id is not null
+      and date_trunc('week', created_at) = date_trunc('week', now())
+    group by user_id
+  )
+  select count(*)::bigint,
+         count(*) filter (where office_days >= 3)::bigint,
+         coalesce(round(avg(office_days), 2), 0)::numeric
+  from per_teacher;
+$$;
+
+revoke all on function public.okr_app_usage() from public;
+grant execute on function public.okr_app_usage() to anon, authenticated;
+
+-- OKR 4: of the times the app is opened, how many lead to a ≥10s tip view.
+-- opens = distinct panel-open sessions; engaged = distinct sessions that had a ≥10s view.
+create or replace function public.okr_tip_engagement()
+returns table (opens bigint, engaged bigint)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select
+    count(distinct session_id) filter (where event_type = 'app_open'),
+    count(distinct session_id) filter (where event_type = 'tip_dwell_success')
+  from public.events
+  where session_id is not null;
+$$;
+
+revoke all on function public.okr_tip_engagement() from public;
+grant execute on function public.okr_tip_engagement() to anon, authenticated;

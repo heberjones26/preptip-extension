@@ -1,5 +1,6 @@
 import { MSG } from '../lib/protocol.js';
 import { createDwellTracker } from '../lib/engagement.js';
+import { logEvent } from '../lib/supabase.js';
 
 export function createPanelEngagement({
   document = globalThis.document, window = globalThis.window, chrome = globalThis.chrome,
@@ -51,13 +52,21 @@ export function createPanelEngagement({
     retryCount = 0;
     void flush();
   }
+  // visitId -> tipId, so a dwell success can be attributed to its tip in the shared events table.
+  const visitTips = new Map();
   const dwell = createDwellTracker({ now, schedule, cancel,
-    success: (visitId, visibleMs) => send({ kind: 'success', visitId, visibleMs }) });
+    success: (visitId, visibleMs) => {
+      send({ kind: 'success', visitId, visibleMs });
+      // Bridge to Supabase (OKR 4 on the hub); per-browser store is unchanged.
+      if (session) logEvent({ type: 'tip_dwell_success', userId: session.userId, tipId: visitTips.get(visitId) ?? null, sessionId: session.sessionId });
+    } });
 
   function beginOpening() {
     if (!panelOpen || document.hidden || teacherId == null || session) return;
     session = { sessionId: uuid(), userId: teacherId };
     send({ kind: 'open' });
+    // Bridge to Supabase (OKR 3 + the denominator for OKR 4 on the hub).
+    logEvent({ type: 'app_open', userId: session.userId, sessionId: session.sessionId });
   }
   document.addEventListener('visibilitychange', guard(() => {
     beginOpening();
@@ -108,6 +117,7 @@ export function createPanelEngagement({
       if (!session || document.hidden || !panelOpen) return;
       dwell.stop();
       const visitId = uuid();
+      visitTips.set(visitId, tipId);
       send({ kind: 'click', visitId, tipId });
       dwell.start(visitId);
     }),

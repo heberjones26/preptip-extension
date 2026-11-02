@@ -122,38 +122,49 @@ async function renderKr2() {
 }
 
 // --- Objective B (Carlos's tracking): attempt, otherwise show "awaiting" ----------------------
+// OKR 3: avg office days (Mon–Fri) the app is opened per teacher this week (from rpc/okr_app_usage).
 async function renderKr3() {
-  if (DEMO) {
-    const days = 3.4;
-    return setCard('kr3', meter({
-      value: days.toFixed(1), unit: ` / ${OKR_CONFIG.kr3.ofDays} days`, status: 'on-track',
-      pct: days / OKR_CONFIG.kr3.ofDays, target: OKR_CONFIG.kr3.targetDays / OKR_CONFIG.kr3.ofDays,
-      caption: `Avg office days opened per teacher · target ${OKR_CONFIG.kr3.targetDays}`,
-      barLabel: 'Average days opened toward the 3-of-5 target',
-    }), 'on-track');
-  }
+  const { targetDays, ofDays } = OKR_CONFIG.kr3;
   try {
-    await rpc('okr_app_usage');
-    awaiting('kr3', 'Data function found — wire the display once Carlos confirms its shape.');
-  } catch {
-    awaiting('kr3', `Target: open the app ${OKR_CONFIG.kr3.targetDays} of ${OKR_CONFIG.kr3.ofDays} office days (Carlos).`);
+    let row;
+    if (DEMO) row = { teachers: 5, qualifying: 3, avg_office_days: 3.4 };
+    else { const rows = await rpc('okr_app_usage'); row = Array.isArray(rows) ? rows[0] : rows; }
+    const teachers = Number(row?.teachers) || 0;
+    const avg = Number(row?.avg_office_days) || 0;
+    const qualifying = Number(row?.qualifying) || 0;
+    if (!teachers) return awaiting('kr3', 'No app opens tracked this week yet.');
+    const status = avg >= targetDays ? 'on-track' : 'below';
+    setCard('kr3', meter({
+      value: avg.toFixed(1), unit: ` / ${ofDays} days`, status, pct: avg / ofDays, target: targetDays / ofDays,
+      caption: `${qualifying} of ${teachers} teachers opened on ≥${targetDays} office days this week`,
+      barLabel: 'Average office days opened this week',
+    }), status);
+  } catch (err) {
+    console.warn('kr3 not available yet', err);
+    awaiting('kr3', 'Lives once the events migration + okr_app_usage() are applied.');
   }
 }
 
+// OKR 4: of app opens, the share that lead to a ≥10s tip view (from rpc/okr_tip_engagement).
 async function renderKr4() {
-  if (DEMO) {
-    const rate = 0.44;
-    return setCard('kr4', meter({
-      value: pctLabel(rate), status: 'below', pct: rate, target: OKR_CONFIG.kr4.targetRate,
-      caption: `Of opens, share with a ≥10s tip view · target ${pctLabel(OKR_CONFIG.kr4.targetRate)}`,
-      barLabel: 'Tip-engagement rate toward target',
-    }), 'below');
-  }
+  const { targetRate } = OKR_CONFIG.kr4;
   try {
-    await rpc('okr_tip_engagement');
-    awaiting('kr4', 'Data function found — wire the display once Carlos confirms its shape.');
-  } catch {
-    awaiting('kr4', `Target: ${pctLabel(OKR_CONFIG.kr4.targetRate)} of opens lead to a ≥10s tip view (Carlos).`);
+    let row;
+    if (DEMO) row = { opens: 50, engaged: 22 };
+    else { const rows = await rpc('okr_tip_engagement'); row = Array.isArray(rows) ? rows[0] : rows; }
+    const opens = Number(row?.opens) || 0;
+    const engaged = Number(row?.engaged) || 0;
+    if (!opens) return awaiting('kr4', 'No app opens tracked yet.');
+    const rate = engaged / opens;
+    const status = rate >= targetRate ? 'on-track' : 'below';
+    setCard('kr4', meter({
+      value: pctLabel(rate), status, pct: rate, target: targetRate,
+      caption: `${engaged} of ${opens} opens led to a ≥10s tip view · target ${pctLabel(targetRate)}`,
+      barLabel: 'Tip-engagement rate',
+    }), status);
+  } catch (err) {
+    console.warn('kr4 not available yet', err);
+    awaiting('kr4', 'Lives once the events migration + okr_tip_engagement() are applied.');
   }
 }
 
