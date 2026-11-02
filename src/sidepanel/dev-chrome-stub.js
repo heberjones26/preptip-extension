@@ -7,8 +7,9 @@
 //              ptDev.offtrack('Data')         ptDev.backOnTrack()      ptDev.stepDone()
 //              ptDev.setUrl(url)  (same tab)   ptDev.switchTab(url)     ptDev.redirect('https://bit.ly/x')
 //              ptDev.failCatalog = true; then reload with ?reset=1 to see the error state
+//              Accounts: ptDev.accounts lists them; "nelly" / "password123" already exists.
 //
-// Writes to Supabase (POST rpc/register_teacher and POST feedback) are intercepted here and never sent.
+// Writes (rpc/create_teacher_account, rpc/sign_in_teacher, POST feedback) are intercepted here and never sent.
 (function () {
   'use strict';
   const params = new URLSearchParams(location.search);
@@ -76,7 +77,7 @@
 
   if (params.get('teacher') === '1') {
     local.set({
-      'pt.teacher': { userId: 4242, firstName: 'Nelly', lastName: 'Parker', email: 'nelly@school.edu' },
+      'pt.teacher': { userId: 1, username: 'nelly' },
       'pt.setupDone': true
     });
   }
@@ -126,6 +127,24 @@
   // ---------- fetch interception: never write to the real database from dev ----------
   const realFetch = window.fetch.bind(window);
   let demoCatalogPromise;
+  const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+  // Fake accounts, checked like the database does (usernames ignore case).
+  const findAccount = (name) => window.ptDev.accounts.find((a) => a.username.toLowerCase() === String(name).trim().toLowerCase());
+  const asRow = (a) => ({ user_id: a.user_id, username: a.username });
+
+  function fakeCreateAccount(body) {
+    if (findAccount(body.p_username)) return json({ code: '23505', message: 'That username is taken' }, 409);
+    const account = { user_id: window.ptDev.accounts.length + 1, username: body.p_username.trim(), password: body.p_password };
+    window.ptDev.accounts.push(account);
+    return json([asRow(account)]);
+  }
+
+  function fakeSignIn(body) {
+    const a = findAccount(body.p_username);
+    return json(a && a.password === body.p_password ? [asRow(a)] : []);
+  }
+
   window.fetch = async function (input, init = {}) {
     const url = typeof input === 'string' ? input : input.url;
     const method = (init.method || 'GET').toUpperCase();
@@ -141,10 +160,12 @@
       throw new TypeError('Failed to fetch');
     }
     if (method !== 'GET' && url.includes('/rest/v1/')) {
-      log('intercepted', method, url, init.body ? JSON.parse(init.body) : null);
+      const body = init.body ? JSON.parse(init.body) : {};
+      log('intercepted', method, url, body);
       await new Promise((r) => setTimeout(r, 500)); // feel the "Saving..." state
       if (window.ptDev.failWrites) return new Response('{"message":"stubbed failure"}', { status: 500 });
-      if (url.includes('/rpc/register_teacher')) return new Response('4242', { status: 200, headers: { 'Content-Type': 'application/json' } });
+      if (url.includes('/rpc/create_teacher_account')) return fakeCreateAccount(body);
+      if (url.includes('/rpc/sign_in_teacher')) return fakeSignIn(body);
       // Real PostgREST answers "Prefer: return=minimal" inserts with 201 and an empty body.
       return new Response(null, { status: 201 });
     }
@@ -189,6 +210,7 @@
     unscriptable: !/^https?:/.test(activeTab.url),
     failCatalog: params.get('fail') === '1',
     failWrites: false,
+    accounts: [{ user_id: 1, username: 'nelly', password: 'password123' }],
     status: (found = true, label = null) => emitFromPage({ type: 'PT_GUIDE_STATUS', ...cur(), found, label }),
     stepDone: () => emitFromPage({ type: 'PT_GUIDE_STEP_DONE', ...cur() }),
     offtrack: (clicked = 'Data', expected) => {

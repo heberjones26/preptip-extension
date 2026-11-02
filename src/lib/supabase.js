@@ -2,6 +2,7 @@
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, CATALOG_TTL_MS } from '../config.js';
 import { STORAGE } from './protocol.js';
 
+// Errors carry the HTTP status and Postgres error code (e.g. '23505' when a username is taken).
 async function rest(path, { method = 'GET', body, prefer } = {}) {
   const headers = { apikey: SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' };
   if (prefer) headers.Prefer = prefer;
@@ -13,9 +14,12 @@ async function rest(path, { method = 'GET', body, prefer } = {}) {
   });
 
   if (!res.ok) {
-    let detail = '';
-    try { detail = (await res.json()).message || ''; } catch { /* empty body */ }
-    throw new Error(`Supabase ${method} ${path.split('?')[0]} failed (${res.status}) ${detail}`.trim());
+    let info = {};
+    try { info = (await res.json()) || {}; } catch { /* empty body */ }
+    const err = new Error(`Supabase ${method} ${path.split('?')[0]} failed (${res.status}) ${info.message || ''}`.trim());
+    err.status = res.status;
+    err.code = info.code || null;
+    throw err;
   }
   // Inserts with `Prefer: return=minimal` answer 201 with an empty body.
   const text = await res.text();
@@ -55,12 +59,30 @@ export async function getTipRatings() {
   return Object.fromEntries(rows.map((r) => [r.tip_id, { helpful: r.helpful_count, total: r.rating_count }]));
 }
 
-// Finds or creates the teacher by email and returns their user_id.
-export function registerTeacher({ firstName, lastName, email }) {
-  return rest('rpc/register_teacher', {
+// ---------- Accounts: a unique username and a password ----------
+// The database hashes the password; it never stores or returns it.
+
+function toAccount(rows) {
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  return row?.user_id ? { userId: row.user_id, username: row.username } : null;
+}
+
+// -> { userId, username }. Throws with code '23505' when the username is taken.
+export async function createAccount({ username, password }) {
+  const account = toAccount(await rest('rpc/create_teacher_account', {
     method: 'POST',
-    body: { p_first_name: firstName, p_last_name: lastName, p_email: email }
-  });
+    body: { p_username: username, p_password: password }
+  }));
+  if (!account) throw new Error('No account returned');
+  return account;
+}
+
+// -> { userId, username }, or null when the username or password is wrong.
+export async function signIn({ username, password }) {
+  return toAccount(await rest('rpc/sign_in_teacher', {
+    method: 'POST',
+    body: { p_username: username, p_password: password }
+  }));
 }
 
 export function submitFeedback({ userId, tipId, isHelpful = null, text = null }) {
