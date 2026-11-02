@@ -28,6 +28,10 @@ export function metricsHarness({ modern = true, preview = false, hidden = false 
     async set(value) {
       if (failWrites > 0) { failWrites--; throw Error('storage unavailable'); }
       Object.assign(saved, structuredClone(value));
+    },
+    async remove(keys) {
+      keys = typeof keys === 'string' ? [keys] : keys;
+      for (const k of keys) delete saved[k];
     }
   };
   const now = () => clock;
