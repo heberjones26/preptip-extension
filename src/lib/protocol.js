@@ -28,7 +28,7 @@ export const MSG = {
 
 export const STORAGE = {
   // chrome.storage.local
-  TEACHER: 'pt.teacher',            // { userId, username }
+  TEACHER: 'pt.teacher',            // { userId, username, gradeLevel }
   SETUP_DONE: 'pt.setupDone',       // true once first-run setup is finished
   CATALOG: 'pt.catalog',            // { fetchedAt, websites, tips }
   NUDGES_SEEN: 'pt.nudgesSeen',     // { [url_pattern]: true }

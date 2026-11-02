@@ -17,6 +17,7 @@ Teachers are expected to use general-purpose tools such as Google Sheets, Canva 
 | `tip_steps` | The ordered steps of a tip. `step_type` is `guided` (PrepTip highlights it) or `your_turn` (the teacher fills something in). `target_element` names what to highlight, e.g. `menu:Format > Conditional formatting` |
 | `users` | Teachers, created by the extension's first-run setup: a unique username and a hashed password |
 | `feedback` | A teacher's 👍/👎 and optional comment on a tip. A row with no `tip_id` is a "request a tip" submission |
+| `events` | One row per usage event (`tip_open`, `tip_complete`, `app_open`, `tip_dwell_success`) that the OKR dashboard aggregates. Insert-only for the public key; raw rows are never readable with it. |
 
 ## Tech Stack
 
@@ -33,7 +34,7 @@ Teachers are expected to use general-purpose tools such as Google Sheets, Canva 
 
 You need **Google Chrome 116 or newer** (Edge and Brave work too) and a Google account to open a Google Sheet. The database is already hosted on Supabase and the extension is pre-configured to use it ([src/config.js](src/config.js)), so there is nothing to set up on the backend.
 
-1. **Get the code.** The repository is private, so ask a team member to add your GitHub account as a collaborator. Then either:
+1. **Get the code.** The repository is public, so you can grab it directly. Either:
    - clone it:
      ```bash
      git clone https://github.com/heberjones26/preptip-extension.git
@@ -122,6 +123,29 @@ tests/                    unit tests
 2. Insert its `tip_steps` rows.
 
 The extension picks it up within 10 minutes, or right away after you reload it. Highlights currently work for `menu`, `button`, `link`, `search`, `panel` and `dialog` targets; other steps show their instructions in the panel only.
+
+## Grade levels & Teacher Resources
+
+At setup a teacher can pick the grade they teach — **Pre-school, Kindergarten–3rd, 4th–6th, Middle school, High school, College**, or Special education (or "All grades"). It's stored locally in `pt.teacher.gradeLevel` and makes PrepTip's suggestions fit their students:
+
+- **Recommended sites by grade** — the "Sites with tips" list leads with a "Recommended for your grade" group, and the current site shows a grade badge when it fits.
+- **Common Teacher Resources** — a **Teacher resources** link (panel footer) opens a list of teacher-*built* sites (Teachers Pay Teachers, Kahoot, Nearpod, Edpuzzle, Gimkit, Newsela, PBS LearningMedia, PhET, OpenStax, BrainPOP) with a short blurb and an open-link — no walkthroughs, since those sites are already made for teachers. The list filters to the teacher's grade with a toggle to see all.
+
+The grade bands, the site→grade tags, and the recommend/filter helpers live in [`src/data/segments.js`](src/data/segments.js); the curated resource list in [`src/data/resources.js`](src/data/resources.js). Both are bundled (no database) and covered by [`tests/segments.test.mjs`](tests/segments.test.mjs). Change your grade anytime from the footer.
+
+## Metrics & OKR dashboard
+
+The team tracks its OKRs on a standalone dashboard in [`dashboard/`](dashboard/) — a small static page (same no-build HTML/CSS/JS) that reads **aggregate** numbers from Supabase and shows each Key Result against its target. It is separate from the extension on purpose: a dashboard needs to be responsive and live on the web, which a fixed-width Chrome side panel can't be. See [`dashboard/README.md`](dashboard/README.md) to run or deploy it.
+
+- **Objective A — tips are effective and helpful.** Thumbs-up rate (from `tip_ratings()`) and tips completed end-to-end (from `okr_tip_completions()`).
+- **Objective B — teachers use the app consistently.** Days the app is opened and opens that lead to a tip (from the shared `events` table; aggregate functions owned by the team's Objective-B work).
+
+The extension feeds this by logging two events through `logEvent()` ([src/lib/supabase.js](src/lib/supabase.js)): `tip_open` when a teacher opens a tip and `tip_complete` when they finish 100% of its steps.
+
+**Supported sites** come straight from the `websites` table, so adding one needs no code. Beyond Google Sheets, two seed migrations add six more sites with 10 tips each — all general tools where teachers are a minority audience:
+
+- [`..._seed_youtube_m365_padlet.sql`](supabase/migrations/20261101010000_seed_youtube_m365_padlet.sql) — **YouTube, Microsoft 365, Padlet**
+- [`..._seed_quizlet_khan_desmos.sql`](supabase/migrations/20261101020000_seed_quizlet_khan_desmos.sql) — **Quizlet, Khan Academy, Desmos**
 
 ## Known limits
 

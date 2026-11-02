@@ -98,3 +98,20 @@ export function requestTip({ userId, siteName, text }) {
   const where = siteName ? ` (${siteName})` : '';
   return submitFeedback({ userId, tipId: null, text: `Tip request${where}: ${text}` });
 }
+
+// Logs a usage event for OKR tracking (events table, see supabase/migrations/..._usage_events.sql).
+// Fire-and-forget: a logging failure must never interrupt what the teacher is doing, so we swallow
+// errors here. (Before the migration is applied this will fail quietly, which is fine.)
+// `label` carries a free-text name (e.g. the resource opened) for events that aren't tied to a tip.
+export function logEvent({ type, userId = null, tipId = null, urlPattern = null, label = null }) {
+  return rest('events', {
+    method: 'POST',
+    prefer: 'return=minimal',
+    body: { event_type: type, user_id: userId, tip_id: tipId, url_pattern: urlPattern, label }
+  }).catch((err) => { console.warn('PrepTip: could not log event', type, err); });
+}
+
+// A teacher suggesting a site for the Common Teacher Resources list (a feedback row, no tip_id).
+export function requestResource({ userId, text }) {
+  return submitFeedback({ userId, tipId: null, text: `Resource request: ${text}` });
+}

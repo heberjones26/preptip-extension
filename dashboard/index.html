@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PrepTip — OKR Dashboard</title>
+  <meta name="description" content="Live OKR tracking for the PrepTip teacher-tips extension.">
+  <!-- Geist (pantry design system). Falls back to system-ui if the CDN is unreachable. -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/geist@5/index.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/geist-mono@5/index.css">
+  <link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <span class="brand">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none">
+            <rect width="24" height="24" rx="6" fill="#E8590C"></rect>
+            <path d="M12 6a4 4 0 0 0-2.4 7.2c.4.3.6.7.6 1.1v.2h3.6v-.2c0-.4.2-.8.6-1.1A4 4 0 0 0 12 6Z" fill="#fff"></path>
+            <rect x="10.2" y="16" width="3.6" height="1.6" rx=".8" fill="#fff"></rect>
+          </svg>
+        </span>
+        <span class="brand-txt"><b>PrepTip</b><small>OKR Dashboard</small></span>
+      </span>
+      <div class="top-right">
+        <span id="updated" class="updated"></span>
+        <button type="button" id="refresh" class="btn">Refresh</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="wrap">
+    <!-- At-a-glance: one hero figure + a KPI stat-tile strip (the dashboard summary). -->
+    <section class="summary" aria-label="At a glance">
+      <article class="hero" id="hero" aria-busy="true">
+        <span class="loading">Loading…</span>
+      </article>
+      <div class="kpis" id="kpis" aria-busy="true"></div>
+    </section>
+
+    <!-- Objective A -->
+    <section class="objective" aria-labelledby="obj-a">
+      <div class="obj-head">
+        <h2 id="obj-a" class="obj-h"><span class="obj-tag">Objective A</span> Tips are effective and helpful</h2>
+        <span class="obj-sub" id="obj-a-sub"></span>
+      </div>
+      <div class="grid">
+        <article class="okr" id="kr1" aria-busy="true">
+          <h3 class="kr-h">Thumbs-up rate</h3>
+          <p class="kr-sub">Share of 👍 across all tip ratings · target 80% · needs ≥5 ratings</p>
+          <div class="kr-body"><span class="loading">Loading…</span></div>
+        </article>
+        <article class="okr" id="kr2" aria-busy="true">
+          <h3 class="kr-h">Tips completed end-to-end</h3>
+          <p class="kr-sub">Walkthroughs finished through 100% of their steps</p>
+          <div class="kr-body"><span class="loading">Loading…</span></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- Objective B -->
+    <section class="objective" aria-labelledby="obj-b">
+      <div class="obj-head">
+        <h2 id="obj-b" class="obj-h"><span class="obj-tag">Objective B</span> Teachers use the app consistently</h2>
+        <span class="obj-sub" id="obj-b-sub"></span>
+      </div>
+      <div class="grid">
+        <article class="okr" id="kr3" aria-busy="true">
+          <h3 class="kr-h">Days the app is opened</h3>
+          <p class="kr-sub">Avg office days opened per teacher · target 3 of 5</p>
+          <div class="kr-body"><span class="loading">Loading…</span></div>
+        </article>
+        <article class="okr" id="kr4" aria-busy="true">
+          <h3 class="kr-h">Opens that lead to a tip</h3>
+          <p class="kr-sub">Of app opens, share with a ≥10-second tip view</p>
+          <div class="kr-body"><span class="loading">Loading…</span></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- Insight panels -->
+    <section class="panel" aria-labelledby="tipperf-h">
+      <h2 id="tipperf-h" class="panel-h">Which tips are landing</h2>
+      <p class="panel-sub">Most and least helpful tips, by thumbs-up rate (tips with at least 3 ratings).</p>
+      <div id="tipperf" class="panel-body" aria-busy="true"><span class="loading">Loading…</span></div>
+    </section>
+
+    <section class="panel" aria-labelledby="respop-h">
+      <h2 id="respop-h" class="panel-h">Most-opened resources</h2>
+      <p class="panel-sub">Which Common Teacher Resources teachers click through to.</p>
+      <div id="respop" class="panel-body" aria-busy="true"><span class="loading">Loading…</span></div>
+    </section>
+
+    <p class="foot-note">
+      Objective B's data (days opened, tip engagement) comes from the shared <code>events</code> table and
+      Carlos's tracking functions. Cards show “Awaiting data” until those are live.
+    </p>
+  </main>
+
+  <script type="module" src="dashboard.js"></script>
+</body>
+</html>
