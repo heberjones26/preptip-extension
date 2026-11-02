@@ -7,9 +7,8 @@
 //              ptDev.offtrack('Data')         ptDev.backOnTrack()      ptDev.stepDone()
 //              ptDev.setUrl(url)  (same tab)   ptDev.switchTab(url)     ptDev.redirect('https://bit.ly/x')
 //              ptDev.failCatalog = true; then reload with ?reset=1 to see the error state
-//              Accounts: ptDev.accounts lists them; "nelly" / "password123" already exists.
 //
-// Writes (rpc/create_teacher_account, rpc/sign_in_teacher, POST feedback) are intercepted here and never sent.
+// Writes to Supabase (POST rpc/register_teacher and POST feedback) are intercepted here and never sent.
 (function () {
   'use strict';
   const params = new URLSearchParams(location.search);
@@ -77,7 +76,7 @@
 
   if (params.get('teacher') === '1') {
     local.set({
-      'pt.teacher': { userId: 1, username: 'nelly' },
+      'pt.teacher': { userId: 4242, firstName: 'Nelly', lastName: 'Parker', email: 'nelly@school.edu' },
       'pt.setupDone': true
     });
   }
@@ -160,12 +159,10 @@
       throw new TypeError('Failed to fetch');
     }
     if (method !== 'GET' && url.includes('/rest/v1/')) {
-      const body = init.body ? JSON.parse(init.body) : {};
-      log('intercepted', method, url, body);
+      log('intercepted', method, url, init.body ? JSON.parse(init.body) : null);
       await new Promise((r) => setTimeout(r, 500)); // feel the "Saving..." state
       if (window.ptDev.failWrites) return new Response('{"message":"stubbed failure"}', { status: 500 });
-      if (url.includes('/rpc/create_teacher_account')) return fakeCreateAccount(body);
-      if (url.includes('/rpc/sign_in_teacher')) return fakeSignIn(body);
+      if (url.includes('/rpc/register_teacher')) return new Response('4242', { status: 200, headers: { 'Content-Type': 'application/json' } });
       // Real PostgREST answers "Prefer: return=minimal" inserts with 201 and an empty body.
       return new Response(null, { status: 201 });
     }
@@ -210,7 +207,6 @@
     unscriptable: !/^https?:/.test(activeTab.url),
     failCatalog: params.get('fail') === '1',
     failWrites: false,
-    accounts: [{ user_id: 1, username: 'nelly', password: 'password123' }],
     status: (found = true, label = null) => emitFromPage({ type: 'PT_GUIDE_STATUS', ...cur(), found, label }),
     stepDone: () => emitFromPage({ type: 'PT_GUIDE_STEP_DONE', ...cur() }),
     offtrack: (clicked = 'Data', expected) => {

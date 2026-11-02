@@ -4,6 +4,7 @@
 
 export const MSG = {
   // side panel -> content script (chrome.tabs.sendMessage)
+  ENGAGEMENT: 'PT_ENGAGEMENT',
   PING: 'PT_PING',
   GUIDE_SHOW: 'PT_GUIDE_SHOW',
   GUIDE_CLEAR: 'PT_GUIDE_CLEAR',
@@ -28,6 +29,7 @@ export const MSG = {
 
 export const STORAGE = {
   // chrome.storage.local
+  TEACHER: 'pt.teacher',            // { userId, firstName, lastName, email }
   TEACHER: 'pt.teacher',            // { userId, username, gradeLevel }
   SETUP_DONE: 'pt.setupDone',       // true once first-run setup is finished
   CATALOG: 'pt.catalog',            // { fetchedAt, websites, tips }

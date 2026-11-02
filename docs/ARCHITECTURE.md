@@ -11,7 +11,7 @@ Requirement numbers (R1–R10) refer to "Behavioral Requirements" in the PRD. Sc
 | `manifest.json` | Permissions, content scripts, side panel | — |
 | `src/config.js` | Supabase URL + publishable key | ES module |
 | `src/lib/protocol.js` | Message types + storage keys (**the contract**) | ES module |
-| `src/lib/supabase.js` | `getCatalog`, `getTipRatings`, `createAccount`, `signIn`, `submitFeedback`, `requestTip` | ES module |
+| `src/lib/supabase.js` | `getCatalog`, `registerTeacher`, `submitFeedback`, `requestTip` | ES module |
 | `src/lib/sites.js` | `matchSite`, `tipsForSite`, `searchTips`, `parseTarget` | ES module |
 | `src/data/segments.js` | Grade bands + site→grade tags + `fitsGrade`/`splitByGrade` (recommend-by-grade) | ES module |
 | `src/data/resources.js` | `RESOURCES` — curated teacher-built sites (blurb + link, no steps) | ES module |
@@ -43,6 +43,7 @@ tips: [{
 `menu`, `button`, `link`, `search`, `dialog`, `panel`, `print`, `grid`, `cell`, `formula_bar`, `slide`, `editor`, `player`.
 Examples: `menu:Format > Conditional formatting`, `menu:View > Freeze > 1 row`, `button:Share`, `panel:Conditional format rules`.
 
+RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), call `rpc/register_teacher`, and call `rpc/tip_ratings` (per-tip helpful/total counts, used for "N teachers found this helpful" and never cached). It cannot read feedback rows or users.
 RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), **insert** into `events` (usage events of a known type), call `rpc/create_teacher_account` and `rpc/sign_in_teacher`, and call `rpc/tip_ratings` (per-tip helpful/total counts, used for "N teachers found this helpful" and never cached), `rpc/okr_tip_completions` (OKR 2 totals) and `rpc/resource_opens` (per-resource open counts). It cannot read feedback, users or events rows.
 
 ### Sign-in (R2)
@@ -104,6 +105,7 @@ The panel filters by `sender.tab.id === activeTabId` and by `tipId`/`stepIndex`.
 
 ## Storage
 
+`chrome.storage.local`: `pt.teacher`, `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
 `chrome.storage.local`: `pt.teacher` (`{ userId, username, gradeLevel }`), `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
 `chrome.storage.session`: `pt.redirect.<tabId>` (`{ from, to, at, kind }`, written by background, shown by the panel as "You were redirected here from …"), `pt.guide.<tabId>` (`{ tipId, stepIndex }`, written by the panel so a guide resumes after the panel reopens), `pt.allowedDomains`, and the background-only `pt.lastUrl.<tabId>` (the tab's last committed URL, used as the "from" of client redirects; it lives in storage because the service worker can be killed at any time).
 
