@@ -7,8 +7,15 @@ import {
   emphasize, splitActions, offtrackCopy, targetPath, targetKind
 } from './text.js';
 import {
-  LOGO, SEARCH, GLOBE, CHECK, THUMB, PUZZLE, PIN, INFO, OFFLINE, WAND, STEPS, siteIcon
+  LOGO, SEARCH, GLOBE, CHECK, THUMB, PUZZLE, PIN, INFO, OFFLINE, WAND, STEPS, CAP, BOOKS, EXTERNAL, siteIcon
 } from './icons.js';
+import { GRADES, gradeLabel, splitByGrade, siteGrades } from '../data/segments.js';
+import { RESOURCES } from '../data/resources.js';
+
+// The teacher's chosen grade band (or '' for all grades / not set).
+function teacherGrade(state) {
+  return state.teacher?.gradeLevel || '';
+}
 
 export const FEEDBACK_REASONS = ['Too many steps', 'Steps didn’t match my screen', 'Not what I needed'];
 
@@ -111,7 +118,15 @@ export function footer(state) {
   if (state.view === 'setup' || !state.setupDone) return '';
   const t = state.teacher;
   const name = t ? [t.firstName, t.lastName].filter(Boolean).join(' ') : '';
-  return `${name ? `<span>Signed in as ${esc(name)}</span><span aria-hidden="true">&middot;</span>` : ''}
+  const grade = teacherGrade(state);
+  const gradeBtn = `<button type="button" class="linkish grade" data-action="change-grade" title="${grade ? 'Change your grade' : 'Set the grade you teach'}">${CAP}${grade ? esc(gradeLabel(grade)) : 'Set grade'}</button>`;
+  const resourcesLink = state.view === 'resources'
+    ? ''
+    : `<button type="button" class="linkish" data-action="open-resources">${BOOKS}Teacher resources</button><span class="sep" aria-hidden="true">&middot;</span>`;
+  return `
+    ${name ? `<span class="foot-who">Signed in as ${esc(name)}</span><span class="sep" aria-hidden="true">&middot;</span>` : ''}
+    ${gradeBtn}<span class="sep" aria-hidden="true">&middot;</span>
+    ${resourcesLink}
     <button type="button" class="linkish" data-action="change-teacher">Change teacher</button>`;
 }
 
@@ -149,6 +164,22 @@ function setupPin() {
     </div>`;
 }
 
+// Grade-band picker used on the setup form (and re-reached via "Change grade").
+function gradePicker(s) {
+  const chip = (id, label) => {
+    const on = (s.grade || '') === id;
+    return `<button type="button" class="grade-chip${on ? ' on' : ''}" data-action="set-grade" data-grade="${esc(id)}" aria-pressed="${on}">${esc(label)}</button>`;
+  };
+  return `
+    <fieldset class="field grades">
+      <legend><span class="gl">${CAP}</span> What grade do you teach? <span class="opt">optional</span></legend>
+      <div class="grade-grid">
+        ${GRADES.map((g) => chip(g.id, g.label)).join('')}
+        ${chip('', 'All grades')}
+      </div>
+    </fieldset>`;
+}
+
 function setupForm(state) {
   const s = state.setup;
   const dis = s.saving ? 'disabled' : '';
@@ -161,6 +192,7 @@ function setupForm(state) {
         <label class="field"><span>Last name</span><input name="last" autocomplete="family-name" maxlength="60" value="${esc(s.last)}" ${dis}></label>
       </div>
       <label class="field"><span>School email</span><input name="email" type="email" autocomplete="email" maxlength="120" placeholder="you@school.edu" value="${esc(s.email)}" ${dis}></label>
+      ${gradePicker(s)}
       ${s.error ? `<p class="form-error" role="alert">${esc(s.error)}</p>` : ''}
       <div class="row">
         <button type="button" class="btn ghost" data-action="setup-back" ${dis}>Back</button>
@@ -214,10 +246,13 @@ export function errorView(state) {
 // ctx = { site, tips, browsing } from sidepanel.js
 export function tipsView(state, ctx) {
   const { site, tips, browsing } = ctx;
+  const grade = teacherGrade(state);
+  const recForGrade = grade && siteGrades(site.url_pattern).includes(grade);
   return `
     ${browsing ? '<button type="button" class="back" data-action="end-browse">&larr; Back</button>' : ''}
     <div class="site-chip"><span class="fav">${siteIcon(site)}</span>
       <div><b>${esc(site.name)}</b><small>${plural(tips.length, 'tip')} for this site</small></div>
+      ${recForGrade ? `<span class="rec-badge"><span class="gl">${CAP}</span>For ${esc(gradeLabel(grade))}</span>` : ''}
     </div>
     ${browsing ? `<p class="tiny-note">You&rsquo;re not on ${esc(site.name)} right now, so tips open as a step list. Open ${esc(site.name)} to get the orange highlights.</p>` : ''}
     ${staleNote(state)}
@@ -286,6 +321,22 @@ function anywhereResults(state, q) {
 
 // ---------- unsupported site (R5, mockup 2B) ----------
 
+function siteChip(w, rec = false) {
+  return `<button type="button" class="chip link${rec ? ' rec' : ''}" data-action="browse-site" data-pattern="${esc(w.url_pattern)}">${rec ? `<span class="rec-dot" aria-hidden="true"></span>` : ''}${esc(w.name)}</button>`;
+}
+
+// "Sites with tips", split into a "Recommended for your grade" group when a grade is set.
+function sitesWithTipsBlock(state, sites) {
+  const grade = teacherGrade(state);
+  const { recommended, other } = splitByGrade(sites, grade, (s) => siteGrades(s.url_pattern));
+  if (grade && recommended.length) {
+    return `
+      <div class="next-row"><b><span class="gl">${CAP}</span> Recommended for ${esc(gradeLabel(grade))}</b><div class="chips">${recommended.map((w) => siteChip(w, true)).join('')}</div></div>
+      ${other.length ? `<div class="next-row"><b>More sites with tips</b><div class="chips">${other.map((w) => siteChip(w)).join('')}</div></div>` : ''}`;
+  }
+  return `<div class="next-row"><b>Sites with tips</b><div class="chips">${sites.map((w) => siteChip(w)).join('')}</div></div>`;
+}
+
 export function unsupportedView(state, ctx) {
   const url = state.tab?.url || '';
   const label = ctx.site?.name || (isWebUrl(url) ? hostOf(url) : 'This page');
@@ -300,7 +351,7 @@ export function unsupportedView(state, ctx) {
     </div>
     <div class="next">
       <div class="next-row"><b>Looking for help with another tool?</b>${searchBox(state.query)}<div id="results" class="stack results-inline">${resultsHtml(state, ctx)}</div></div>
-      <div class="next-row"><b>Sites with tips</b><div class="chips">${sites.map((w) => `<button type="button" class="chip link" data-action="browse-site" data-pattern="${esc(w.url_pattern)}">${esc(w.name)}</button>`).join('')}</div></div>
+      ${sitesWithTipsBlock(state, sites)}
       <div class="next-row"><b>Use this site a lot?</b>${requestBlock(state, isWebUrl(url) ? 'Suggest tips for this site' : 'Request a tip')}</div>
     </div>`;
 }
@@ -484,4 +535,99 @@ export function feedbackView(state) {
 // The database needs a thumbs choice or some text.
 export function canSubmitFeedback(f) {
   return f.isHelpful !== null || f.reasons.length > 0 || f.text.trim() !== '';
+}
+
+// ---------- Common Teacher Resources (teacher-built sites: a blurb + a link, no walkthrough) ----------
+
+function resourceCard(r) {
+  const chips = (r.grades || []).map((g) => `<span class="rg">${esc(gradeLabel(g))}</span>`).join('');
+  return `
+    <div class="res-card">
+      <div class="res-top"><b>${esc(r.name)}</b><span class="res-cat">${esc(r.category)}</span></div>
+      <p class="res-blurb">${esc(r.blurb)}</p>
+      <div class="res-foot">
+        <span class="res-grades">${chips || '<span class="rg all">All grades</span>'}</span>
+        <a class="res-open" data-res="${esc(r.name)}" href="${esc(r.url)}" target="_blank" rel="noopener">Open site ${EXTERNAL}</a>
+      </div>
+    </div>`;
+}
+
+// One-button toggle between "for my grade" and "all" (only shown when a grade is set).
+function gradeToggle(grade, gradeOnly) {
+  return `
+    <div class="res-toggle" role="group" aria-label="Filter resources by grade">
+      <button type="button" class="seg-toggle" data-action="toggle-resource-filter" aria-pressed="${gradeOnly}">
+        <span class="seg-l${gradeOnly ? ' on' : ''}">For ${esc(gradeLabel(grade))}</span>
+        <span class="seg-l${gradeOnly ? '' : ' on'}">All</span>
+      </button>
+    </div>`;
+}
+
+// Category chips (All + each distinct resource category).
+function categoryChips(state) {
+  const cats = [...new Set(RESOURCES.map((r) => r.category))];
+  const chip = (id, label) => {
+    const on = (state.resourceCategory || '') === id;
+    return `<button type="button" class="chip cat${on ? ' on' : ''}" data-action="set-resource-category" data-cat="${esc(id)}" aria-pressed="${on}">${esc(label)}</button>`;
+  };
+  return `<div class="chips res-cats">${chip('', 'All')}${cats.map((c) => chip(c, c)).join('')}</div>`;
+}
+
+// "Suggest a resource" — its own small form (reuses state.request; routes to sendResourceRequest).
+function resourceRequestBlock(state) {
+  const r = state.request;
+  if (r.sent) {
+    return `<div class="thanks">${CHECK}<div><b>Thanks! We’ll take a look.</b><p>We check every suggestion when adding to this list.</p></div></div>`;
+  }
+  if (r.open) {
+    return `
+      <form id="resource-request-form" class="request">
+        <label class="field"><span>Which site should we add?</span>
+          <textarea id="request-text" rows="2" maxlength="400" placeholder="e.g. Seesaw — student portfolios">${esc(r.text)}</textarea>
+        </label>
+        ${r.error ? `<p class="form-error" role="alert">${esc(r.error)}</p>` : ''}
+        <div class="row">
+          <button type="button" class="btn ghost sm" data-action="close-request">Cancel</button>
+          <button type="submit" class="btn primary sm grow" ${r.saving ? 'disabled' : ''}>${r.saving ? 'Sending…' : 'Send'}</button>
+        </div>
+      </form>`;
+  }
+  return `<button type="button" class="btn outline full" data-action="open-request">Suggest a resource</button>`;
+}
+
+export function resourcesView(state) {
+  const grade = teacherGrade(state);
+  const cat = state.resourceCategory || '';
+  const pool = cat ? RESOURCES.filter((r) => r.category === cat) : RESOURCES;
+  const gradeOnly = !!grade && state.resourceGradeOnly;
+  const { recommended, other } = splitByGrade(pool, grade);
+
+  let list;
+  if (!pool.length) {
+    list = `<p class="tiny-note">No resources in that category yet.</p>`;
+  } else if (!grade) {
+    list = `
+      <p class="res-hint"><span class="gl">${CAP}</span><span>Set the grade you teach and these get sorted for your students. <button type="button" class="linkish" data-action="change-grade">Set grade</button></span></p>
+      <div class="res-list">${pool.map(resourceCard).join('')}</div>`;
+  } else if (gradeOnly) {
+    const show = recommended.length ? recommended : pool;
+    const hidden = other.length
+      ? `<p class="res-more">${plural(other.length, 'other resource')} hidden · <button type="button" class="linkish" data-action="toggle-resource-filter">Show all</button></p>`
+      : '';
+    list = `${gradeToggle(grade, gradeOnly)}<div class="res-list">${show.map(resourceCard).join('')}</div>${hidden}`;
+  } else {
+    list = `
+      ${gradeToggle(grade, gradeOnly)}
+      ${recommended.length ? sectionHead(`Recommended for ${esc(gradeLabel(grade))}`) + `<div class="res-list">${recommended.map(resourceCard).join('')}</div>` : ''}
+      ${other.length ? sectionHead('Other resources') + `<div class="res-list">${other.map(resourceCard).join('')}</div>` : ''}`;
+  }
+
+  return `
+    <button type="button" class="back" data-action="close-resources">&larr; Back to tips</button>
+    <div class="site-chip"><span class="fav">${BOOKS}</span>
+      <div><b>Common Teacher Resources</b><small>Sites made for teachers — a quick overview, no walkthroughs</small></div>
+    </div>
+    ${categoryChips(state)}
+    ${list}
+    <div class="res-request">${resourceRequestBlock(state)}</div>`;
 }
