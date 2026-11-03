@@ -6,6 +6,50 @@ A Chrome extension that gives teachers short, guided help inside the web tools t
 
 Teachers are expected to use general-purpose tools such as Google Sheets, Canva and Canvas, but those tools are built for everyone, not for classrooms. When a teacher hits a wall, like wanting failing grades to turn red automatically, they either spend scarce prep time learning a complex feature or fall back on slow manual workarounds. PrepTip is a Chrome extension that recognizes which tool a teacher is on and opens a side panel of short, teacher-specific tips for that tool. Choosing a tip starts a guided walkthrough that highlights the exact menu to click on the real page, notices when the teacher opens the wrong menu, and points them back. Teachers can search tips in their own words, request a tip that doesn't exist yet, and rate each tip so the most helpful ones stand out. PrepTip also protects the classroom by blocking redirects to flagged websites before they load, and adds a "Download for Slides" helper on YouTube. All tips live in a Supabase database, so the team can add new help without shipping a new version of the extension.
 
+## System architecture
+
+How data moves through the two parts of PrepTip. The **customer-facing app** is the Chrome extension (teachers); the **team/admin app** is the OKR Metrics Hub (Product Owner / Scrum team). **The two apps meet at Supabase** — the extension *writes* catalog reads, feedback and usage events; the hub *reads* aggregates of them. The AI workflow automation is **planned** (dashed).
+
+```mermaid
+flowchart TB
+  teacher(["Teacher"])
+  team(["Team / Product Owner"])
+
+  subgraph CUST["Customer-facing app · PrepTip Chrome extension (Manifest V3, no build)"]
+    panel["Side panel<br/>HTML / CSS / JS"]
+    content["Content scripts<br/>on-page guide + URL blocking"]
+    worker["Service worker<br/>engagement + badges"]
+    local[("chrome.storage<br/>per-browser")]
+  end
+
+  tools["Teacher web tools (external)<br/>Google Sheets / Docs / Slides, YouTube, Canvas,<br/>Quizlet, Khan, Desmos, Padlet, Microsoft 365,<br/>Classroom, Kahoot, ClassDojo"]
+
+  subgraph SB["Supabase · hosted Postgres + REST — shared backend (where the two apps connect)"]
+    tables[("Tables<br/>websites · tips · tip_steps<br/>users · feedback · events")]
+    fns["Functions / RPC<br/>create_teacher_account · sign_in_teacher<br/>tip_ratings · okr_tip_completions<br/>okr_app_usage · okr_tip_engagement · resource_opens"]
+  end
+
+  subgraph ADMIN["Team / admin app · OKR Metrics Hub (static site, Vercel)"]
+    hub["Dashboard<br/>HTML / CSS / JS"]
+  end
+
+  cdn["jsdelivr CDN<br/>Geist fonts"]
+  ai["AI workflow automation — PLANNED<br/>Supabase Edge Function to an LLM API, e.g. Gemini"]
+
+  teacher -->|"opens tips, rates thumbs up/down, signs in"| panel
+  panel -->|"sign in via RPC; read tip catalog;<br/>write feedback + usage events"| SB
+  content -->|"highlight menus; block flagged URLs"| tools
+  worker -->|"app opens + 10s+ tip views"| local
+  worker -->|"app_open + tip_dwell_success events"| SB
+
+  team -->|"opens the hub"| hub
+  hub -->|"read OKR aggregates<br/>(publishable key, read-only)"| SB
+  hub -.->|"load fonts"| cdn
+
+  SB -.->|"new tip / resource requests to classify + draft"| ai
+  ai -.->|"drafted tip steps, held for team review"| SB
+```
+
 ## ERD
 
 ![PrepTip entity relationship diagram](docs/erd.png)
