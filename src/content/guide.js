@@ -318,6 +318,12 @@
   // Did this click land on (or inside) path segment `index`? `eventPath` comes from composedPath().
   function clickHitsSegment(eventPath, index) {
     const { kind, path } = guide;
+    // Prefer the exact element currently highlighted. Some sites wrap a button's
+    // label in custom elements or update its text during the click, so repeating
+    // the selector/text match against the event path can miss a valid activation.
+    if (guide.target && guide.targetIndex === index && eventPath.some((node) =>
+      node === guide.target || (node?.nodeType === 1 && guide.target.contains(node))
+    )) return true;
     if (kind === 'search' || ((kind === 'panel' || kind === 'dialog') && index === 0)) {
       const el = kind === 'search' ? findSearch(path.join(' ')) : findContainer(path[0]);
       return !!el && eventPath.includes(el);
