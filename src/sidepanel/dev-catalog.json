@@ -11,6 +11,10 @@
     {
       "url_pattern": "classdojo.com",
       "name": "ClassDojo"
+    },
+    {
+      "url_pattern": "docs.google.com/presentation",
+      "name": "Google Slides"
     }
   ],
   "tips": [
@@ -938,6 +942,294 @@
           "step_type": "your_turn",
           "target_element": "",
           "step_description": "Choose a student or date range and review the points and behavior patterns shown in the report."
+        }
+      ]
+    },
+    {
+      "tip_id": 31,
+      "url_pattern": "docs.google.com/presentation",
+      "title": "Create and edit slides",
+      "summary": "Add, duplicate, delete, and rearrange slides in a presentation.",
+      "description": "Use the filmstrip on the left to build a clear lesson sequence. Add a slide, reuse one by duplicating it, drag slides into a better order, or remove slides you no longer need.",
+      "feature_name": "Create and edit slides",
+      "estimated_required_minutes": 2,
+      "keywords": "create add edit slides new duplicate copy delete remove reorder rearrange move filmstrip",
+      "tip_steps": [
+        {
+          "step_id": 82,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:New slide",
+          "step_description": "Choose New slide to add a slide after the one selected in the filmstrip."
+        },
+        {
+          "step_id": 83,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "In the left filmstrip, drag a slide to rearrange it. Right-click a thumbnail to duplicate or delete it. You can also select a thumbnail and press Delete or Backspace to remove it."
+        }
+      ]
+    },
+    {
+      "tip_id": 32,
+      "url_pattern": "docs.google.com/presentation",
+      "title": "Templates and themes",
+      "summary": "Start with a premade design or apply a theme and slide layout.",
+      "description": "Templates and themes give your lesson a consistent look without formatting every slide from scratch. A template can add a complete set of designed slides; a theme updates the presentation's colors, fonts, and layouts.",
+      "feature_name": "Templates and themes",
+      "estimated_required_minutes": 2,
+      "keywords": "template theme design premade layout style gallery import theme",
+      "tip_steps": [
+        {
+          "step_id": 84,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Templates",
+          "step_description": "Open the template gallery from the top-left of the Slides home screen or editor."
+        },
+        {
+          "step_id": 85,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Choose a template to start a designed presentation. To restyle an open deck, choose Slide > Change theme, then select a theme in the right panel. Use Layout in the toolbar to change the selected slide's arrangement."
+        }
+      ]
+    },
+    {
+      "tip_id": 33,
+      "url_pattern": "docs.google.com/presentation",
+      "title": "Text formatting",
+      "summary": "Adjust fonts, size, color, and alignment to make lesson content easy to read.",
+      "description": "Clear formatting helps students scan instructions and focus on key ideas. Select text inside a text box, then use the toolbar to change its font, size, color, and alignment.",
+      "feature_name": "Text formatting",
+      "estimated_required_minutes": 2,
+      "keywords": "text format font fonts color colour size alignment align typography bold",
+      "tip_steps": [
+        {
+          "step_id": 86,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Font",
+          "step_description": "Find the font controls in the toolbar at the top of the editor."
+        },
+        {
+          "step_id": 87,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Select text on the slide. Use the toolbar to choose a font and size, set Text color, and choose an alignment. If the text is not selected, the changes may apply only to new text."
+        }
+      ]
+    },
+    {
+      "tip_id": 34,
+      "url_pattern": "docs.google.com/presentation",
+      "title": "Insert images",
+      "summary": "Add a picture, illustration, or diagram to support a lesson.",
+      "description": "A relevant visual can make a concept easier to explain. Slides can insert images from your computer, Google Drive, Photos, the web, or a URL.",
+      "feature_name": "Insert images",
+      "estimated_required_minutes": 2,
+      "keywords": "insert image picture photo illustration diagram upload drive web url visual",
+      "tip_steps": [
+        {
+          "step_id": 88,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "menu:Insert",
+          "step_description": "Open Insert in the top menu."
+        },
+        {
+          "step_id": 89,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "menu:Image",
+          "step_description": "Choose Image to see the available image sources."
+        },
+        {
+          "step_id": 90,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Choose a source, select the picture, then click Insert or Open. Drag the image to position it and use the corner handles to resize it."
+        }
+      ]
+    },
+    {
+      "tip_id": 35,
+      "url_pattern": "docs.google.com/presentation",
+      "title": "Insert videos",
+      "summary": "Embed a video in a slide so students can watch it during the lesson.",
+      "description": "You can search YouTube, paste a video URL, or choose a video stored in Google Drive. The video appears on the slide and can play during a presentation.",
+      "feature_name": "Insert videos",
+      "estimated_required_minutes": 2,
+      "keywords": "insert video youtube embed lesson clip url drive",
+      "tip_steps": [
+        {
+          "step_id": 91,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "menu:Insert",
+          "step_description": "Open Insert in the top menu."
+        },
+        {
+          "step_id": 92,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "menu:Video",
+          "step_description": "Choose Video to open the video picker."
+        },
+        {
+          "step_id": 93,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Search YouTube, paste a video URL, or choose a video from Drive. Select the video and click Select, then position and resize it on the slide."
+        }
+      ]
+    },
+    {
+      "tip_id": 36,
+      "url_pattern": "docs.google.com/presentation",
+      "title": "Speaker notes",
+      "summary": "Keep private teaching prompts below a slide while you present.",
+      "description": "Speaker notes help you remember examples, questions, or transitions. They appear in presenter tools for you and are not shown on the audience's slide.",
+      "feature_name": "Speaker notes",
+      "estimated_required_minutes": 1,
+      "keywords": "speaker notes presenter private talking points teaching prompts below slide",
+      "tip_steps": [
+        {
+          "step_id": 94,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "panel:Speaker notes",
+          "step_description": "Locate the speaker notes area below the current slide."
+        },
+        {
+          "step_id": 95,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Click the notes area and type your teaching prompt. Select another slide to add notes for that part of the lesson. The notes stay in the editor and presenter view, not on the projected slide."
+        }
+      ]
+    },
+    {
+      "tip_id": 37,
+      "url_pattern": "docs.google.com/presentation",
+      "title": "Animations and transitions",
+      "summary": "Reveal text or images gradually and add transitions between slides.",
+      "description": "Animations can introduce an object or list one piece at a time. Transitions control how a slide appears during the presentation, helping you pace explanations and keep attention on the current idea.",
+      "feature_name": "Animations and transitions",
+      "estimated_required_minutes": 2,
+      "keywords": "animation transition reveal gradually appear on click motion slide objects",
+      "tip_steps": [
+        {
+          "step_id": 96,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "menu:Insert",
+          "step_description": "Select the text or image you want to animate, then open Insert."
+        },
+        {
+          "step_id": 97,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "menu:Animation",
+          "step_description": "Choose Animation to open the motion controls."
+        },
+        {
+          "step_id": 98,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Choose an object animation and set when it starts. To add a slide transition instead, select a slide and choose Slide > Transition. Use Play in the motion panel to preview your changes."
+        }
+      ]
+    },
+    {
+      "tip_id": 38,
+      "url_pattern": "docs.google.com/presentation",
+      "title": "Charts and tables",
+      "summary": "Show data, comparisons, and information visually on a slide.",
+      "description": "A chart can make class data or comparisons easier to understand. Tables are useful for organizing information into rows and columns, and charts can stay linked to their source spreadsheet.",
+      "feature_name": "Charts and tables",
+      "estimated_required_minutes": 2,
+      "keywords": "chart table data comparisons information visual insert spreadsheet sheets linked",
+      "tip_steps": [
+        {
+          "step_id": 99,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "menu:Insert",
+          "step_description": "Open Insert in the top menu."
+        },
+        {
+          "step_id": 100,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "menu:Chart",
+          "step_description": "Choose Chart to add a chart, or choose Table from the same Insert menu to organize information in rows and columns."
+        },
+        {
+          "step_id": 101,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "For a chart, select the chart type or choose From Sheets to import one. For a table, choose its row and column count. Move and resize the result on your slide."
+        }
+      ]
+    },
+    {
+      "tip_id": 39,
+      "url_pattern": "docs.google.com/presentation",
+      "title": "Sharing and collaboration",
+      "summary": "Give teachers or students the right access to view, comment, or edit.",
+      "description": "Sharing lets colleagues co-plan lessons and gives students access to class presentations. Choose a permission level that fits the task, and check who can open the link before sending it.",
+      "feature_name": "Sharing and collaboration",
+      "estimated_required_minutes": 2,
+      "keywords": "share collaboration collaborate co-edit teacher student viewer commenter editor permission link",
+      "tip_steps": [
+        {
+          "step_id": 102,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Share",
+          "step_description": "Open the sharing controls in the top-right corner."
+        },
+        {
+          "step_id": 103,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Add people or copy a link. Choose Viewer, Commenter, or Editor access, check the sharing scope, then send or copy the link. Editors can change the presentation; viewers can only see it."
+        }
+      ]
+    },
+    {
+      "tip_id": 40,
+      "url_pattern": "docs.google.com/presentation",
+      "title": "Present mode",
+      "summary": "Show your deck full-screen and use presenter view for notes and controls.",
+      "description": "Slideshow mode puts the lesson on the class display. Presenter view can keep speaker notes and presentation controls available to you while students see the slides.",
+      "feature_name": "Present mode",
+      "estimated_required_minutes": 1,
+      "keywords": "present presentation slideshow full screen presenter view notes tools class display",
+      "tip_steps": [
+        {
+          "step_id": 104,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Slideshow",
+          "step_description": "Start the full-screen presentation from the top-right of the editor."
+        },
+        {
+          "step_id": 105,
+          "step_order": 2,
+          "step_type": "your_turn",
+          "target_element": "",
+          "step_description": "Use the arrow keys or on-screen arrows to move through the slides, and press Esc to exit. To keep notes and presenter controls available, open the Slideshow options and choose Presenter view."
         }
       ]
     }
