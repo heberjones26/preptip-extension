@@ -21,7 +21,7 @@ Requirement numbers (R1–R10) refer to "Behavioral Requirements" in the PRD. Sc
 | `src/sidepanel/*` | The whole PrepTip UI (S1 nudge excluded): setup, tips, search, empty states, guide, feedback | page, ES modules |
 | `src/content/guide.js` + `.css` | On-page highlight, guide cursor, coach tooltip, click tracking, off-track detection, S1 nudge | **classic script** (no imports) |
 | `src/content/youtube-main.js` | Runs in the page's MAIN world; reads the player response for restriction status | classic, MAIN world |
-| `src/content/youtube.js` + `.css` | "Download for Slides" button below the player (R8–R10) | classic |
+| `src/content/youtube.js` + `.css` | "Add this moment to Slides" button below the player (R8–R10) | classic |
 
 Content scripts cannot use `import`. They copy the message-type strings they need from `protocol.js`.
 
