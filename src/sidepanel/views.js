@@ -256,11 +256,13 @@ export function tipsView(state, ctx) {
   const grade = teacherGrade(state);
   const recForGrade = grade && siteGrades(site.url_pattern).includes(grade);
   return `
-    ${browsing ? '<button type="button" class="back" data-action="end-browse">&larr; Back</button>' : ''}
-    <div class="site-chip"><span class="fav">${siteIcon(site)}</span>
-      <div><b>${esc(site.name)}</b></div>
+    ${browsing ? '<button type="button" class="back" data-action="end-browse">&larr; All sites with tips</button>' : ''}
+    <button type="button" class="site-chip site-switch" data-action="show-sites" aria-label="Browse all sites with tips">
+      <span class="fav">${siteIcon(site)}</span>
+      <span class="site-copy"><b>${esc(site.name)}</b><small>${plural(tips.length, 'tip')} for this site</small></span>
       ${recForGrade ? `<span class="rec-badge"><span class="gl">${CAP}</span>For ${esc(gradeLabel(grade))}</span>` : ''}
-    </div>
+      <span class="site-switch-icon" aria-hidden="true">&#8964;</span>
+    </button>
     ${browsing ? `<p class="tiny-note">You&rsquo;re not on ${esc(site.name)} right now, so tips open as a step list. Open ${esc(site.name)} to get the orange highlights.</p>` : ''}
     ${staleNote(state)}
     ${searchBox(state.query)}
@@ -330,6 +332,19 @@ function anywhereResults(state, q) {
 
 function siteChip(w, rec = false) {
   return `<button type="button" class="chip link${rec ? ' rec' : ''}" data-action="browse-site" data-pattern="${esc(w.url_pattern)}">${rec ? `<span class="rec-dot" aria-hidden="true"></span>` : ''}${esc(w.name)}</button>`;
+}
+
+export function sitesView(state) {
+  const sites = state.catalog?.websites || [];
+  const grade = teacherGrade(state);
+  const { recommended, other } = splitByGrade(sites, grade, (s) => siteGrades(s.url_pattern));
+  return `
+    <button type="button" class="back" data-action="end-browse">&larr; Back to tips</button>
+    <div class="sec-h sites-heading"><h4>Sites with tips</h4><small>Choose a site to see its guides.</small></div>
+    ${grade && recommended.length ? `
+      <div class="next-row"><b><span class="gl">${CAP}</span> Recommended for ${esc(gradeLabel(grade))}</b><div class="chips">${recommended.map((w) => siteChip(w, true)).join('')}</div></div>
+      ${other.length ? `<div class="next-row"><b>More sites with tips</b><div class="chips">${other.map((w) => siteChip(w)).join('')}</div></div>` : ''}`
+      : `<div class="next-row"><b>Choose a site</b><div class="chips">${sites.map((w) => siteChip(w)).join('')}</div></div>`}`;
 }
 
 // "Sites with tips", split into a "Recommended for your grade" group when a grade is set.
@@ -438,7 +453,7 @@ function introCard(g) {
     ? where.map((p) => `<span class="crumb">${esc(p)}</span>`).join('<span class="sep" aria-hidden="true">&rsaquo;</span>')
     : `<span class="crumb">${esc(tip.feature_name)}</span>`;
   return `
-    <details class="intro" ${g.stepIndex === 0 ? 'open' : ''}>
+    <details class="intro">
       <summary>What it does</summary>
       <p>${esc(tip.description || tip.summary)}</p>
       <b class="where-h">Where it lives</b>
@@ -451,7 +466,7 @@ function yourTurnCard(step) {
   const body = items.length
     ? `<ol class="howto">${items.map((t, i) => `<li><span class="pin">${i + 1}</span><div><p>${esc(t)}</p></div></li>`).join('')}</ol>`
     : `<p class="yt-block">${esc(step.step_description)}</p>`;
-  return `<section class="yt" aria-label="Instructions for this step"><h4>Follow these instructions</h4>${lead ? `<p class="yt-lead">${esc(lead)}</p>` : ''}${body}</section>`;
+  return `<section class="yt" aria-label="Your turn to take over"><div class="yt-heading"><span class="yt-mark" aria-hidden="true">↗</span><div><h4>Your turn</h4><p>Take over here and complete this step.</p></div></div>${lead ? `<p class="yt-lead">${esc(lead)}</p>` : ''}${body}</section>`;
 }
 
 export function guideView(state) {
@@ -478,10 +493,10 @@ export function guideView(state) {
       <div class="prog"><div class="prog-track"><i style="width:${pct}%"></i></div><span>Step ${g.stepIndex + 1} of ${total}</span></div>
     </div>
     ${offtrackBanner(g, step)}
-    ${introCard(g)}
     ${liveLine(state, g, step)}
     ${overview ? `<ol class="steps">${overview}</ol>` : ''}
     ${yourTurn ? yourTurnCard(step) : ''}
+    ${introCard(g)}
     ${menuHint}
     <div class="g-foot">
       ${buttons}

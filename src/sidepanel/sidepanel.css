@@ -101,10 +101,14 @@ button:disabled { cursor: default; }
 
 /* ---------------- site chip, search ---------------- */
 .site-chip { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; background: var(--brand-soft); }
+.site-chip.site-switch { width: 100%; border: 0; color: var(--ink); text-align: left; cursor: pointer; font: inherit; }
+.site-chip.site-switch:hover { background: #FFE8D9; }
 .site-chip .fav { width: 30px; height: 30px; border-radius: 8px; background: #fff; display: grid; place-items: center; flex: none; }
 .site-chip .fav svg { width: 16px; height: 19px; }
-.site-chip > div { min-width: 0; }
+.site-chip > div, .site-chip .site-copy { min-width: 0; }
 .site-chip b { display: block; font-size: 14.5px; }
+.site-chip small { display: block; margin-top: 2px; color: var(--brand-dk); font-size: 11.5px; font-weight: 700; }
+.site-switch-icon { margin-left: auto; color: var(--brand-dk); font-size: 19px; line-height: 1; }
 .site-chip.muted { background: var(--soft); }
 .site-chip.muted small { color: var(--ink-3); }
 .site-chip.muted .fav svg { width: 18px; height: 18px; color: var(--ink-3); }
@@ -304,9 +308,12 @@ button.chip.link:hover { background: #DCF2E4; }
 .offtrack b { color: #7A3E06; font-size: 14.5px; }
 .offtrack p { margin: 4px 0 10px; font-size: 13.5px; line-height: 1.45; color: #6B4A1E; }
 
-.yt { margin-top: 18px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.yt { margin-top: 18px; padding: 14px; border: 1.5px solid #F2B08A; border-radius: 14px; background: linear-gradient(135deg, #FFF4EC 0%, #FFF 100%); box-shadow: 0 3px 12px -7px var(--brand-ring); }
 .yt > * + * { margin-top: 12px; }
-.yt h4 { margin: 0; font-size: 14px; font-weight: 700; color: var(--ink-2); }
+.yt-heading { display: flex; align-items: center; gap: 10px; }
+.yt-mark { display: grid; place-items: center; width: 30px; height: 30px; flex: none; border-radius: 50%; background: var(--brand); color: #fff; font-size: 18px; font-weight: 800; }
+.yt h4 { margin: 0; font-size: 14.5px; font-weight: 800; color: var(--brand-dk); }
+.yt-heading p { margin: 2px 0 0; font-size: 12.5px; color: var(--ink-2); }
 .yt-lead { margin-bottom: 0; font-size: 14px; line-height: 1.45; color: var(--ink); }
 .yt-block { margin: 0; font-size: 14px; line-height: 1.5; padding: 0 2px; }
 .howto { list-style: none; margin: 0; padding: 0; }

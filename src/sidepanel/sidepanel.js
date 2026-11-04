@@ -15,7 +15,7 @@ import { hostOf, isWebUrl } from './text.js';
 // State. Everything the screens need lives here; render() turns it into HTML.
 // ---------------------------------------------------------------------------
 const state = {
-  view: 'loading',          // 'setup' | 'loading' | 'error' | 'tips' | 'guide' | 'feedback' | 'resources'
+  view: 'loading',          // 'setup' | 'loading' | 'error' | 'tips' | 'guide' | 'feedback' | 'resources' | 'sites'
   setupDone: false,
   teacher: null,            // { userId, username, gradeLevel }
   resourceGradeOnly: true,  // Teacher Resources view: show only my-grade matches (vs. all)
@@ -74,6 +74,7 @@ function mainHtml() {
     case 'guide': return views.guideView(state);
     case 'feedback': return views.feedbackView(state);
     case 'resources': return views.resourcesView(state);
+    case 'sites': return views.sitesView(state);
     default: {
       const ctx = tipsContext();
       return ctx.site && ctx.tips.length ? views.tipsView(state, ctx) : views.unsupportedView(state, ctx);
@@ -612,10 +613,23 @@ const actions = {
     state.browseSite = state.catalog.websites.find((w) => w.url_pattern === el.dataset.pattern) || null;
     state.query = '';
     state.request = newRequest();
+    state.view = 'tips';
     render();
     window.scrollTo(0, 0);
   },
-  'end-browse': () => { resetListState(); render(); },
+  'show-sites': () => { state.browseSite = null; state.view = 'sites'; render(); window.scrollTo(0, 0); },
+  'end-browse': () => {
+    if (state.browseSite) {
+      state.browseSite = null;
+      state.query = '';
+      state.view = 'sites';
+    } else {
+      resetListState();
+      state.view = 'tips';
+    }
+    render();
+    window.scrollTo(0, 0);
+  },
   'open-request': () => {
     state.request.open = true;
     state.request.text ||= state.query.trim();
@@ -644,7 +658,7 @@ const actions = {
     render();
   },
   'submit-feedback': () => sendFeedback(),
-  'skip-feedback': () => { state.feedback.phase = 'skipped'; render(); },
+  'skip-feedback': () => { state.feedback = null; state.view = 'tips'; render(); window.scrollTo(0, 0); },
   'back-to-tips': () => { state.feedback = null; state.view = 'tips'; render(); window.scrollTo(0, 0); }
 };
 
