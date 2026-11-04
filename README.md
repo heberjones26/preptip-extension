@@ -4,7 +4,7 @@ A Chrome extension that gives teachers short, guided help inside the web tools t
 
 ## App Summary
 
-Teachers are expected to use general-purpose tools such as Google Sheets, Canva and Canvas, but those tools are built for everyone, not for classrooms. When a teacher hits a wall, like wanting failing grades to turn red automatically, they either spend scarce prep time learning a complex feature or fall back on slow manual workarounds. PrepTip is a Chrome extension that recognizes which tool a teacher is on and opens a side panel of short, teacher-specific tips for that tool. Choosing a tip starts a guided walkthrough that highlights the exact menu to click on the real page, notices when the teacher opens the wrong menu, and points them back. Teachers can search tips in their own words, request a tip that doesn't exist yet, and rate each tip so the most helpful ones stand out. PrepTip also protects the classroom by blocking redirects to flagged websites before they load, and adds a "Download for Slides" helper on YouTube. All tips live in a Supabase database, so the team can add new help without shipping a new version of the extension.
+Teachers are expected to use general-purpose tools such as Google Sheets, Canva and Canvas, but those tools are built for everyone, not for classrooms. When a teacher hits a wall, like wanting failing grades to turn red automatically, they either spend scarce prep time learning a complex feature or fall back on slow manual workarounds. PrepTip is a Chrome extension that recognizes which tool a teacher is on and opens a side panel of short, teacher-specific tips for that tool. Choosing a tip starts a guided walkthrough that highlights the exact menu to click on the real page, notices when the teacher opens the wrong menu, and points them back. Teachers can search tips in their own words, request a tip that doesn't exist yet, and rate each tip so the most helpful ones stand out. PrepTip also protects the classroom by blocking redirects to flagged websites before they load, and adds an "Add this moment to Slides" helper on YouTube. All tips live in a Supabase database, so the team can add new help without shipping a new version of the extension.
 
 ## ERD
 
@@ -95,7 +95,7 @@ If you have access to the Supabase project, you can also open **Table Editor →
 | R5 | Open wikipedia.org: the panel says "No tips available for this site" |
 | S3–S5 guided walkthrough | On a Sheet, open **Color-code grades automatically**. **Format** gets an orange highlight, then **Conditional formatting**. Click **Data** instead to see the off-track recovery |
 | R6/R7 blocking | Visit `http://malware.preptip.test/` or `https://testsafebrowsing.appspot.com/s/malware.html`. Both are safe test addresses on our [blocklist](src/data/blocklist.json). For a redirect: `https://httpbin.org/redirect-to?url=https%3A%2F%2Fmalware.preptip.test%2Fprize` |
-| R8/R10 YouTube | Any video shows **Download for Slides** under the player; age-restricted or private videos show "Video cannot be downloaded due to restrictions." |
+| R8/R10 YouTube | Any video shows **Add this moment to Slides** under the player (the PRD's "Download for Slides" button, renamed because it links rather than downloads); age-restricted or private videos show "Video cannot be downloaded due to restrictions." |
 
 ## Project layout
 
@@ -109,7 +109,7 @@ src/
   background.js           service worker: badge, redirect detection, blocking
   sidepanel/              the PrepTip panel (dev.html is a browser-only test page)
   content/guide.*         on-page highlights, walkthrough tracking, first-visit pop-up
-  content/youtube*.*      "Download for Slides" button
+  content/youtube*.*      "Add this moment to Slides" button
   blocked/                warning page for flagged URLs
   data/blocklist.json     flagged domains
 supabase/migrations/      RLS policies and database functions

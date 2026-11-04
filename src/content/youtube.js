@@ -1,4 +1,4 @@
-// PrepTip "Download for Slides" button on YouTube watch pages (R8-R10). Classic content script,
+// PrepTip "Add this moment to Slides" button on YouTube watch pages (R8-R10). Classic content script,
 // isolated world. Restriction status comes from src/content/youtube-main.js (MAIN world) via
 // window.postMessage.
 //
@@ -198,12 +198,12 @@
       flash(ok ? 'Copied!' : 'Copy failed. Copy the link from the address bar instead.', ok);
     };
 
-    const card = h('div', { class: 'preptip-yt-panel preptip-yt-card', role: 'dialog', 'aria-label': 'Use this video in Google Slides' },
+    const card = h('div', { class: 'preptip-yt-panel preptip-yt-card', role: 'dialog', 'aria-label': 'Add this moment to Google Slides' },
       h('div', { class: 'preptip-yt-card-head' },
-        h('h3', { class: 'preptip-yt-card-title', text: 'Use this video in Google Slides' }),
+        h('h3', { class: 'preptip-yt-card-title', text: 'Add this moment to Google Slides' }),
         closeButton(() => clearPanel(root))
       ),
-      h('p', { class: 'preptip-yt-card-body', text: "PrepTip can't save YouTube files (YouTube doesn't allow it), but Slides can play this video right in your presentation, with no download needed." }),
+      h('p', { class: 'preptip-yt-card-body', text: "Slides plays the video right in your presentation, starting where you paused. No download needed." }),
       h('ol', { class: 'preptip-yt-steps' },
         h('li', null, h('span', null, h('b', { text: 'Copy link' }), hasTime ? ` (starts at ${formatTime(t)})` : '')),
         h('li', null, h('span', null, 'In Slides: ', h('b', { text: 'Insert → Video → By URL' }))),
@@ -239,9 +239,9 @@
         type: 'button',
         class: 'preptip-yt-btn',
         'aria-expanded': 'false',
-        title: 'PrepTip: use this video in Google Slides',
+        title: 'PrepTip: add this video to Google Slides, starting where you paused',
         onclick: onButtonClick
-      }, logo(), h('span', { text: 'Download for Slides' }))
+      }, logo(), h('span', { text: 'Add this moment to Slides' }))
     );
   }
 
