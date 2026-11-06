@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PrepTip — Privacy Policy</title>
+  <meta name="description" content="What the PrepTip Chrome extension collects, why, and how it is stored.">
+  <!-- Geist (pantry design system). Falls back to system-ui if the CDN is unreachable. -->
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/geist@5/index.css">
+  <link rel="stylesheet" href="dashboard.css">
+  <style>
+    /* Long-form reading layout; the header and tokens come from dashboard.css. */
+    .policy { max-width: 720px; }
+    .policy h1 { font-size: 2rem; letter-spacing: -0.02em; margin: 0 0 4px; }
+    .policy .effective { color: var(--n500); margin: 0 0 24px; }
+    .policy h2 { font-size: 1.2rem; margin: 32px 0 8px; }
+    .policy p, .policy li { color: var(--n700); }
+    .policy ul { padding-left: 20px; }
+    .policy li { margin-bottom: 6px; }
+    .policy a { color: var(--brand-dk); }
+    .policy .card { background: var(--white); border: 1px solid var(--n200); border-radius: var(--radius-lg); padding: 4px 20px; }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="top">
+    <div class="wrap top-inner">
+      <span class="brand">
+        <span class="logo" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none">
+            <rect width="24" height="24" rx="6" fill="#E8590C"></rect>
+            <path d="M12 6a4 4 0 0 0-2.4 7.2c.4.3.6.7.6 1.1v.2h3.6v-.2c0-.4.2-.8.6-1.1A4 4 0 0 0 12 6Z" fill="#fff"></path>
+            <rect x="10.2" y="16" width="3.6" height="1.6" rx=".8" fill="#fff"></rect>
+          </svg>
+        </span>
+        <span class="brand-txt"><b>PrepTip</b><small>Privacy Policy</small></span>
+      </span>
+    </div>
+  </header>
+
+  <main id="main" class="wrap policy">
+    <h1>Privacy Policy</h1>
+    <p class="effective">Effective November 5, 2026</p>
+
+    <p>PrepTip is a Chrome extension that shows teachers short tips and guided walkthroughs for the web
+      tools they already use, and blocks redirects to flagged websites. This policy explains what PrepTip
+      collects, why, and what it never does.</p>
+
+    <h2>What we collect</h2>
+    <div class="card">
+      <ul>
+        <li><strong>Account details.</strong> The username you choose and your password. The password is
+          sent over HTTPS and hashed with bcrypt inside our database; it is never stored in plain text. We do not ask
+          for your name or email address.</li>
+        <li><strong>Feedback you send.</strong> Thumbs-up or thumbs-down ratings on tips, any comment you
+          type with a rating, and requests for new tips or resources.</li>
+        <li><strong>Usage events.</strong> When you open PrepTip, open or finish a tip, or open a teacher
+          resource, we record the event type, your account ID, the tip ID, the tool the tip belongs to
+          (for example <em>Google Sheets</em>), a random session ID, and the time.</li>
+      </ul>
+    </div>
+
+    <h2>What stays on your computer</h2>
+    <p>PrepTip reads the address of the page you are on so it can match it to a known tool and show the
+      right tips. That address is checked inside your browser and is not sent to us. The list of flagged
+      websites ships inside the extension, so redirect blocking also happens entirely on your computer.
+      Your sign-in, settings and a cached copy of the tip catalog are kept in Chrome's extension storage.</p>
+    <p>We do not record your browsing history, the contents of the pages you visit, your keystrokes, or
+      your location.</p>
+
+    <h2>How we use it</h2>
+    <ul>
+      <li>To sign you in and attach your ratings and requests to your account.</li>
+      <li>To show which tips teachers find most helpful and decide which tips to write next.</li>
+      <li>To measure, in aggregate, whether PrepTip is helping teachers (for example, how many tips are
+        completed).</li>
+    </ul>
+    <p>We use this data only to run and improve PrepTip. We do not sell it, share it with advertisers,
+      use it for advertising, or use it to determine creditworthiness or for lending.</p>
+
+    <h2>Where it is stored</h2>
+    <p>Account details, feedback and usage events are stored in a database hosted by
+      <a href="https://supabase.com/privacy">Supabase</a>, which acts only as our service provider.
+      Database security rules let the extension read tips and add feedback, but not read anyone's
+      feedback, events or account details.</p>
+
+    <h2>Keeping and deleting your data</h2>
+    <p>We keep your data while your account exists. Signing out of PrepTip removes your sign-in from
+      your browser, and removing the extension clears everything it stored there. To have your account, feedback and usage events deleted
+      from our database, open an issue on our
+      <a href="https://github.com/heberjones26/preptip-extension/issues">GitHub project</a> with your
+      username and we will remove them.</p>
+
+    <h2>Children</h2>
+    <p>PrepTip is built for teachers, not students, and is not directed at children under 13.</p>
+
+    <h2>Changes</h2>
+    <p>If we change what PrepTip collects, we will update this page and the effective date above before
+      the change ships.</p>
+
+    <h2>Contact</h2>
+    <p>Questions about this policy can be raised on our
+      <a href="https://github.com/heberjones26/preptip-extension/issues">GitHub project</a>.</p>
+  </main>
+</body>
+</html>
