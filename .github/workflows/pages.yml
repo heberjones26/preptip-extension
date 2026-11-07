@@ -1,11 +1,12 @@
-# Publishes dashboard/ (OKR dashboard + privacy policy) to GitHub Pages.
+# Publishes only the privacy policy (and the stylesheet it uses) to GitHub Pages.
+# The OKR dashboard itself is not published here.
 # Privacy policy: https://heberjones26.github.io/preptip-extension/privacy.html
-name: Deploy dashboard to GitHub Pages
+name: Deploy privacy policy to GitHub Pages
 
 on:
   push:
     branches: [main]
-    paths: ["dashboard/**", ".github/workflows/pages.yml"]
+    paths: ["dashboard/privacy.html", "dashboard/dashboard.css", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -26,8 +27,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - name: Stage privacy page
+        run: |
+          mkdir _site
+          cp dashboard/privacy.html dashboard/dashboard.css _site/
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dashboard
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
