@@ -108,6 +108,8 @@ npm test
 npm run check
 ```
 
+**Releasing to the Chrome Web Store:** bump the manifest version and push a `v*` tag. See [docs/RELEASING.md](docs/RELEASING.md).
+
 ## Verifying the Vertical Slice
 
 Our vertical slice is the **"Was this helpful?" 👍 button**. One click goes through every layer:

@@ -1,0 +1,98 @@
+# Releases PrepTip to the Chrome Web Store when a version tag is pushed:
+#   bump "version" in manifest.json, merge to main, then  git tag v0.1.1 && git push origin v0.1.1
+# Pull requests that touch the extension, and running it by hand (Actions tab -> Release -> Run
+# workflow), only test and build the zip; nothing is uploaded.
+# Credential setup: docs/RELEASING.md
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  pull_request:
+    paths: ["manifest.json", "src/**", "icons/**", "tests/**", "scripts/**", "package.json", ".github/workflows/release.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # attach the zip to a GitHub Release
+
+env:
+  CWS_PUBLISHER_ID: 9d329ed8-79eb-43c7-8950-3506ae6f837c
+  CWS_EXTENSION_ID: aningbmgfcfgpjodmgonhmlkncicjdlf
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check tag matches manifest version
+        if: github.ref_type == 'tag'
+        run: |
+          version=$(node -p "require('./manifest.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match manifest.json version $version"
+            exit 1
+          fi
+
+      - run: npm test
+      - run: npm run check
+      - run: npm run package
+
+      - id: zip
+        run: echo "path=$(ls dist/preptip-*.zip)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preptip-extension
+          path: ${{ steps.zip.outputs.path }}
+
+      - name: Attach zip to GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "${{ steps.zip.outputs.path }}" --generate-notes
+
+      - name: Authenticate to Google
+        id: google
+        if: github.ref_type == 'tag'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+
+      - name: Upload to Chrome Web Store
+        if: github.ref_type == 'tag'
+        env:
+          TOKEN: ${{ steps.google.outputs.access_token }}
+          ZIP: ${{ steps.zip.outputs.path }}
+        run: |
+          base=https://chromewebstore.googleapis.com
+          item=publishers/$CWS_PUBLISHER_ID/items/$CWS_EXTENSION_ID
+          curl -sS --fail-with-body -X POST -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/zip" --data-binary @"$ZIP" \
+            "$base/upload/v2/$item:upload" | tee upload.json
+          state=$(jq -r '.uploadState // empty' upload.json)
+          # Large uploads can still be processing; wait for them to finish.
+          # (The API reference says IN_PROGRESS; the guide says UPLOAD_IN_PROGRESS. Accept both.)
+          for _ in $(seq 1 30); do
+            case "$state" in IN_PROGRESS|UPLOAD_IN_PROGRESS) ;; *) break ;; esac
+            sleep 10
+            state=$(curl -sS --fail-with-body -H "Authorization: Bearer $TOKEN" "$base/v2/$item:fetchStatus" \
+              | tee status.json | jq -r '.lastAsyncUploadState // empty')
+          done
+          if [ "$state" != "SUCCEEDED" ]; then
+            echo "::error::Upload did not succeed (state: ${state:-unknown}). See the response above."
+            exit 1
+          fi
+
+      - name: Submit for review
+        if: github.ref_type == 'tag'
+        env:
+          TOKEN: ${{ steps.google.outputs.access_token }}
+        run: |
+          curl -sS --fail-with-body -X POST -H "Authorization: Bearer $TOKEN" \
+            "https://chromewebstore.googleapis.com/v2/publishers/$CWS_PUBLISHER_ID/items/$CWS_EXTENSION_ID:publish"
