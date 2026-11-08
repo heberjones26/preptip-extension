@@ -50,8 +50,14 @@ test('panel and service-worker integration', async (t) => {
     tip_steps: [1, 2].map((n) => ({ step_id: n, step_order: n, step_type: 'guided', target_element: 'menu:File', step_description: `Step ${n}` })) });
   h.saved[STORAGE.CATALOG] = { fetchedAt: Date.now(), websites: [{ url_pattern: 'docs.google.com/spreadsheets', name: 'Google Sheets' }], tips: [tip(8), tip(9)] };
   let registrationId = 1;
-  t.mock.method(globalThis, 'fetch', async (url) => {
+  const requests = [];
+  let failRequest = false;
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
     assert.ok(String(url).includes('/rest/v1/'), `Unexpected fetch: ${url}`);
+    if (String(url).endsWith('/feedback')) {
+      requests.push(JSON.parse(options.body));
+      if (failRequest) return new Response(JSON.stringify({ message: 'Offline' }), { status: 503 });
+    }
     const body = String(url).includes('create_teacher_account') || String(url).includes('sign_in_teacher')
       ? [{ user_id: registrationId, username: `test${registrationId}` }] : [];
     return new Response(JSON.stringify(body), { status: 200 });
@@ -81,6 +87,29 @@ test('panel and service-worker integration', async (t) => {
     await dispatch({ type: MSG.TAB_CONTEXT_CHANGED }); await settle();
     click('clear-search'); await settle();
     assert.equal(totals().openings, 1);
+  });
+  await t.test('unmatched search prefills a request and preserves it through a failed send and retry', async () => {
+    document.emit('input', { target: { id: 'search', value: 'seating chart' } });
+    assert.match(document.querySelector('#results').innerHTML, /Submit a tip request/);
+    click('open-request');
+    assert.match(document.querySelector('#view').innerHTML, />seating chart<\/textarea>/);
+    document.querySelector('#request-text').value = 'seating chart';
+    failRequest = true;
+    document.emit('submit', { target: { id: 'request-form' }, preventDefault() {} });
+    await settle();
+    assert.match(document.querySelector('#view').innerHTML, /Check your connection and try again/);
+    failRequest = false;
+    document.emit('submit', { target: { id: 'request-form' }, preventDefault() {} });
+    await settle();
+    assert.match(document.querySelector('#view').innerHTML, /Your request was sent/);
+    assert.deepEqual(requests.at(-1), {
+      user_id: 1, tip_id: null, is_helpful: null,
+      feedback_text: 'Tip request (Google Sheets): seating chart'
+    });
+    document.emit('input', { target: { id: 'search', value: 'new unmatched problem' } });
+    assert.match(document.querySelector('#tip-request').innerHTML, /Submit a tip request/);
+    assert.ok(!document.querySelector('#tip-request').innerHTML.includes('Your request was sent'));
+    click('clear-search');
   });
   await t.test('real tip clicks, steps and completion obey the strict timer', async () => {
     click('open-tip', { tipId: '8' }); await settle();

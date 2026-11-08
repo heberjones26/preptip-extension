@@ -10,6 +10,7 @@ import * as views from './views.js';
 import * as bridge from './guide-bridge.js';
 import { createPanelEngagement } from './engagement-tracking.js';
 import { hostOf, isWebUrl } from './text.js';
+import { sharePrepTip } from '../lib/share.js';
 
 // ---------------------------------------------------------------------------
 // State. Everything the screens need lives here; render() turns it into HTML.
@@ -29,6 +30,7 @@ const state = {
   site: null,               // website row matching tab.url, or null
   browseSite: null,         // a site picked from "Sites with tips" while on an unsupported page
   query: '',
+  sharePhase: 'idle',
   request: newRequest(),
   guide: null,              // { tip, stepIndex, tabId, live, canHighlight, status, offtrack }
   feedback: null            // { tip, isHelpful, reasons, text, phase, error }
@@ -97,6 +99,8 @@ function renderResults() {
   box.innerHTML = views.resultsHtml(state, tipsContext());
   const clear = $('.search .clear');
   if (clear) clear.hidden = !state.query;
+  const request = $('#tip-request');
+  if (request) request.innerHTML = views.tipRequestHtml(state);
 }
 
 // ---------------------------------------------------------------------------
@@ -562,6 +566,20 @@ async function sendFeedback() {
 // DOM events: one click handler for every data-action button.
 // ---------------------------------------------------------------------------
 const actions = {
+  'share-preptip': async () => {
+    if (state.sharePhase === 'sharing') return;
+    // Start sharing directly from the click to retain browser user activation.
+    const result = sharePrepTip();
+    state.sharePhase = 'sharing';
+    $('#footer').innerHTML = views.footer(state);
+    state.sharePhase = await result;
+    $('#footer').innerHTML = views.footer(state);
+    if (state.sharePhase === 'manual') {
+      const text = $('#share-text');
+      text?.focus();
+      text?.select();
+    }
+  },
   // setup
   'setup-next': () => { state.setup.step += 1; state.setup.error = ''; render(); },
   'setup-back': () => {

@@ -11,6 +11,7 @@ import {
 } from './icons.js';
 import { GRADES, gradeLabel, splitByGrade, siteGrades } from '../data/segments.js';
 import { RESOURCES } from '../data/resources.js';
+import { SHARE_MESSAGE } from '../lib/share.js';
 
 // The teacher's chosen grade band (or '' for all grades / not set).
 function teacherGrade(state) {
@@ -95,6 +96,11 @@ function requestBlock(state, label, hint = '') {
   return `<button type="button" class="btn outline full" data-action="open-request">${label}</button>${hint ? `<small class="muted">${hint}</small>` : ''}`;
 }
 
+// Unsupported-site search keeps this outside the results so there is only one form.
+export function tipRequestHtml(state) {
+  return requestBlock(state, 'Submit a tip request');
+}
+
 // ---------- header, notice, footer ----------
 
 export function header(state) {
@@ -117,7 +123,11 @@ export function footer(state) {
     ${name ? `<span class="foot-who">Signed in as ${esc(name)}</span><span class="sep" aria-hidden="true">&middot;</span>` : ''}
     ${gradeBtn}<span class="sep" aria-hidden="true">&middot;</span>
     ${resourcesLink}
-    <button type="button" class="linkish" data-action="sign-out">Sign out</button>`;
+    <button type="button" class="linkish" data-action="sign-out">Sign out</button>
+    <span class="sep" aria-hidden="true">&middot;</span>
+    <button type="button" class="linkish" data-action="share-preptip" ${state.sharePhase === 'sharing' ? 'disabled' : ''}>Share PrepTip</button>
+    <div class="share-status" role="status">${state.sharePhase === 'copied' ? 'Invite copied! Paste it into a message to another teacher.' : state.sharePhase === 'shared' ? 'Thanks for sharing PrepTip!' : ''}</div>
+    ${state.sharePhase === 'manual' ? `<label class="field share-fallback"><span>Copy this invitation to share with another teacher:</span><textarea id="share-text" rows="4" readonly>${esc(SHARE_MESSAGE)}</textarea></label>` : ''}`;
 }
 
 // ---------- setup (R2) ----------
@@ -294,37 +304,33 @@ function siteResults(state, ctx, q) {
     html += sectionHead(`${here.length === 1 ? '1 match' : `${here.length} matches`} on ${short}`);
     html += `<div class="cards">${here.map((t) => tipCard(state, t)).join('')}</div>`;
   } else {
-    html += `<p class="tiny-note">No ${short} tips for &ldquo;${esc(q)}&rdquo; yet, but other sites have some.</p>`;
+    html += noResults(state, ctx, q);
   }
   if (elsewhere.length) {
     html += sectionHead('On other sites');
     html += `<div class="cards">${elsewhere.map((t) => tipCard(state, t, { site: siteName(state, t.url_pattern) })).join('')}</div>`;
   }
-  html += `<div class="next"><div class="next-row"><b>Not quite it?</b>${requestBlock(state, 'Request a tip')}</div></div>`;
+  if (here.length) html += `<div class="next"><div class="next-row"><b>Not quite it?</b>${requestBlock(state, 'Request a tip')}</div></div>`;
   return html;
 }
 
-// Mockup 2A: nothing matched anywhere.
-function noResults(state, ctx, q) {
-  const words = q.split(/\s+/).filter((w) => w.length > 2);
-  const popular = ctx.tips.slice(0, 3);
+// A clear request path whenever the current tool cannot help with this search.
+function noResults(state, ctx, q, includeRequest = true) {
   return `
     <div class="empty">
       <div class="empty-ic">${SEARCH}</div>
-      <h4>No ${esc(shortSiteName(ctx.site.name))} tips for &ldquo;${esc(q)}&rdquo; yet</h4>
-      <p>Here are a few ways to keep going:</p>
+      <h4>We don&rsquo;t currently have a tip for this${ctx.site ? ` on ${esc(shortSiteName(ctx.site.name))}` : ''}.</h4>
+      <p>No tips match &ldquo;${esc(q)}&rdquo;${ctx.site ? ` on ${esc(shortSiteName(ctx.site.name))}` : ''}. Submit the problem so we can make a tip to help.</p>
     </div>
-    <div class="next">
-      ${words.length > 1 ? `<div class="next-row"><b>Try fewer words</b><div class="chips">${words.map((w) => `<button type="button" class="chip" data-action="set-query" data-q="${esc(w)}">${esc(w)}</button>`).join('')}</div></div>` : ''}
-      ${popular.length ? `<div class="next-row"><b>Popular on ${esc(ctx.site.name)}</b><div class="chips">${popular.map((t) => `<button type="button" class="chip link" data-action="open-tip" data-tip-id="${esc(t.tip_id)}">${esc(t.title)}</button>`).join('')}</div></div>` : ''}
-      <div class="next-row"><b>Still stuck?</b>${requestBlock(state, 'Request this tip', 'We read every request when choosing new tips.')}</div>
-    </div>`;
+    ${includeRequest ? `<div class="next">
+      ${tipRequestHtml(state)}
+    </div>` : ''}`;
 }
 
 // Search from the unsupported-site view: every site, each card labeled.
 function anywhereResults(state, q) {
   const all = searchTips(state.catalog.tips, q);
-  if (!all.length) return `<p class="tiny-note">No tips match &ldquo;${esc(q)}&rdquo;. Try fewer words, or request a tip below.</p>`;
+  if (!all.length) return noResults(state, { site: null }, q, false);
   return `<div class="cards">${all.map((t) => tipCard(state, t, { site: siteName(state, t.url_pattern) })).join('')}</div>`;
 }
 
@@ -371,11 +377,11 @@ export function unsupportedView(state, ctx) {
       <h4>No tips available for this site</h4>
       <p>We don&rsquo;t have guides for this website yet. Here&rsquo;s what you can do instead:</p>
     </div>
-    <div class="next">
-      <div class="next-row"><b>Looking for help with another tool?</b>${searchBox(state.query)}<div id="results" class="stack results-inline">${resultsHtml(state, ctx)}</div></div>
-      ${sitesWithTipsBlock(state, sites)}
-      <div class="next-row"><b>Use this site a lot?</b>${requestBlock(state, isWebUrl(url) ? 'Suggest tips for this site' : 'Request a tip')}</div>
-    </div>`;
+    <div class="sec-h"><h4>Looking for help with another tool?</h4></div>
+    ${searchBox(state.query)}
+    <div id="results" class="stack">${resultsHtml(state, ctx)}</div>
+    <div class="next"><div id="tip-request" class="next-row">${tipRequestHtml(state)}</div></div>
+    <div class="next">${sitesWithTipsBlock(state, sites)}</div>`;
 }
 
 // ---------- tip guide (S3, S4, S5) ----------

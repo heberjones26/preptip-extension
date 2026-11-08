@@ -58,7 +58,7 @@
     menubarItem: '[role="menubar"] [role="menuitem"]',
     menuItem: '[role="menu"] [role="menuitem"], [role="menu"] [role="menuitemcheckbox"], ' +
               '[role="menu"] [role="menuitemradio"], .goog-menuitem',
-    button: 'button, [role="button"], a, input[type="button"], input[type="submit"]',
+    button: 'button, [role="button"], [role="tab"], a, input[type="button"], input[type="submit"]',
     link: 'a, [role="link"]',
     // "Anything you can click": used for the 2nd+ segment of button/link paths.
     clickable: 'button, [role="button"], a, [role="link"], [role="menuitem"], [role="menuitemcheckbox"], ' +
@@ -276,6 +276,7 @@
   // A visible search box. `hint` is the path text, e.g. "Search for templates".
   function findSearch(hint) {
     const want = collapse(hint).toLowerCase();
+    const hintWords = want.split(/[^a-z0-9]+/).filter((word) => word && !['search', 'for', 'a', 'the'].includes(word));
     let best = null;
     let bestScore = 0;
     for (const el of document.querySelectorAll(SEL.search)) {
@@ -284,6 +285,9 @@
                     el.getAttribute('name'), el.id].join(' ').toLowerCase();
       let score = 0;
       if (want && meta.includes(want)) score += 3;
+      // Prefer template search even when its label is "Search for templates"
+      // or "Search millions of templates" and a generic site search comes first.
+      if (hintWords.length && hintWords.every((word) => meta.includes(word))) score += 6;
       if (meta.includes('search')) score += 2;
       if (el.type === 'search' || el.getAttribute('role') === 'searchbox' || el.closest('[role="search"]')) score += 2;
       if (score < 2 || score <= bestScore || !isVisible(el)) continue;

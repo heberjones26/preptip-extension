@@ -26,14 +26,17 @@ export function tipsForSite(catalog, site) {
   return catalog.tips.filter((t) => t.url_pattern === site.url_pattern);
 }
 
-const STOP_WORDS = new Set(['how', 'to', 'a', 'an', 'the', 'i', 'do', 'my', 'in', 'on', 'of', 'for', 'and', 'can', 'is', 'make', 'get', 'with']);
+const STOP_WORDS = new Set(['how', 'to', 'a', 'an', 'the', 'i', 'do', 'my', 'in', 'on', 'of', 'for', 'and', 'can', 'is', 'make', 'get', 'with',
+  'this', 'that', 'it', 'me', 'you', 'your', 'our', 'are', 'be', 'at', 'from', 'using', 'use', 'want', 'need', 'please', 'help']);
+
+const searchWords = (text) => text.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 
 // Simple keyword scoring over title, feature, keywords and summary. Returns tips sorted best-first.
 export function searchTips(tips, query) {
   const q = query.trim().toLowerCase();
   if (!q) return [];
-  const words = q.split(/[^a-z0-9]+/).filter((w) => w && !STOP_WORDS.has(w));
-  const terms = words.length ? words : [q];
+  const terms = searchWords(q).filter((w) => !STOP_WORDS.has(w));
+  if (!terms.length) return [];
 
   return tips
     .map((tip) => {
@@ -41,6 +44,13 @@ export function searchTips(tips, query) {
       const feature = (tip.feature_name || '').toLowerCase();
       const keywords = (tip.keywords || '').toLowerCase();
       const body = `${tip.summary || ''} ${tip.description || ''}`.toLowerCase();
+      const vocabulary = searchWords(`${title} ${feature} ${keywords} ${body}`);
+      // Every meaningful word must match. A generic word such as "create" must
+      // not hide the request prompt for an unsupported task like "create seating chart".
+      // Prefixes allow "template" to find "templates" without matching "art" inside "start".
+      const compatible = terms.every((term) => vocabulary.some((word) =>
+        word === term || (term.length >= 3 && word.startsWith(term))));
+      if (!compatible) return { tip, score: 0 };
       let score = keywords.includes(q) || title.includes(q) ? 6 : 0;
       for (const w of terms) {
         if (title.includes(w)) score += 3;

@@ -73,6 +73,8 @@ button:disabled { cursor: default; }
   text-decoration: underline; text-underline-offset: 3px;
 }
 .foot .linkish { font-size: 12px; }
+.share-status:not(:empty), .share-fallback { flex-basis: 100%; }
+.share-status:empty { display: none; }
 
 /* ---------------- buttons ---------------- */
 .btn {
@@ -117,6 +119,7 @@ button:disabled { cursor: default; }
 .stale svg { width: 15px; height: 15px; flex: none; }
 
 .search {
+  position: sticky; top: 60px; z-index: 4;
   display: flex; align-items: center; gap: 9px; padding: 0 8px 0 12px; height: 42px;
   border: 1.5px solid #D3D8E0; border-radius: 12px; background: #fff; color: var(--ink-3);
   cursor: text;

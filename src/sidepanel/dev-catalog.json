@@ -15,6 +15,14 @@
     {
       "url_pattern": "docs.google.com/presentation",
       "name": "Google Slides"
+    },
+    {
+      "url_pattern": "docs.google.com/document",
+      "name": "Google Docs"
+    },
+    {
+      "url_pattern": "canva.com",
+      "name": "Canva"
     }
   ],
   "tips": [
@@ -1230,6 +1238,79 @@
           "step_type": "your_turn",
           "target_element": "",
           "step_description": "Use the arrow keys or on-screen arrows to move through the slides, and press Esc to exit. To keep notes and presenter controls available, open the Slideshow options and choose Presenter view."
+        }
+      ]
+    },
+    {
+      "tip_id": 41,
+      "url_pattern": "docs.google.com/document",
+      "title": "Give feedback on student writing",
+      "summary": "Attach a clear comment to a specific sentence in a student's work.",
+      "description": "Open a student's Google Doc with permission to comment or edit. Select a passage and attach actionable feedback so the student knows exactly what to revise.",
+      "feature_name": "Comments",
+      "estimated_required_minutes": 2,
+      "keywords": "student writing essay paper feedback comment comments review grade highlight select text sentence revision revise",
+      "tip_steps": [
+        {
+          "step_id": 106,
+          "step_order": 1,
+          "step_type": "your_turn",
+          "target_element": null,
+          "step_description": "Open a student's document and drag across the sentence you want to give feedback on. You need Commenter or Editor access to add a comment."
+        },
+        {
+          "step_id": 107,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "button:Add comment",
+          "step_description": "Click Add comment in the toolbar at the top of the document. Keep the sentence selected so your feedback attaches to it."
+        },
+        {
+          "step_id": 108,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": null,
+          "step_description": "Type specific feedback, such as \"Add an example to support this idea.\" Click the blue Comment button to post it. The comment stays attached to the selected sentence for the student to review."
+        }
+      ]
+    },
+    {
+      "tip_id": 42,
+      "url_pattern": "canva.com",
+      "title": "Start a classroom poster from a template",
+      "summary": "Find a classroom poster template, then customize it for your students.",
+      "description": "Start on Canva's home page at canva.com. Open Templates, then use the template search to find a classroom poster.",
+      "feature_name": "Templates",
+      "estimated_required_minutes": 2,
+      "keywords": "poster template templates classroom bulletin board decorations flyer design search",
+      "tip_steps": [
+        {
+          "step_id": 109,
+          "step_order": 1,
+          "step_type": "guided",
+          "target_element": "button:Templates",
+          "step_description": "On Canva's home page, click Templates in the left sidebar or above the search bar. If you are editing a design, go to canva.com first."
+        },
+        {
+          "step_id": 110,
+          "step_order": 2,
+          "step_type": "guided",
+          "target_element": "search:Search templates",
+          "step_description": "Click the template search box near the top of the Templates page. Follow the orange mouse pointer and highlight to the search field."
+        },
+        {
+          "step_id": 111,
+          "step_order": 3,
+          "step_type": "your_turn",
+          "target_element": null,
+          "step_description": "Type \"classroom poster\" in the template search box and press Enter."
+        },
+        {
+          "step_id": 112,
+          "step_order": 4,
+          "step_type": "your_turn",
+          "target_element": null,
+          "step_description": "Choose a classroom poster template. Select Customize this template if prompted, then click its text to add your own classroom message."
         }
       ]
     }

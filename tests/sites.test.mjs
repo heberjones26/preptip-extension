@@ -47,3 +47,15 @@ test('parseTarget splits kind and path', () => {
   assert.deepEqual(parseTarget('formula_bar'), { kind: 'formula_bar', path: [] });
   assert.deepEqual(parseTarget(null), { kind: null, path: [] });
 });
+
+test('search requires the requested task, rather than any shared word or substring', () => {
+  const tips = [
+    { tip_id: 1, title: 'Create an assignment', keywords: 'homework classwork' },
+    { tip_id: 2, title: 'Start a classroom poster', keywords: 'templates design' }
+  ];
+  assert.deepEqual(searchTips(tips, 'create a seating chart'), []);
+  assert.deepEqual(searchTips(tips, 'art'), []);
+  assert.deepEqual(searchTips(tips, 'how can I do this'), []);
+  assert.equal(searchTips(tips, 'Please help me create an assignment')[0].tip_id, 1);
+  assert.equal(searchTips(tips, 'classroom template')[0].tip_id, 2);
+});
