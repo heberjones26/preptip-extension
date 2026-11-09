@@ -111,6 +111,21 @@ export function logEvent({ type, userId = null, tipId = null, urlPattern = null,
   }).catch((err) => { console.warn('PrepTip: could not log event', type, err); });
 }
 
+// Writes one row to error_log (supabase/migrations/..._error_log.sql). Throws, so the "Report a problem"
+// form can tell the teacher it didn't go through.
+export function submitErrorReport({ source, category, message, context = null, tipId = null, urlPattern = null, userId = null, version = null }) {
+  return rest('error_log', {
+    method: 'POST',
+    prefer: 'return=minimal',
+    body: { source, category, message, context, tip_id: tipId, url_pattern: urlPattern, user_id: userId, version: version || null }
+  });
+}
+
+// Fire-and-forget for automatic reports: logging a problem must never cause another one.
+export function logError(event) {
+  return submitErrorReport(event).catch((err) => { console.debug('PrepTip: could not log an error', err); });
+}
+
 // A teacher suggesting a site for the Common Teacher Resources list (a feedback row, no tip_id).
 export function requestResource({ userId, text }) {
   return submitFeedback({ userId, tipId: null, text: `Resource request: ${text}` });

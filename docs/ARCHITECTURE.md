@@ -44,7 +44,7 @@ tips: [{
 Examples: `menu:Format > Conditional formatting`, `menu:View > Freeze > 1 row`, `button:Share`, `panel:Conditional format rules`.
 
 RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), call `rpc/register_teacher`, and call `rpc/tip_ratings` (per-tip helpful/total counts, used for "N teachers found this helpful" and never cached). It cannot read feedback rows or users.
-RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), **insert** into `events` (usage events of a known type), call `rpc/create_teacher_account` and `rpc/sign_in_teacher`, and call `rpc/tip_ratings` (per-tip helpful/total counts, used for "N teachers found this helpful" and never cached), `rpc/okr_tip_completions` (OKR 2 totals) and `rpc/resource_opens` (per-resource open counts). It cannot read feedback, users or events rows.
+RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), **insert** into `events` (usage events of a known type), call `rpc/create_teacher_account` and `rpc/sign_in_teacher`, and call `rpc/tip_ratings` (per-tip helpful/total counts, used for "N teachers found this helpful" and never cached), `rpc/okr_tip_completions` (OKR 2 totals) and `rpc/resource_opens` (per-resource open counts). It can also **insert** into `error_log` and call `rpc/error_summary`, `rpc/error_trend` and `rpc/error_groups` (error totals and grouped issues). It cannot read feedback, users, events or error_log rows.
 
 ### Sign-in (R2)
 
@@ -55,6 +55,15 @@ Each account is a unique username and a password. No email, and no Supabase Auth
 - The panel keeps `pt.teacher` (`{ userId, username, gradeLevel, subjects }`) and `pt.setupDone`. A saved teacher from the old name + email setup has no `username`, so the panel signs it out on load. `gradeLevel` is the teacher's chosen grade band (or null); it's picked on the "You're set" screen and lives only in the browser.
 
 "Sign out" removes `pt.teacher` and `pt.setupDone`, clears any running guide, and shows the sign-in form.
+
+### Error log
+
+`error_log` ([supabase/migrations/20261109000000_error_log.sql](../supabase/migrations/20261109000000_error_log.sql)) records what goes wrong for teachers, from two sources in one table: `auto` (the extension caught it) and `reported` (a teacher pressed "Report a problem"). Insert-only for the public key, like `events`.
+
+- **What the panel logs automatically** (`problem()` in `sidepanel.js`): the tip list or ratings failing to load (`load`), a feedback / tip-request / resource-request save failing (`network`), an unexpected sign-in or sign-up failure (`account`), the on-page guide being unavailable on a page or a guided step's target not found after 8 s (`guide`, with the tip and step, so the team learns which tips no longer match the real site), and uncaught script errors (`ui`).
+- **What is never sent**: page URLs, page content, or anything a teacher typed other than their own report. `src/lib/errors.js` scrubs URLs, emails, key-like tokens and phone-like numbers from every message, and de-duplicates (60 s) and caps (20 per session) automatic errors. Rows carry the account id, the tip, a supported-site pattern and the extension version.
+- **"Report a problem"** (footer, and "Something wrong with this tip?" on the guide screen) stores a fixed reason plus an optional note. The note is scrubbed and stored, but the functions below never return it: they return only the fixed reason, so the public dashboard can't surface anything a teacher typed. Read notes in the Supabase table editor.
+- **Dashboard**: `error_summary(days)` (totals, teachers affected, app opens in the window), `error_trend(days)` (errors per day, zero days included) and `error_groups(days)` (identical issues grouped, most frequent first). The hub's Error log panel shows them over 7 or 30 days.
 
 ### Usage events & OKRs
 

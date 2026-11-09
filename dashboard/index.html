@@ -82,6 +82,21 @@
       </div>
     </section>
 
+    <!-- Error log: what teachers ran into in the extension -->
+    <section class="panel" aria-labelledby="errlog-h">
+      <div class="panel-head">
+        <div>
+          <h2 id="errlog-h" class="panel-h">Error log</h2>
+          <p class="panel-sub">Problems teachers ran into in the extension, and problems they reported.</p>
+        </div>
+        <div class="seg" id="errlog-days" role="group" aria-label="Time window">
+          <button type="button" class="seg-btn on" data-days="7" aria-pressed="true">7 days</button>
+          <button type="button" class="seg-btn" data-days="30" aria-pressed="false">30 days</button>
+        </div>
+      </div>
+      <div id="errlog" class="panel-body" aria-busy="true"><span class="loading">Loading…</span></div>
+    </section>
+
     <!-- Insight panels -->
     <section class="panel" aria-labelledby="tipperf-h">
       <h2 id="tipperf-h" class="panel-h">Which tips are landing</h2>

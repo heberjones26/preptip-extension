@@ -3,9 +3,10 @@
 import { MSG, STORAGE } from '../lib/protocol.js';
 import {
   getCatalog, getTipRatings, submitFeedback, requestTip,
-  createAccount, signIn, requestResource, logEvent
+  createAccount, signIn, requestResource, logEvent, logError, submitErrorReport
 } from '../lib/supabase.js';
-import { matchSite, tipsForSite } from '../lib/sites.js';
+import { createErrorReporter, REPORT_REASONS, reportMessage } from '../lib/errors.js';
+import { matchSite, tipsForSite, parseTarget } from '../lib/sites.js';
 import * as views from './views.js';
 import * as bridge from './guide-bridge.js';
 import { createPanelEngagement } from './engagement-tracking.js';
@@ -34,7 +35,8 @@ const state = {
   sharePhase: 'idle',
   request: newRequest(),
   guide: null,              // { tip, stepIndex, tabId, live, canHighlight, status, offtrack }
-  feedback: null            // { tip, isHelpful, reasons, text, phase, error }
+  feedback: null,           // { tip, isHelpful, reasons, text, phase, error }
+  report: newReport()       // the "Report a problem" form
 };
 
 // Setup screens: 0 welcome, 1 pin, 2 username + password, 3 done (+ grade and subject pick).
@@ -59,7 +61,25 @@ function newRequest() {
   return { open: false, text: '', saving: false, sent: false, error: '' };
 }
 
+// The "Report a problem" form. `tip` is the tip being followed when it was opened (if any);
+// `returnTo` is the view to go back to.
+function newReport({ tip = null, returnTo = 'tips' } = {}) {
+  return { reason: '', text: '', saving: false, sent: false, error: '', tip, returnTo };
+}
+
 const $ = (sel) => document.querySelector(sel);
+
+// ---------------------------------------------------------------------------
+// Error log: what goes wrong for teachers (src/lib/errors.js + the error_log migration)
+// ---------------------------------------------------------------------------
+const extensionVersion = (() => { try { return chrome.runtime.getManifest().version; } catch { return ''; } })();
+const reportError = createErrorReporter({ send: logError, version: extensionVersion });
+
+// An automatic report, with the signed-in teacher filled in. Scrubbed, de-duplicated and capped
+// inside the reporter; never throws.
+function problem(category, context, err, extra = {}) {
+  reportError({ source: 'auto', category, context, message: err?.message ?? err, userId: state.teacher?.userId ?? null, ...extra });
+}
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -80,6 +100,7 @@ function mainHtml() {
     case 'guide': return views.guideView(state);
     case 'feedback': return views.feedbackView(state);
     case 'resources': return views.resourcesView(state);
+    case 'report': return views.reportView(state);
     case 'sites': return views.sitesView(state);
     default: {
       const ctx = tipsContext();
@@ -144,6 +165,7 @@ async function loadCatalog({ force = false } = {}) {
     state.catalog = await getCatalog({ force });
   } catch (err) {
     console.warn('PrepTip: could not load tips', err);
+    problem('load', 'catalog', err);
     state.catalog = null;
   }
   await ratings;
@@ -174,6 +196,7 @@ async function loadRatings() {
     if (state.view === 'tips') render();
   } catch (err) {
     console.warn('PrepTip: could not load helpful counts', err);
+    problem('load', 'ratings', err);
   }
 }
 
@@ -314,6 +337,7 @@ async function sendCurrentStep() {
   if (state.guide !== g || token !== sendToken) return; // something changed while we waited
   if (g.canHighlight !== ok) {
     g.canHighlight = ok;
+    if (!ok) problem('guide', 'highlight-unavailable', 'Could not show the on-page guide', { tipId: g.tip.tip_id, urlPattern: g.tip.url_pattern });
     if (state.view === 'guide') render();
   }
 }
@@ -359,6 +383,25 @@ async function exitGuide() {
   render();
 }
 
+// If a guided step's target still can't be found after a while, the tip's steps probably no longer
+// match the real page. That's exactly what the team needs to know, so log it once per tip + step.
+const MISSING_TARGET_MS = 8000;
+let missingTimer = 0;
+function watchForMissingTarget(g) {
+  clearTimeout(missingTimer);
+  const step = g.tip.tip_steps[g.stepIndex];
+  if (g.status.found || step?.step_type !== 'guided' || g.offtrack) return;
+  const { tip, stepIndex } = g;
+  missingTimer = setTimeout(() => {
+    const now = state.guide;
+    if (state.view !== 'guide' || !now || now.tip !== tip || now.stepIndex !== stepIndex || now.status?.found) return;
+    const { kind, path } = parseTarget(step.target_element); // "menu:Format > Conditional formatting"
+    problem('guide', `target-not-found step ${stepIndex + 1}`,
+      `Couldn’t find “${path.join(' > ') || step.target_element}”${kind ? ` (${kind})` : ''} on the page`,
+      { tipId: tip.tip_id, urlPattern: tip.url_pattern });
+  }, MISSING_TARGET_MS);
+}
+
 // Messages from guide.js in the page we're guiding.
 function onGuideMessage(msg, sender) {
   const g = state.guide;
@@ -369,6 +412,7 @@ function onGuideMessage(msg, sender) {
     case MSG.GUIDE_STATUS:
       g.status = { found: !!msg.found, label: msg.label || null, offscreen: msg.offscreen || null };
       g.canHighlight = true;
+      watchForMissingTarget(g);
       break;
     case MSG.GUIDE_STEP_DONE:
       return completeStep();
@@ -468,8 +512,12 @@ async function submitAccount(form) {
     }
   } catch (err) {
     console.warn('PrepTip: account request failed', err);
-    if (err.code === '23505') s.notice = 'taken'; // one account per username
-    else s.error = offlineOr('We couldn’t reach PrepTip right now. Please try again in a moment.');
+    if (err.code === '23505') {
+      s.notice = 'taken'; // one account per username
+    } else {
+      problem('account', s.mode, err); // an unexpected failure, not a typo or a taken name
+      s.error = offlineOr('We couldn’t reach PrepTip right now. Please try again in a moment.');
+    }
   }
   s.saving = false;
   render();
@@ -506,6 +554,7 @@ async function sendRequest(text) {
     r.open = false;
   } catch (err) {
     console.warn('PrepTip: request failed', err);
+    problem('network', 'tip-request', err);
     r.error = 'We couldn’t send that. Check your connection and try again.';
   }
   r.saving = false;
@@ -528,6 +577,31 @@ async function sendResourceRequest(text) {
     r.open = false;
   } catch (err) {
     console.warn('PrepTip: resource request failed', err);
+    problem('network', 'resource-request', err);
+    r.error = 'We couldn’t send that. Check your connection and try again.';
+  }
+  r.saving = false;
+  render();
+}
+
+async function sendReport() {
+  const r = state.report;
+  const reason = REPORT_REASONS.find((x) => x.id === r.reason);
+  if (!reason) { r.error = 'Pick what went wrong first.'; return render(); }
+  if (reason.id === 'other' && !r.text.trim()) { r.error = 'Tell us a little about what happened.'; return render(); }
+  r.saving = true;
+  r.error = '';
+  render();
+  try {
+    await submitErrorReport({
+      source: 'reported', category: reason.category, context: 'teacher-report',
+      message: reportMessage(reason.id, r.text),
+      tipId: r.tip?.tip_id ?? null, urlPattern: r.tip?.url_pattern ?? null,
+      userId: state.teacher?.userId ?? null, version: extensionVersion
+    });
+    r.sent = true;
+  } catch (err) {
+    console.warn('PrepTip: report failed', err);
     r.error = 'We couldn’t send that. Check your connection and try again.';
   }
   r.saving = false;
@@ -560,6 +634,7 @@ async function sendFeedback() {
     loadRatings(); // refresh from the aggregate; list view also redraws if it is already open
   } catch (err) {
     console.warn('PrepTip: feedback failed', err);
+    problem('network', 'feedback', err, { tipId: f.tip.tip_id, urlPattern: f.tip.url_pattern });
     f.phase = 'form';
     f.error = 'We couldn’t send that. You can try again or skip.';
   }
@@ -614,6 +689,22 @@ const actions = {
       chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher }).catch(() => {});
     }
     render();
+  },
+
+  // report a problem
+  'report-problem': () => {
+    state.report = newReport({ tip: state.view === 'guide' ? state.guide?.tip ?? null : null, returnTo: state.view });
+    state.view = 'report';
+    render();
+    window.scrollTo(0, 0);
+  },
+  'report-reason': (el) => { state.report.reason = el.dataset.reason; state.report.error = ''; render(); },
+  'report-back': () => {
+    const back = state.report.returnTo;
+    const canReturn = { guide: !!state.guide, feedback: !!state.feedback, resources: true, sites: true, tips: true };
+    state.view = canReturn[back] ? back : 'tips';
+    render();
+    window.scrollTo(0, 0);
   },
 
   // grade, subjects + resources
@@ -696,6 +787,10 @@ const actions = {
 };
 
 function wireDomEvents() {
+  // Anything uncaught in the panel goes to the error log (de-duplicated and capped).
+  window.addEventListener('error', (e) => problem('ui', 'script-error', e.error || e.message));
+  window.addEventListener('unhandledrejection', (e) => problem('ui', 'unhandled-rejection', e.reason));
+
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-action]');
     if (!el || el.disabled) return;
@@ -713,6 +808,8 @@ function wireDomEvents() {
       renderResults();
     } else if (e.target.id === 'request-text') {
       state.request.text = e.target.value;
+    } else if (e.target.id === 'report-text') {
+      state.report.text = e.target.value;
     } else if (e.target.id === 'fb-text' && state.feedback) {
       state.feedback.text = e.target.value;
       const btn = $('#fb-submit');
@@ -732,6 +829,7 @@ function wireDomEvents() {
     e.preventDefault();
     if (e.target.id === 'setup-form') submitAccount(e.target);
     if (e.target.id === 'request-form') sendRequest($('#request-text')?.value || '');
+    if (e.target.id === 'report-form') sendReport();
     if (e.target.id === 'resource-request-form') sendResourceRequest($('#request-text')?.value || '');
   });
 

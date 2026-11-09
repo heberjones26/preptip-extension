@@ -14,6 +14,7 @@ import {
 } from '../data/segments.js';
 import { RESOURCES } from '../data/resources.js';
 import { SHARE_MESSAGE } from '../lib/share.js';
+import { REPORT_REASONS } from '../lib/errors.js';
 
 // The teacher's chosen grade band (or '' for all grades / not set).
 function teacherGrade(state) {
@@ -131,10 +132,14 @@ export function footer(state) {
   const resourcesLink = state.view === 'resources'
     ? ''
     : `<button type="button" class="linkish" data-action="open-resources">${BOOKS}Teacher resources</button><span class="sep" aria-hidden="true">&middot;</span>`;
+  const reportLink = state.view === 'report'
+    ? ''
+    : `<button type="button" class="linkish" data-action="report-problem">Report a problem</button><span class="sep" aria-hidden="true">&middot;</span>`;
   return `
     ${name ? `<span class="foot-who">Signed in as ${esc(name)}</span><span class="sep" aria-hidden="true">&middot;</span>` : ''}
     ${gradeBtn}<span class="sep" aria-hidden="true">&middot;</span>
     ${resourcesLink}
+    ${reportLink}
     <button type="button" class="linkish" data-action="sign-out">Sign out</button>
     <span class="sep" aria-hidden="true">&middot;</span>
     <button type="button" class="linkish" data-action="share-preptip" ${state.sharePhase === 'sharing' ? 'disabled' : ''}>Share PrepTip</button>
@@ -541,8 +546,41 @@ export function guideView(state) {
     ${menuHint}
     <div class="g-foot">
       ${buttons}
+      <button type="button" class="linkish" data-action="report-problem">Something wrong with this tip?</button>
       <button type="button" class="linkish stop" data-action="stop-guide">Stop guide</button>
     </div>`;
+}
+
+// ---------- Report a problem ----------
+
+export function reportView(state) {
+  const r = state.report;
+  const back = '<button type="button" class="back" data-action="report-back">&larr; Back</button>';
+  if (r.sent) {
+    return `
+      ${back}
+      <div class="thanks">${CHECK}<div><b>Thanks, we got it.</b><p>The team reads every report to decide which tips to fix first.</p></div></div>
+      <button type="button" class="btn primary full" data-action="report-back">Back to PrepTip</button>`;
+  }
+  const reasons = REPORT_REASONS.map((x) =>
+    `<button type="button" class="chip pick${r.reason === x.id ? ' on' : ''}" data-action="report-reason" data-reason="${esc(x.id)}" aria-pressed="${r.reason === x.id}">${esc(x.label)}</button>`).join('');
+  return `
+    ${back}
+    <div class="g-head"><h3>Report a problem</h3></div>
+    <p class="tiny-note">Something not working, or not matching your screen? Tell us and we&rsquo;ll fix it.</p>
+    ${r.tip ? `<p class="tiny-note">About the tip <b>${esc(r.tip.title)}</b></p>` : ''}
+    <form id="report-form" class="request" novalidate>
+      <div class="reasons"><small>What went wrong?</small><div class="chips">${reasons}</div></div>
+      <label class="field"><span>Anything else we should know? <span class="opt">optional</span></span>
+        <textarea id="report-text" rows="3" maxlength="400" placeholder="e.g. My school&rsquo;s Google account shows a different menu">${esc(r.text)}</textarea>
+      </label>
+      <p class="tiny-note">Please don&rsquo;t include student names or other personal details.</p>
+      ${r.error ? `<p class="form-error" role="alert">${esc(r.error)}</p>` : ''}
+      <div class="row">
+        <button type="button" class="btn ghost sm" data-action="report-back">Cancel</button>
+        <button type="submit" class="btn primary sm grow" ${r.saving ? 'disabled' : ''}>${r.saving ? 'Sending…' : 'Send report'}</button>
+      </div>
+    </form>`;
 }
 
 // ---------- feedback (S6) ----------

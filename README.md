@@ -193,6 +193,16 @@ The extension feeds this by logging two events through `logEvent()` ([src/lib/su
 - [`..._seed_youtube_m365_padlet.sql`](supabase/migrations/20261101010000_seed_youtube_m365_padlet.sql) — **YouTube, Microsoft 365, Padlet**
 - [`..._seed_quizlet_khan_desmos.sql`](supabase/migrations/20261101020000_seed_quizlet_khan_desmos.sql) — **Quizlet, Khan Academy, Desmos**
 
+## Error log
+
+The team needs to know what breaks for teachers, so the extension keeps an error log (table `error_log`, shown in the hub's **Error log** panel):
+
+- **Automatic** — it records when tips or ratings fail to load, a save fails, sign-in fails unexpectedly, the on-page guide can't run, a guided step's target never shows up on the page (a sign the tip no longer matches the real site), or the panel hits an uncaught script error. Messages are scrubbed of URLs, emails and key-like text first; page content and the pages teachers visit are never sent.
+- **Teacher reports** — **Report a problem** (footer, or "Something wrong with this tip?" while following a tip) lets a teacher pick what went wrong and add a note. This catches the things that work but are wrong, which automatic capture can't see.
+- **In the hub** — errors, errors per 100 app opens, teachers affected, a per-day chart, a breakdown by kind, and the most frequent issues with the tip they happened on. What teachers type in a report is not shown on the public dashboard; it is kept in the Supabase table.
+
+Details and the privacy choices are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#error-log).
+
 ## Known limits
 
 - **YouTube downloads (R9) are intentionally not implemented.** Saving YouTube videos breaks YouTube's Terms of Service and gets extensions removed from the Chrome Web Store. Instead, the button copies a link and shows how to add the video with Google Slides' built-in **Insert → Video**.
