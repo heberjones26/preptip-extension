@@ -126,7 +126,7 @@ The panel filters by `sender.tab.id === activeTabId` and by `tipId`/`stepIndex`.
 
 ## Storage
 
-`chrome.storage.local`: `pt.teacher` (`{ userId, username, gradeLevel, subjects }`), `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`, `pt.aiTips` (AI-built tips, newest first, max 10) and, only if the teacher ticks "remember", `pt.geminiKey`.
+`chrome.storage.local`: `pt.teacher` (`{ userId, username, gradeLevel, subjects }`), `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`, `pt.profiles` (grade and subjects remembered per account on this computer; kept when signing out, so signing back in restores them, and one account never sees another's), `pt.aiTips` (AI-built tips, newest first, max 10) and, only if the teacher ticks "remember", `pt.geminiKey`.
 `chrome.storage.session` also holds `pt.geminiKey` by default (gone when the browser closes). Signing out removes `pt.aiTips` and the key from both.
 `chrome.storage.session`: `pt.redirect.<tabId>` (`{ from, to, at, kind }`, written by background, shown by the panel as "You were redirected here from …"), `pt.guide.<tabId>` (`{ tipId, stepIndex }`, written by the panel so a guide resumes after the panel reopens), `pt.allowedDomains`, and the background-only `pt.lastUrl.<tabId>` (the tab's last committed URL, used as the "from" of client redirects; it lives in storage because the service worker can be killed at any time).
 

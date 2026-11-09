@@ -184,3 +184,22 @@ export function matchBadge(itemGrades, itemSubjects, profile) {
   if (profile?.grade && (itemGrades || []).includes(profile.grade)) return `For ${gradeLabel(profile.grade)}`;
   return '';
 }
+
+// ---------------------------------------------------------------------------
+// Class settings remembered per account on this computer (pt.profiles), so signing out and back in
+// again doesn't lose the grade and subjects. They never leave the computer. Other accounts on the same
+// computer have their own entry, so one teacher's settings never show up for another.
+// ---------------------------------------------------------------------------
+
+// -> a new profiles object with this account's settings stored (the input is not changed).
+export function rememberProfile(profiles, userId, { gradeLevel = null, subjects = [] } = {}) {
+  const base = profiles && typeof profiles === 'object' && !Array.isArray(profiles) ? profiles : {};
+  if (userId == null) return { ...base };
+  return { ...base, [String(userId)]: { gradeLevel: isGrade(gradeLevel) ? gradeLevel : null, subjects: cleanSubjects(subjects) } };
+}
+
+// -> { gradeLevel, subjects } for this account, or empty settings when there is nothing (valid) saved.
+export function recallProfile(profiles, userId) {
+  const mine = profiles && typeof profiles === 'object' && userId != null ? profiles[String(userId)] : null;
+  return { gradeLevel: mine && isGrade(mine.gradeLevel) ? mine.gradeLevel : null, subjects: cleanSubjects(mine?.subjects) };
+}

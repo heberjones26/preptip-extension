@@ -28,6 +28,35 @@ create policy "Public can log errors"
   with check (true);  -- the column checks above are the validation
 
 create index error_log_created_idx on public.error_log (created_at);
+create index error_log_user_idx on public.error_log (user_id, created_at);
+
+-- Anyone with the public key can add rows (that's how the extension reports), so put a ceiling on it:
+-- a flood of junk can't fill the table or bury real problems on the dashboard. The limits are well
+-- above honest use (the extension itself sends at most ~20 automatic errors per session) and above a
+-- real outage (many teachers hitting the same failure at once). A rejected insert is just a failed
+-- request: the extension ignores it for automatic errors and tells the teacher for a report.
+--   every source together: 300 rows per minute      one account: 100 rows per hour
+create or replace function public.error_log_throttle()
+returns trigger
+language plpgsql
+security definer       -- the public key can't read error_log, so counting has to bypass RLS
+set search_path = ''
+as $$
+begin
+  if (select count(*) from public.error_log where created_at > now() - interval '1 minute') >= 300 then
+    raise exception 'error_log is receiving too many rows right now' using errcode = '54000';
+  end if;
+  if new.user_id is not null
+     and (select count(*) from public.error_log where user_id = new.user_id and created_at > now() - interval '1 hour') >= 100 then
+    raise exception 'too many error reports from this account' using errcode = '54000';
+  end if;
+  return new;
+end;
+$$;
+
+create trigger error_log_throttle
+  before insert on public.error_log
+  for each row execute function public.error_log_throttle();
 
 -- Headline numbers for a window of p_days (1..90): errors, split by source, teachers affected,
 -- and app opens in the same window so the dashboard can show errors per 100 opens.

@@ -187,3 +187,31 @@ test('real data: a physics teacher sees physics-specific resources before broad 
   assert.ok(names.indexOf('The Physics Classroom') < names.indexOf('PBS LearningMedia'));
   assert.ok(names.indexOf('GeoGebra') < names.indexOf('OpenStax'));
 });
+
+// ---------------------------------------------------------------------------
+// Class settings remembered per account on this computer
+// ---------------------------------------------------------------------------
+import { rememberProfile, recallProfile } from '../src/data/segments.js';
+
+test('class settings are remembered per account and come back after signing in again', () => {
+  let profiles = rememberProfile({}, 7, { gradeLevel: 'high', subjects: ['physics', 'math'] });
+  assert.deepEqual(recallProfile(profiles, 7), { gradeLevel: 'high', subjects: ['math', 'physics'] });
+  profiles = rememberProfile(profiles, 8, { gradeLevel: 'k3', subjects: [] });
+  assert.deepEqual(recallProfile(profiles, 8), { gradeLevel: 'k3', subjects: [] });
+  assert.deepEqual(recallProfile(profiles, 7).subjects, ['math', 'physics'], 'another account does not overwrite it');
+  assert.deepEqual(recallProfile(profiles, 99), { gradeLevel: null, subjects: [] }, 'someone new starts empty');
+});
+
+test('remembering never changes its input and shrugs off junk', () => {
+  const before = { 7: { gradeLevel: 'high', subjects: ['math'] } };
+  const frozen = JSON.stringify(before);
+  const after = rememberProfile(before, 7, { gradeLevel: 'college', subjects: ['art'] });
+  assert.equal(JSON.stringify(before), frozen);
+  assert.equal(after[7].gradeLevel, 'college');
+  assert.deepEqual(rememberProfile(undefined, 1, { gradeLevel: 'nope', subjects: ['nope', 'math'] })[1], { gradeLevel: null, subjects: ['math'] });
+  assert.deepEqual(rememberProfile('junk', 1, {}), { 1: { gradeLevel: null, subjects: [] } });
+  assert.deepEqual(rememberProfile({ a: 1 }, null, { gradeLevel: 'high' }), { a: 1 });
+  assert.deepEqual(recallProfile({ 3: 'garbage' }, 3), { gradeLevel: null, subjects: [] });
+  assert.deepEqual(recallProfile(null, 3), { gradeLevel: null, subjects: [] });
+  assert.deepEqual(recallProfile({ 3: { gradeLevel: 'bogus', subjects: 'math' } }, 3), { gradeLevel: null, subjects: [] });
+});

@@ -118,3 +118,10 @@ test('"Report a problem" is in the footer everywhere except on the report form i
   assert.match(footer({ ...reportState(), view: 'tips' }), /data-action="report-problem">Report a problem/);
   assert.ok(!footer(reportState()).includes('data-action="report-problem"'));
 });
+
+test('writes to error_log are capped in the database, per account and overall', () => {
+  assert.match(migration, /create trigger error_log_throttle\s+before insert on public\.error_log/);
+  assert.match(migration, />= 300 then/);
+  assert.match(migration, />= 100 then/);
+  assert.match(migration, /security definer\s+-- the public key can't read error_log/);
+});

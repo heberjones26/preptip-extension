@@ -11,7 +11,7 @@ import * as views from './views.js';
 import * as bridge from './guide-bridge.js';
 import { createPanelEngagement } from './engagement-tracking.js';
 import { hostOf, isWebUrl } from './text.js';
-import { cleanSubjects } from '../data/segments.js';
+import { cleanSubjects, rememberProfile, recallProfile } from '../data/segments.js';
 import { promptFor, parseAiTip, toTip, cleanSavedTips, cleanQuestion, dbTipId } from '../lib/ai-tip.js';
 import { generateWithGemini, isUserFixable } from '../lib/gemini.js';
 import { createKeyStore } from '../lib/ai-key.js';
@@ -42,6 +42,7 @@ const state = {
   report: newReport(),      // the "Report a problem" form
   ai: newAi(),              // the "Build a tip with AI" screen
   aiTips: [],               // AI-built tips saved in this browser (newest first)
+  profiles: {},             // class settings remembered per account on this computer (see segments.js)
   aiKey: { has: false, remembered: false } // whether a Gemini key is saved (the key itself is never kept in state)
 };
 
@@ -158,7 +159,8 @@ async function init() {
   wireDomEvents();
   wireChromeEvents();
 
-  const local = await chrome.storage.local.get([STORAGE.TEACHER, STORAGE.SETUP_DONE, STORAGE.AI_TIPS]);
+  const local = await chrome.storage.local.get([STORAGE.TEACHER, STORAGE.SETUP_DONE, STORAGE.AI_TIPS, STORAGE.PROFILES]);
+  state.profiles = local[STORAGE.PROFILES] && typeof local[STORAGE.PROFILES] === 'object' ? local[STORAGE.PROFILES] : {};
   state.teacher = local[STORAGE.TEACHER] || null;
   state.aiTips = cleanSavedTips(local[STORAGE.AI_TIPS]);
   loadAiKey();
@@ -539,7 +541,15 @@ async function submitAccount(form) {
       s.error = 'That username and password don’t match. Check them and try again.';
     } else {
       // Grade and subjects are picked on the "You're set" screen next; set-grade / toggle-subject persist them.
-      state.teacher = { ...account, gradeLevel: s.grade || null, subjects: cleanSubjects(s.subjects) };
+      // Whatever was picked on this computer last time this account signed in comes back with it.
+      const saved = recallProfile(state.profiles, account.userId);
+      state.teacher = {
+        ...account,
+        gradeLevel: s.grade || saved.gradeLevel,
+        subjects: cleanSubjects(s.subjects).length ? cleanSubjects(s.subjects) : saved.subjects
+      };
+      s.grade = state.teacher.gradeLevel || '';       // so the pickers on the next screen show them
+      s.subjects = state.teacher.subjects;
       state.setupDone = true;
       await chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher, [STORAGE.SETUP_DONE]: true });
       recordUsage();
@@ -642,6 +652,15 @@ async function loadAiKey() {
 async function saveAiTips() {
   state.aiTips = state.aiTips.slice(0, 10);
   try { await chrome.storage.local.set({ [STORAGE.AI_TIPS]: state.aiTips }); } catch { /* it still works this session */ }
+}
+
+// Keep the grade and subjects with the account on this computer, not just in the signed-in session,
+// so they're still there after signing out and back in.
+function saveClassSettings() {
+  state.profiles = rememberProfile(state.profiles, state.teacher.userId, {
+    gradeLevel: state.teacher.gradeLevel, subjects: state.teacher.subjects
+  });
+  chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher, [STORAGE.PROFILES]: state.profiles }).catch(() => {});
 }
 
 // A tip was built: show it, keep it, count it (a count only — never the question or the answer).
@@ -809,7 +828,7 @@ const actions = {
     if (state.teacher) {
       // On the "You're set" screen / "Change grade", a teacher already exists — persist right away.
       state.teacher = { ...state.teacher, gradeLevel: state.setup.grade || null };
-      chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher }).catch(() => {});
+      saveClassSettings();
     }
     render();
   },
@@ -819,7 +838,7 @@ const actions = {
     state.setup.subjects = cleanSubjects([...picked]);
     if (state.teacher) {
       state.teacher = { ...state.teacher, subjects: state.setup.subjects };
-      chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher }).catch(() => {});
+      saveClassSettings();
     }
     render();
   },
