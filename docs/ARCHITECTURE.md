@@ -56,6 +56,18 @@ Each account is a unique username and a password. No email, and no Supabase Auth
 
 "Sign out" removes `pt.teacher` and `pt.setupDone`, clears any running guide, and shows the sign-in form.
 
+### Build a tip with AI
+
+When there is no tip for what a teacher needs, **Build a tip with AI** (offered next to "Submit a tip request") writes one. Code: `src/lib/ai-tip.js` (prompt, parser, tip builder), `src/lib/gemini.js` (the optional one-click call), `src/lib/ai-key.js` (where the key lives), the `ai` view in `sidepanel.js` / `views.js`.
+
+1. **The prompt** describes PrepTip, the teacher's grade and subjects (from their class settings), the site, and what they typed, and asks for a strict JSON tip (`title`, `summary`, `minutes`, `steps`, `caution`). The teacher sees the whole prompt before anything leaves the panel.
+2. **Default path, copy and paste:** copy the prompt, open ChatGPT / Claude / Gemini, paste the reply back. PrepTip makes no network call and holds no key.
+3. **Optional path, a free Gemini key:** the teacher pastes their own key and PrepTip calls Gemini's `generateContent` directly from the panel (`x-goog-api-key` header, never in the URL; falls through to the next model id if one is retired). The key is kept in `chrome.storage.session` unless they tick "remember". It is only ever sent to Google, never to Supabase, and is scrubbed from the error log. Google's free tier may use submitted content to improve its products, which the screen says.
+4. **Both paths** go through `parseAiTip()`: it tolerates code fences and chatter, strips markup and numbering, limits lengths, and needs a title and at least two steps. The result becomes a catalog-shaped tip (`ai: true`, `tip_id: "ai-…"`, every step an instruction, never highlighted) that the normal guide screen can follow, saved in this browser.
+5. **AI tips stay out of the database.** They have no row in `tips`, so they are never rated, never counted in the OKRs, and `dbTipId()` returns `null` for them wherever a `tip_id` would be written (the foreign key would reject it). The only thing recorded is a count: `ai_prompt_copied`, `ai_tip_pasted` or `ai_tip_gemini` in `events` (migration `20261110000000_ai_tip_events.sql`, read back by `ai_tip_summary(days)`); the question, prompt and answer are never stored or sent to Supabase.
+
+The AI view and an AI tip's guide survive tab switches (copy-paste sends the teacher to another tab and back); everything else resets to the tip list when the tab changes.
+
 ### Error log
 
 `error_log` ([supabase/migrations/20261109000000_error_log.sql](../supabase/migrations/20261109000000_error_log.sql)) records what goes wrong for teachers, from two sources in one table: `auto` (the extension caught it) and `reported` (a teacher pressed "Report a problem"). Insert-only for the public key, like `events`.
@@ -114,8 +126,8 @@ The panel filters by `sender.tab.id === activeTabId` and by `tipId`/`stepIndex`.
 
 ## Storage
 
-`chrome.storage.local`: `pt.teacher`, `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
-`chrome.storage.local`: `pt.teacher` (`{ userId, username, gradeLevel, subjects }`), `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
+`chrome.storage.local`: `pt.teacher` (`{ userId, username, gradeLevel, subjects }`), `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`, `pt.aiTips` (AI-built tips, newest first, max 10) and, only if the teacher ticks "remember", `pt.geminiKey`.
+`chrome.storage.session` also holds `pt.geminiKey` by default (gone when the browser closes). Signing out removes `pt.aiTips` and the key from both.
 `chrome.storage.session`: `pt.redirect.<tabId>` (`{ from, to, at, kind }`, written by background, shown by the panel as "You were redirected here from …"), `pt.guide.<tabId>` (`{ tipId, stepIndex }`, written by the panel so a guide resumes after the panel reopens), `pt.allowedDomains`, and the background-only `pt.lastUrl.<tabId>` (the tab's last committed URL, used as the "from" of client redirects; it lives in storage because the service worker can be killed at any time).
 
 ## declarativeNetRequest rule ids

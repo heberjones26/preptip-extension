@@ -15,6 +15,8 @@ import {
 import { RESOURCES } from '../data/resources.js';
 import { SHARE_MESSAGE } from '../lib/share.js';
 import { REPORT_REASONS } from '../lib/errors.js';
+import { promptFor, AI_ASSISTANTS, MAX_QUESTION, MAX_SITE } from '../lib/ai-tip.js';
+import { GEMINI_KEY_URL } from '../lib/gemini.js';
 
 // The teacher's chosen grade band (or '' for all grades / not set).
 function teacherGrade(state) {
@@ -106,7 +108,8 @@ function requestBlock(state, label, hint = '') {
         </div>
       </form>`;
   }
-  return `<button type="button" class="btn outline full" data-action="open-request">${label}</button>${hint ? `<small class="muted">${hint}</small>` : ''}`;
+  return `<button type="button" class="btn outline full" data-action="open-request">${label}</button>
+    <button type="button" class="btn ghost full ai-entry" data-action="open-ai">${WAND}Build a tip with AI</button>${hint ? `<small class="muted">${hint}</small>` : ''}`;
 }
 
 // Unsupported-site search keeps this outside the results so there is only one form.
@@ -458,6 +461,9 @@ function stepItem(g, step, i) {
 
 // One line under the intro that says what the page is doing.
 function liveLine(state, g, step) {
+  if (g.tip.ai) {
+    return '<p class="tiny-note ai-note"><b>AI-generated.</b> These steps haven&rsquo;t been checked against your screen, so follow along and trust what you see. Menu names can differ.</p>';
+  }
   if (!g.live) {
     const name = esc(siteName(state, g.tip.url_pattern));
     return `<p class="tiny-note">This tip is for ${name}. Open ${name} to see the orange highlights. You can still follow the steps here.</p>`;
@@ -534,7 +540,7 @@ export function guideView(state) {
 
   return `
     <div class="g-head">
-      <button type="button" class="back" data-action="stop-guide">&larr; All ${esc(shortSiteName(siteName(state, tip.url_pattern)))} tips</button>
+      <button type="button" class="back" data-action="stop-guide">&larr; ${tip.ai ? 'Back to your AI tip' : `All ${esc(shortSiteName(siteName(state, tip.url_pattern)))} tips`}</button>
       <h3>${esc(tip.title)}</h3>
       <div class="prog"><div class="prog-track"><i style="width:${pct}%"></i></div><span>Step ${g.stepIndex + 1} of ${total}</span></div>
     </div>
@@ -546,9 +552,90 @@ export function guideView(state) {
     ${menuHint}
     <div class="g-foot">
       ${buttons}
-      <button type="button" class="linkish" data-action="report-problem">Something wrong with this tip?</button>
+      ${tip.ai ? '' : '<button type="button" class="linkish" data-action="report-problem">Something wrong with this tip?</button>'}
       <button type="button" class="linkish stop" data-action="stop-guide">Stop guide</button>
     </div>`;
+}
+
+// ---------- Build a tip with AI ----------
+
+function aiTipCard(tip) {
+  return `
+    <div class="ai-tip">
+      <p class="ai-flag">AI-generated &middot; check each step against your screen</p>
+      <h4>${esc(tip.title)}</h4>
+      <p class="ai-sum">${esc(tip.summary)}</p>
+      <ol class="ai-steps">${tip.tip_steps.map((s) => `<li>${esc(s.step_description)}</li>`).join('')}</ol>
+      ${tip.caution ? `<p class="tiny-note"><b>Heads up:</b> ${esc(tip.caution)}</p>` : ''}
+      <div class="row">
+        <button type="button" class="btn primary sm grow" data-action="ai-follow">Follow these steps</button>
+        <button type="button" class="btn ghost sm" data-action="ai-discard">Close</button>
+      </div>
+    </div>`;
+}
+
+export function aiView(state) {
+  const a = state.ai;
+  const key = state.aiKey;
+  const label = profileLabel(teacherProfile(state));
+  const prompt = promptFor(a, state.teacher);
+  const finished = a.finished
+    ? `<div class="thanks">${CHECK}<div><b>Nice work!</b><p>You finished &ldquo;${esc(a.finished)}&rdquo;.</p></div></div>` : '';
+  const saved = state.aiTips.length ? `
+    <div class="next-row ai-saved"><b>Your AI tips</b>
+      <ul class="ai-list">${state.aiTips.map((t) => `
+        <li><button type="button" class="linkish" data-action="ai-open-saved" data-id="${esc(t.tip_id)}">${esc(t.title)}</button>
+        <button type="button" class="x" data-action="ai-remove" data-id="${esc(t.tip_id)}" aria-label="Remove ${esc(t.title)}">&times;</button></li>`).join('')}
+      </ul>
+    </div>` : '';
+
+  const links = AI_ASSISTANTS.map((x) =>
+    `<a class="ai-link" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)} ${EXTERNAL}</a>`).join('');
+  const keyBlock = key.has
+    ? `<p class="ai-keyline">Using your saved key (${key.remembered ? 'remembered on this computer' : 'until you close the browser'}). <button type="button" class="linkish" data-action="ai-key-forget">Remove key</button></p>`
+    : `<label class="field"><span>Gemini API key</span>
+         <input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key" value="${esc(a.key)}">
+       </label>
+       <label class="check"><input type="checkbox" id="ai-remember" ${a.remember ? 'checked' : ''}> Remember it on this computer</label>`;
+
+  return `
+    <button type="button" class="back" data-action="ai-back">&larr; Back</button>
+    <div class="g-head"><h3>Build a tip with AI</h3></div>
+    <p class="tiny-note">No tip for this yet? An AI assistant can write one. Nothing leaves PrepTip unless you copy it yourself or choose the Gemini option below.</p>
+    ${finished}
+    ${a.tip ? aiTipCard(a.tip) : ''}
+
+    <div class="ai-form">
+      <label class="field"><span>1 &middot; What do you want to do?</span>
+        <textarea id="ai-question" rows="3" maxlength="${MAX_QUESTION}" placeholder="e.g. Make a seating chart I can print">${esc(a.question)}</textarea>
+      </label>
+      <label class="field"><span>Website <span class="opt">optional</span></span>
+        <input id="ai-site" maxlength="${MAX_SITE}" placeholder="e.g. Canva" value="${esc(a.site)}">
+      </label>
+      ${label ? `<p class="tiny-note">Your prompt says you teach <b>${esc(label)}</b>. Change that from the footer.</p>` : ''}
+
+      <label class="field"><span>2 &middot; Copy this prompt into an AI assistant</span>
+        <textarea id="ai-prompt" class="ai-prompt" rows="6" readonly>${esc(prompt)}</textarea>
+      </label>
+      <button type="button" class="btn primary full" data-action="ai-copy">${a.copied ? 'Copied!' : 'Copy prompt'}</button>
+      ${a.copyFailed ? '<p class="form-error" role="alert">We couldn&rsquo;t copy it automatically. Click the box above, select all, then copy.</p>' : ''}
+      <p class="ai-open"><span>Open</span>${links}</p>
+
+      <label class="field"><span>3 &middot; Paste the AI&rsquo;s answer here</span>
+        <textarea id="ai-reply" rows="5" placeholder="It should start with { and end with }">${esc(a.reply)}</textarea>
+      </label>
+      ${a.pasteError ? `<p class="form-error" role="alert">${esc(a.pasteError)}</p>` : ''}
+      <button type="button" class="btn primary full" data-action="ai-build">Build my tip</button>
+    </div>
+
+    <details class="ai-gemini" id="ai-gemini-box" ${a.keyOpen || key.has || a.geminiError ? 'open' : ''}>
+      <summary>Prefer one click? Use a free Gemini key</summary>
+      <p class="tiny-note">Get a free key from <a href="${esc(GEMINI_KEY_URL)}" target="_blank" rel="noopener">Google AI Studio</a>. Your key stays in this browser and is only sent to Google, along with the prompt above. On Google&rsquo;s free tier, Google may use what you send to improve its products, so don&rsquo;t include student names or other personal details.</p>
+      ${keyBlock}
+      ${a.geminiError ? `<p class="form-error" role="alert">${esc(a.geminiError)}</p>` : ''}
+      <button type="button" class="btn outline full" data-action="ai-gemini" ${a.building ? 'disabled' : ''}>${a.building ? 'Asking Gemini…' : 'Generate with Gemini'}</button>
+    </details>
+    ${saved}`;
 }
 
 // ---------- Report a problem ----------

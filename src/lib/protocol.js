@@ -35,6 +35,8 @@ export const STORAGE = {
   SETUP_DONE: 'pt.setupDone',       // true once first-run setup is finished
   CATALOG: 'pt.catalog',            // { fetchedAt, websites, tips }
   NUDGES_SEEN: 'pt.nudgesSeen',     // { [url_pattern]: true }
+  AI_TIPS: 'pt.aiTips',             // [tip] AI-built tips saved in this browser, newest first (max 10)
+  GEMINI_KEY: 'pt.geminiKey',       // the teacher's OWN Gemini key: chrome.storage.session by default (gone when the browser closes), chrome.storage.local only if they choose "remember"
 
   // chrome.storage.session (cleared when the browser closes)
   redirectKey: (tabId) => `pt.redirect.${tabId}`, // { from, to, at, kind: 'server'|'client' }

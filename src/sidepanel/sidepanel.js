@@ -12,6 +12,9 @@ import * as bridge from './guide-bridge.js';
 import { createPanelEngagement } from './engagement-tracking.js';
 import { hostOf, isWebUrl } from './text.js';
 import { cleanSubjects } from '../data/segments.js';
+import { promptFor, parseAiTip, toTip, cleanSavedTips, cleanQuestion, dbTipId } from '../lib/ai-tip.js';
+import { generateWithGemini, isUserFixable } from '../lib/gemini.js';
+import { createKeyStore } from '../lib/ai-key.js';
 import { sharePrepTip } from '../lib/share.js';
 
 // ---------------------------------------------------------------------------
@@ -36,7 +39,10 @@ const state = {
   request: newRequest(),
   guide: null,              // { tip, stepIndex, tabId, live, canHighlight, status, offtrack }
   feedback: null,           // { tip, isHelpful, reasons, text, phase, error }
-  report: newReport()       // the "Report a problem" form
+  report: newReport(),      // the "Report a problem" form
+  ai: newAi(),              // the "Build a tip with AI" screen
+  aiTips: [],               // AI-built tips saved in this browser (newest first)
+  aiKey: { has: false, remembered: false } // whether a Gemini key is saved (the key itself is never kept in state)
 };
 
 // Setup screens: 0 welcome, 1 pin, 2 username + password, 3 done (+ grade and subject pick).
@@ -59,6 +65,15 @@ function newSetup({ step = 0, mode = 'signup', grade = '', subjects = [], editin
 
 function newRequest() {
   return { open: false, text: '', saving: false, sent: false, error: '' };
+}
+
+// The "Build a tip with AI" screen. `returnTo` is the view to go back to.
+function newAi({ question = '', site = '', returnTo = 'tips' } = {}) {
+  return {
+    question, site, reply: '', tip: null, finished: null,
+    pasteError: '', geminiError: '', copied: false, copyFailed: false,
+    building: false, key: '', remember: false, keyOpen: false, returnTo
+  };
 }
 
 // The "Report a problem" form. `tip` is the tip being followed when it was opened (if any);
@@ -101,6 +116,7 @@ function mainHtml() {
     case 'feedback': return views.feedbackView(state);
     case 'resources': return views.resourcesView(state);
     case 'report': return views.reportView(state);
+    case 'ai': return views.aiView(state);
     case 'sites': return views.sitesView(state);
     default: {
       const ctx = tipsContext();
@@ -142,8 +158,10 @@ async function init() {
   wireDomEvents();
   wireChromeEvents();
 
-  const local = await chrome.storage.local.get([STORAGE.TEACHER, STORAGE.SETUP_DONE]);
+  const local = await chrome.storage.local.get([STORAGE.TEACHER, STORAGE.SETUP_DONE, STORAGE.AI_TIPS]);
   state.teacher = local[STORAGE.TEACHER] || null;
+  state.aiTips = cleanSavedTips(local[STORAGE.AI_TIPS]);
+  loadAiKey();
   state.setupDone = local[STORAGE.SETUP_DONE] === true;
   // Accounts from before usernames (name + email) no longer exist in the database.
   if (state.teacher && !state.teacher.username) {
@@ -247,6 +265,10 @@ async function onActiveTab(tab) {
   updateSite();
 
   if (!state.catalog || ['setup', 'loading', 'error'].includes(state.view)) return render();
+
+  // The AI tip builder sends teachers to another tab (ChatGPT, Claude, Gemini) and back, and an AI tip's
+  // steps are followed on the teacher's own page, so a tab switch must not reset either of them.
+  if (state.view === 'ai' || (state.view === 'guide' && state.guide?.tip.ai)) return render();
 
   if (!sameTab) {
     // Leave the old tab clean. Its saved guide stays in session storage so it resumes later.
@@ -360,6 +382,17 @@ function completeStep() {
 
 function finishGuide() {
   const g = state.guide;
+  if (g.tip.ai) { // AI tips only exist in this browser: nothing to rate or count
+    bridge.clearGuide(g.tabId);
+    forgetGuide(g.tabId);
+    state.guide = null;
+    state.ai.tip = g.tip;
+    state.ai.finished = g.tip.title;
+    state.view = 'ai';
+    render();
+    window.scrollTo(0, 0);
+    return;
+  }
   // OKR 2 numerator: a tip was followed through 100% of its steps.
   logEvent({ type: 'tip_complete', userId: state.teacher?.userId, tipId: g.tip.tip_id, urlPattern: g.tip.url_pattern });
   bridge.clearGuide(g.tabId);
@@ -379,7 +412,7 @@ async function exitGuide() {
     forgetGuide(g.tabId);
   }
   state.guide = null;
-  state.view = 'tips';
+  state.view = g?.tip.ai ? 'ai' : 'tips';
   render();
 }
 
@@ -445,7 +478,11 @@ async function signOut() {
   resetListState();
   state.teacher = null;
   state.setupDone = false;
-  await chrome.storage.local.remove([STORAGE.TEACHER, STORAGE.SETUP_DONE]);
+  await chrome.storage.local.remove([STORAGE.TEACHER, STORAGE.SETUP_DONE, STORAGE.AI_TIPS]);
+  await keyStore().clear(); // the Gemini key and AI tips belong to this teacher, not the next person on this computer
+  state.aiTips = [];
+  state.aiKey = { has: false, remembered: false };
+  state.ai = newAi();
   state.setup = newSetup({ step: 2, mode: 'signin' });
   state.view = 'setup';
   render();
@@ -584,6 +621,102 @@ async function sendResourceRequest(text) {
   render();
 }
 
+// ---------------------------------------------------------------------------
+// Build a tip with AI (src/lib/ai-tip.js, src/lib/gemini.js, src/lib/ai-key.js)
+// ---------------------------------------------------------------------------
+const keyStore = () => createKeyStore({ local: chrome.storage.local, session: chrome.storage.session });
+
+// Pre-fill the website box from where the teacher is; they can change or clear it.
+function aiSiteGuess() {
+  const site = state.browseSite || state.site;
+  if (site) return site.name;
+  return isWebUrl(state.tab?.url) ? hostOf(state.tab.url) : '';
+}
+
+async function loadAiKey() {
+  const { key, remembered } = await keyStore().get();
+  state.aiKey = { has: !!key, remembered };
+  return key;
+}
+
+async function saveAiTips() {
+  state.aiTips = state.aiTips.slice(0, 10);
+  try { await chrome.storage.local.set({ [STORAGE.AI_TIPS]: state.aiTips }); } catch { /* it still works this session */ }
+}
+
+// A tip was built: show it, keep it, count it (a count only — never the question or the answer).
+async function aiTipReady(parsed, method) {
+  const tip = toTip(parsed, { siteName: state.ai.site });
+  state.ai.tip = tip;
+  state.ai.finished = null;
+  state.ai.pasteError = '';
+  state.ai.geminiError = '';
+  state.aiTips = [tip, ...state.aiTips];
+  await saveAiTips();
+  logEvent({ type: method === 'gemini' ? 'ai_tip_gemini' : 'ai_tip_pasted', userId: state.teacher?.userId });
+}
+
+async function aiCopy() {
+  const text = promptFor(state.ai, state.teacher);
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch { /* fall back to selecting the text */ }
+  if (!ok) {
+    const box = $('#ai-prompt');
+    if (box) { try { box.focus(); box.select(); ok = document.execCommand('copy'); } catch { /* ignore */ } }
+  }
+  state.ai.copied = ok;
+  state.ai.copyFailed = !ok;
+  if (ok) logEvent({ type: 'ai_prompt_copied', userId: state.teacher?.userId });
+  render();
+}
+
+async function aiBuildFromReply() {
+  const a = state.ai;
+  const parsed = parseAiTip(a.reply);
+  if (!parsed.ok) {
+    a.pasteError = parsed.error;
+    if (a.reply.trim()) problem('other', 'ai-parse', 'A pasted AI answer was not in the requested format'); // never the answer itself
+    return render();
+  }
+  await aiTipReady(parsed.tip, 'paste');
+  a.reply = '';
+  render();
+  window.scrollTo(0, 0);
+}
+
+async function aiBuildWithGemini() {
+  const a = state.ai;
+  if (a.building) return;
+  const typed = a.key.trim();
+  const key = typed || await loadAiKey();
+  if (!key) { a.geminiError = 'Paste your Gemini key first.'; return render(); }
+
+  a.building = true;
+  a.geminiError = '';
+  render();
+  try {
+    const text = await generateWithGemini({ key, prompt: promptFor(a, state.teacher) });
+    const parsed = parseAiTip(text);
+    if (!parsed.ok) {
+      const err = new Error('Gemini answered in an unusable format');
+      err.friendly = 'Gemini answered, but not in a form we could use. Try again, or use copy and paste.';
+      throw err;
+    }
+    if (typed) { // only keep a key that just worked
+      await keyStore().set(typed, a.remember);
+      state.aiKey = { has: true, remembered: a.remember };
+      a.key = '';
+    }
+    await aiTipReady(parsed.tip, 'gemini');
+  } catch (err) {
+    a.geminiError = err.friendly || 'Something went wrong. Try again, or use copy and paste.';
+    if (!isUserFixable(err)) problem('other', 'ai-gemini', err); // a wrong key or the free limit is not our bug
+  }
+  a.building = false;
+  render();
+  if (a.tip) window.scrollTo(0, 0);
+}
+
 async function sendReport() {
   const r = state.report;
   const reason = REPORT_REASONS.find((x) => x.id === r.reason);
@@ -596,7 +729,7 @@ async function sendReport() {
     await submitErrorReport({
       source: 'reported', category: reason.category, context: 'teacher-report',
       message: reportMessage(reason.id, r.text),
-      tipId: r.tip?.tip_id ?? null, urlPattern: r.tip?.url_pattern ?? null,
+      tipId: dbTipId(r.tip), urlPattern: r.tip?.ai ? null : r.tip?.url_pattern ?? null,
       userId: state.teacher?.userId ?? null, version: extensionVersion
     });
     r.sent = true;
@@ -688,6 +821,45 @@ const actions = {
       state.teacher = { ...state.teacher, subjects: state.setup.subjects };
       chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher }).catch(() => {});
     }
+    render();
+  },
+
+  // build a tip with AI
+  'open-ai': () => {
+    state.ai = newAi({ question: cleanQuestion(state.request.text || state.query || ''), site: aiSiteGuess(), returnTo: state.view });
+    state.view = 'ai';
+    render();
+    window.scrollTo(0, 0);
+    loadAiKey().then(() => { if (state.view === 'ai') render(); });
+  },
+  'ai-back': () => {
+    state.view = ['tips', 'resources', 'sites'].includes(state.ai.returnTo) ? state.ai.returnTo : 'tips';
+    render();
+    window.scrollTo(0, 0);
+  },
+  'ai-copy': () => aiCopy(),
+  'ai-build': () => aiBuildFromReply(),
+  'ai-gemini': () => aiBuildWithGemini(),
+  'ai-key-forget': async () => {
+    await keyStore().clear();
+    state.aiKey = { has: false, remembered: false };
+    state.ai.key = '';
+    render();
+  },
+  'ai-follow': () => { if (state.ai.tip) startGuide(state.ai.tip, 0); },
+  'ai-discard': () => { state.ai.tip = null; state.ai.finished = null; render(); },
+  'ai-open-saved': (el) => {
+    const tip = state.aiTips.find((t) => t.tip_id === el.dataset.id);
+    if (!tip) return;
+    state.ai.tip = tip;
+    state.ai.finished = null;
+    render();
+    window.scrollTo(0, 0);
+  },
+  'ai-remove': async (el) => {
+    state.aiTips = state.aiTips.filter((t) => t.tip_id !== el.dataset.id);
+    if (state.ai.tip?.tip_id === el.dataset.id) state.ai.tip = null;
+    await saveAiTips();
     render();
   },
 
@@ -808,6 +980,17 @@ function wireDomEvents() {
       renderResults();
     } else if (e.target.id === 'request-text') {
       state.request.text = e.target.value;
+    } else if (e.target.id === 'ai-question' || e.target.id === 'ai-site') {
+      state.ai[e.target.id === 'ai-site' ? 'site' : 'question'] = e.target.value;
+      const box = $('#ai-prompt'); // keep the visible prompt in step without re-drawing (and losing focus)
+      if (box) box.value = promptFor(state.ai, state.teacher);
+      state.ai.copied = false;
+    } else if (e.target.id === 'ai-reply') {
+      state.ai.reply = e.target.value;
+    } else if (e.target.id === 'ai-key') {
+      state.ai.key = e.target.value;
+    } else if (e.target.id === 'ai-remember') {
+      state.ai.remember = e.target.checked;
     } else if (e.target.id === 'report-text') {
       state.report.text = e.target.value;
     } else if (e.target.id === 'fb-text' && state.feedback) {
@@ -832,6 +1015,9 @@ function wireDomEvents() {
     if (e.target.id === 'report-form') sendReport();
     if (e.target.id === 'resource-request-form') sendResourceRequest($('#request-text')?.value || '');
   });
+
+  // <details> doesn't bubble 'toggle', so listen while it's still travelling down.
+  document.addEventListener('toggle', (e) => { if (e.target.id === 'ai-gemini-box') state.ai.keyOpen = e.target.open; }, true);
 
   // Log when a teacher opens a Common Teacher Resource (doesn't block the link from opening).
   document.addEventListener('click', (e) => {

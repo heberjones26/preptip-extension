@@ -3,6 +3,10 @@
 Items scoped but intentionally not built yet. Copy into Trello as cards when planning the next Sprint.
 
 ## 1. AI workflow automation (Sprint-required automation card)
+**Status: built as the teacher-facing AI tip builder** (copy-and-paste prompt builder by default, optional
+free Gemini key — see README "Build a tip with AI"). What follows is the original *team-side* idea, still
+open if we want a second automation later (it needs a server-side key, so it also needs rate limiting):
+
 Classify incoming **tip requests and resource requests** (the `feedback` rows with no `tip_id`, and
 `Resource request:` rows) by **site + grade level**, and have an AI step **draft the tip steps** into a
 new `tip_drafts` table for the team to review and approve.
