@@ -289,7 +289,8 @@ async function onActiveTab(tab) {
   }
 
   // Same tab, new URL: a link or button the tip asked for, a redirect, a reload or an in-app route.
-  if (state.view === 'guide' && state.guide) {
+  // (AI tips aren't tied to a site and never highlight, so there is nothing to pause or resume.)
+  if (state.view === 'guide' && state.guide && !state.guide.tip.ai) {
     const g = state.guide;
     if (state.site?.url_pattern === g.tip.url_pattern) {
       if (!g.live) {
