@@ -223,8 +223,10 @@
       this.unscriptable = !/^https?:/.test(url);
       onUpdated._fire(activeTab.id, { url, status: 'loading' }, { ...activeTab });
     },
-    switchTab(url) {
-      activeTab = { id: ++nextTabId, windowId: WINDOW_ID, active: true, url };
+    // opened = true: a link in the current tab opened the new one (target=_blank).
+    switchTab(url, opened = false) {
+      const openerTabId = opened ? activeTab.id : undefined;
+      activeTab = { id: ++nextTabId, windowId: WINDOW_ID, active: true, url, openerTabId };
       this.unscriptable = !/^https?:/.test(url);
       onActivated._fire({ tabId: activeTab.id, windowId: WINDOW_ID });
     },

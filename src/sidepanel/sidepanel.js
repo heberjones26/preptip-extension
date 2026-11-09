@@ -220,9 +220,10 @@ async function loadRatings() {
   }
 }
 
-// Home = resume a saved guide for this tab, or show the tips list.
-async function showHome() {
-  const saved = await readSavedGuide(state.tab?.id);
+// Home = resume a saved guide for this tab (or the one `carried` over from the tab that opened it),
+// or show the tips list.
+async function showHome(carried = null) {
+  const saved = (await readSavedGuide(state.tab?.id)) || carried;
   const tip = saved && findTip(saved.tipId);
   if (tip) return startGuide(tip, Math.min(saved.stepIndex || 0, tip.tip_steps.length - 1));
   state.view = state.catalog ? 'tips' : 'error';
@@ -274,21 +275,33 @@ async function onActiveTab(tab) {
 
   if (!sameTab) {
     // Leave the old tab clean. Its saved guide stays in session storage so it resumes later.
-    if (state.guide) bridge.clearGuide(state.guide.tabId);
+    const left = state.guide;
+    if (left) bridge.clearGuide(left.tabId);
+    // A link in the guided tab opened this one (target=_blank): bring the guide along.
+    const carried = left && tab.openerTabId === left.tabId
+      ? { tipId: left.tip.tip_id, stepIndex: left.stepIndex }
+      : null;
     state.guide = null;
     state.feedback = null;
+    state.view = 'loading'; // until showHome picks a view (another tab event may render meanwhile)
     resetListState();
-    return showHome();
+    return showHome(carried);
   }
 
-  // Same tab, new URL.
-  if (state.view === 'guide' && state.guide?.live) {
-    if (state.site?.url_pattern === state.guide.tip.url_pattern) {
+  // Same tab, new URL: a link or button the tip asked for, a redirect, a reload or an in-app route.
+  // (AI tips aren't tied to a site and never highlight, so there is nothing to pause or resume.)
+  if (state.view === 'guide' && state.guide && !state.guide.tip.ai) {
+    const g = state.guide;
+    if (state.site?.url_pattern === g.tip.url_pattern) {
+      if (!g.live) {
+        g.live = true;          // back on the tip's site: highlight again
+        g.canHighlight = null;
+      }
       resetStepStatus();
       render();
       sendCurrentStep(); // the page may have reloaded, so highlight again
     } else {
-      await exitGuide();    // left the tool this guide is for
+      pauseGuide();
     }
     return;
   }
@@ -406,7 +419,23 @@ function finishGuide() {
   window.scrollTo(0, 0);
 }
 
-// "Stop guide", the back link, or leaving the tip's site.
+// The tab left the tip's site: a sign-in page, a redirect hop, a page the tip's link leads to,
+// or somewhere else entirely. Keep the tip and step (and the saved copy) so the teacher doesn't
+// lose their place; highlighting picks up again when the tab is back on the tip's site.
+function pauseGuide() {
+  const g = state.guide;
+  if (g.live) {
+    sendToken++; // ignore a highlight request still in flight
+    g.live = false;
+    g.canHighlight = null;
+    bridge.clearGuide(g.tabId);
+  }
+  resetStepStatus();
+  engagement.stop(); // time spent elsewhere doesn't count as reading the tip
+  render();
+}
+
+// "Stop guide" or the back link.
 async function exitGuide() {
   const g = state.guide;
   if (g) {
