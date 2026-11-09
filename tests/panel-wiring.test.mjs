@@ -133,8 +133,67 @@ test('panel and service-worker integration', async (t) => {
     activeTab = { ...activeTab, url: 'https://example.com/' };
     chrome.tabs.onUpdated.emit(11, { url: activeTab.url }, activeTab);
     await settle(); await h.tick(20000); await settle();
-    assert.equal(document.querySelector('#view').dataset.view, 'tips');
+    // Leaving the tip's site pauses the guide (the teacher keeps their place) but stops the dwell timer.
+    assert.equal(document.querySelector('#view').dataset.view, 'guide');
+    assert.deepEqual(sessionValues['pt.guide.11'], { tipId: 9, stepIndex: 0 });
     assert.equal(visits()[2].successful, false);
+  });
+  await t.test('a guide keeps its step through the navigations its steps cause', async () => {
+    const toPage = [];
+    chrome.tabs.sendMessage = async (tabId, message) => { toPage.push({ tabId, ...message }); return { ok: true }; };
+    const view = () => document.querySelector('#view').dataset.view;
+    const lastShow = () => toPage.filter((m) => m.type === MSG.GUIDE_SHOW).at(-1);
+    const navigate = async (url) => {
+      activeTab = { ...activeTab, url };
+      chrome.tabs.onUpdated.emit(activeTab.id, { url, status: 'loading' }, activeTab);
+      await settle(); await settle();
+    };
+
+    // Back on the tip's site after the detour above: highlighting resumes on the same step.
+    await navigate('https://docs.google.com/spreadsheets/d/test/edit');
+    assert.equal(view(), 'guide');
+    assert.deepEqual([lastShow().tabId, lastShow().tipId, lastShow().stepIndex], [11, 9, 0]);
+
+    // The teacher clicks the highlighted target on the page.
+    await dispatch({ type: MSG.GUIDE_STEP_DONE, tipId: 9, stepIndex: 0 }, { tab: { id: 11 } }); await settle();
+    assert.deepEqual(sessionValues['pt.guide.11'], { tipId: 9, stepIndex: 1 });
+
+    // That click leads through a sign-in page (another site) to a new page load on the tip's site.
+    await navigate('https://accounts.google.com/ServiceLogin?continue=https://docs.google.com/spreadsheets/d/new');
+    assert.equal(view(), 'guide');
+    assert.ok(toPage.at(-1).type === MSG.GUIDE_CLEAR);
+    assert.deepEqual(sessionValues['pt.guide.11'], { tipId: 9, stepIndex: 1 });
+    toPage.length = 0;
+    await navigate('https://docs.google.com/spreadsheets/d/new/edit');
+    assert.equal(view(), 'guide');
+    assert.deepEqual([lastShow().tabId, lastShow().stepIndex], [11, 1]);
+
+    // An in-app route change (pushState) and the page finishing its load both re-highlight the step.
+    toPage.length = 0;
+    await navigate('https://docs.google.com/spreadsheets/d/new/edit#gid=2');
+    chrome.tabs.onUpdated.emit(11, { status: 'complete' }, activeTab); await settle(); await settle();
+    assert.equal(toPage.filter((m) => m.type === MSG.GUIDE_SHOW && m.stepIndex === 1).length, 2);
+
+    // A link that opens a new tab brings the guide along at the same step.
+    activeTab = { id: 13, windowId: 10, url: 'https://docs.google.com/spreadsheets/d/linked/edit', active: true, openerTabId: 11 };
+    chrome.tabs.onActivated.emit({ tabId: 13, windowId: 10 }); await settle(); await settle();
+    assert.equal(view(), 'guide');
+    assert.deepEqual(sessionValues['pt.guide.13'], { tipId: 9, stepIndex: 1 });
+    assert.deepEqual([lastShow().tabId, lastShow().stepIndex], [13, 1]);
+
+    // A tab the guided tab didn't open starts fresh.
+    activeTab = { id: 14, windowId: 10, url: 'https://docs.google.com/spreadsheets/d/unrelated/edit', active: true };
+    chrome.tabs.onActivated.emit({ tabId: 14, windowId: 10 }); await settle(); await settle();
+    assert.equal(view(), 'tips');
+    assert.equal(sessionValues['pt.guide.14'], undefined);
+
+    // Stopping the tip still forgets the progress.
+    activeTab = { id: 13, windowId: 10, url: 'https://docs.google.com/spreadsheets/d/linked/edit', active: true };
+    chrome.tabs.onActivated.emit({ tabId: 13, windowId: 10 }); await settle(); await settle();
+    assert.equal(view(), 'guide');
+    click('stop-guide'); await settle();
+    assert.equal(view(), 'tips');
+    assert.equal(sessionValues['pt.guide.13'], undefined);
   });
   await t.test('teacher setup transitions record A → B → A consistently', async () => {
     for (const id of [2, 1]) {
