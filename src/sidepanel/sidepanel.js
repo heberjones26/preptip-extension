@@ -363,7 +363,7 @@ function onGuideMessage(msg, sender) {
 
   switch (msg.type) {
     case MSG.GUIDE_STATUS:
-      g.status = { found: !!msg.found, label: msg.label || null };
+      g.status = { found: !!msg.found, label: msg.label || null, offscreen: msg.offscreen || null };
       g.canHighlight = true;
       break;
     case MSG.GUIDE_STEP_DONE:

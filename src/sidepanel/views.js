@@ -431,6 +431,9 @@ function liveLine(state, g, step) {
   if (step.step_type !== 'guided' || g.offtrack) return '';
   if (g.status?.found) {
     const label = g.status.label || targetPath(step).slice(-1)[0] || 'the page';
+    if (g.status.offscreen) {
+      return `<div class="live"><i></i><span>Scroll ${g.status.offscreen === 'below' ? 'down' : 'up'} to find <b>${esc(label)}</b></span></div>`;
+    }
     return `<div class="live"><i></i><span>Look for the orange highlight on <b>${esc(label)}</b></span></div>`;
   }
   if (g.status && !g.status.found) {

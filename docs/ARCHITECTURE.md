@@ -78,7 +78,7 @@ The panel filters by `sender.tab.id === activeTabId` and by `tipId`/`stepIndex`.
 
 | type | payload | when |
 |---|---|---|
-| `PT_GUIDE_STATUS` | `{ tipId, stepIndex, found: boolean, label: string \| null }` | After each `PT_GUIDE_SHOW` and whenever "found" changes. `label` = the text of what's highlighted now (e.g. `"Format"` while waiting for the menu to open, then `"Conditional formatting"`). |
+| `PT_GUIDE_STATUS` | `{ tipId, stepIndex, found: boolean, label: string \| null, offscreen: 'above' \| 'below' \| null }` | After each `PT_GUIDE_SHOW` and whenever "found" changes. `label` = the text of what's highlighted now (e.g. `"Format"` while waiting for the menu to open, then `"Conditional formatting"`). |
 | `PT_GUIDE_STEP_DONE` | `{ tipId, stepIndex }` | **guided** steps only: the teacher clicked the final segment of the target path. |
 | `PT_GUIDE_OFFTRACK` | `{ tipId, stepIndex, clicked: 'Data', expected: 'Format' }` | **menu** steps only: the teacher opened a different top-level menu. |
 | `PT_GUIDE_BACK_ON_TRACK` | `{ tipId, stepIndex }` | After an off-track, when the expected item is clicked/opened. |
