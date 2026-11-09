@@ -9,13 +9,25 @@ import {
 import {
   LOGO, SEARCH, GLOBE, CHECK, THUMB, PUZZLE, PIN, INFO, OFFLINE, WAND, STEPS, CAP, BOOKS, EXTERNAL, siteIcon
 } from './icons.js';
-import { GRADES, gradeLabel, splitByGrade, siteGrades } from '../data/segments.js';
+import {
+  GRADES, SUBJECTS, gradeLabel, splitByFit, siteGrades, siteSubjects, profileLabel, matchBadge, cleanSubjects
+} from '../data/segments.js';
 import { RESOURCES } from '../data/resources.js';
 import { SHARE_MESSAGE } from '../lib/share.js';
 
 // The teacher's chosen grade band (or '' for all grades / not set).
 function teacherGrade(state) {
   return state.teacher?.gradeLevel || '';
+}
+
+// The teacher's chosen subject ids (possibly none).
+function teacherSubjects(state) {
+  return cleanSubjects(state.teacher?.subjects);
+}
+
+// { grade, subjects } — what the recommendations are based on — and its short label ('' = nothing set).
+function teacherProfile(state) {
+  return { grade: teacherGrade(state), subjects: teacherSubjects(state) };
 }
 
 export const FEEDBACK_REASONS = ['Too many steps', 'Steps didn’t match my screen', 'Not what I needed'];
@@ -114,8 +126,8 @@ export function header(state) {
 export function footer(state) {
   if (state.view === 'setup' || !state.setupDone) return '';
   const name = state.teacher?.username || '';
-  const grade = teacherGrade(state);
-  const gradeBtn = `<button type="button" class="linkish grade" data-action="change-grade" title="${grade ? 'Change your grade' : 'Set the grade you teach'}">${CAP}${grade ? esc(gradeLabel(grade)) : 'Set grade'}</button>`;
+  const label = profileLabel(teacherProfile(state));
+  const gradeBtn = `<button type="button" class="linkish grade" data-action="change-grade" title="${label ? 'Change your grade or subject' : 'Set the grade and subject you teach'}">${CAP}${label ? esc(label) : 'Set grade & subject'}</button>`;
   const resourcesLink = state.view === 'resources'
     ? ''
     : `<button type="button" class="linkish" data-action="open-resources">${BOOKS}Teacher resources</button><span class="sep" aria-hidden="true">&middot;</span>`;
@@ -180,6 +192,18 @@ function gradePicker(s) {
     </fieldset>`;
 }
 
+// Subject picker: any number of chips (a teacher can teach physics AND math).
+function subjectPicker(s) {
+  const picked = new Set(s.subjects || []);
+  return `
+    <fieldset class="field grades">
+      <legend><span class="gl">${BOOKS}</span> What do you teach? <span class="opt">optional &middot; pick any</span></legend>
+      <div class="grade-grid">
+        ${SUBJECTS.map((x) => `<button type="button" class="grade-chip${picked.has(x.id) ? ' on' : ''}" data-action="toggle-subject" data-subject="${esc(x.id)}" aria-pressed="${picked.has(x.id)}">${esc(x.label)}</button>`).join('')}
+      </div>
+    </fieldset>`;
+}
+
 // Shown when signup picks a username someone already has.
 function takenNotice(s) {
   if (s.notice !== 'taken') return '';
@@ -221,14 +245,21 @@ function setupForm(state) {
 function setupDone(state) {
   const sites = state.catalog?.websites || [];
   const name = esc(state.teacher?.username || 'teacher');
+  const editing = !!state.setup.editing;
+  const title = editing ? 'Your class'
+    : state.setup.mode === 'signin' ? `Welcome back, ${name}!` : `You&rsquo;re set, ${name}!`;
+  const lede = editing
+    ? 'Tell us what you teach and PrepTip will point you to the best sites and resources.'
+    : 'Open any of these sites and PrepTip will have tips ready.';
   return `
     <div class="win"><span class="win-ic">${CHECK}</span>
-      <h4>${state.setup.mode === 'signin' ? `Welcome back, ${name}!` : `You&rsquo;re set, ${name}!`}</h4>
-      <p>Open any of these sites and PrepTip will have tips ready.</p>
+      <h4>${title}</h4>
+      <p>${lede}</p>
     </div>
-    ${sites.length ? `<div class="chips center">${sites.map((w) => `<span class="chip">${esc(w.name)}</span>`).join('')}</div>` : ''}
+    ${!editing && sites.length ? `<div class="chips center">${sites.map((w) => `<span class="chip">${esc(w.name)}</span>`).join('')}</div>` : ''}
     ${gradePicker(state.setup)}
-    <button type="button" class="btn primary full" data-action="setup-finish">Show me tips</button>`;
+    ${subjectPicker(state.setup)}
+    <button type="button" class="btn primary full" data-action="setup-finish">${editing ? 'Save and show tips' : 'Show me tips'}</button>`;
 }
 
 export function setupView(state) {
@@ -263,14 +294,13 @@ export function errorView(state) {
 // ctx = { site, tips, browsing } from sidepanel.js
 export function tipsView(state, ctx) {
   const { site, tips, browsing } = ctx;
-  const grade = teacherGrade(state);
-  const recForGrade = grade && siteGrades(site.url_pattern).includes(grade);
+  const badge = matchBadge(siteGrades(site.url_pattern), siteSubjects(site.url_pattern), teacherProfile(state));
   return `
     ${browsing ? '<button type="button" class="back" data-action="end-browse">&larr; All sites with tips</button>' : ''}
     <button type="button" class="site-chip site-switch" data-action="show-sites" aria-label="Browse all sites with tips">
       <span class="fav">${siteIcon(site)}</span>
       <span class="site-copy"><b>${esc(site.name)}</b><small>${plural(tips.length, 'tip')} for this site</small></span>
-      ${recForGrade ? `<span class="rec-badge"><span class="gl">${CAP}</span>For ${esc(gradeLabel(grade))}</span>` : ''}
+      ${badge ? `<span class="rec-badge"><span class="gl">${CAP}</span>${esc(badge)}</span>` : ''}
       <span class="site-switch-icon" aria-hidden="true">&#8964;</span>
     </button>
     ${browsing ? `<p class="tiny-note">You&rsquo;re not on ${esc(site.name)} right now, so tips open as a step list. Open ${esc(site.name)} to get the orange highlights.</p>` : ''}
@@ -342,24 +372,26 @@ function siteChip(w, rec = false) {
 
 export function sitesView(state) {
   const sites = state.catalog?.websites || [];
-  const grade = teacherGrade(state);
-  const { recommended, other } = splitByGrade(sites, grade, (s) => siteGrades(s.url_pattern));
+  const profile = teacherProfile(state);
+  const label = profileLabel(profile);
+  const { recommended, other } = splitByFit(sites, profile, (s) => siteGrades(s.url_pattern), (s) => siteSubjects(s.url_pattern));
   return `
     <button type="button" class="back" data-action="end-browse">&larr; Back to tips</button>
     <div class="sec-h sites-heading"><h4>Sites with tips</h4><small>Choose a site to see its guides.</small></div>
-    ${grade && recommended.length ? `
-      <div class="next-row"><b><span class="gl">${CAP}</span> Recommended for ${esc(gradeLabel(grade))}</b><div class="chips">${recommended.map((w) => siteChip(w, true)).join('')}</div></div>
+    ${label && recommended.length ? `
+      <div class="next-row"><b><span class="gl">${CAP}</span> Recommended for ${esc(label)}</b><div class="chips">${recommended.map((w) => siteChip(w, true)).join('')}</div></div>
       ${other.length ? `<div class="next-row"><b>More sites with tips</b><div class="chips">${other.map((w) => siteChip(w)).join('')}</div></div>` : ''}`
       : `<div class="next-row"><b>Choose a site</b><div class="chips">${sites.map((w) => siteChip(w)).join('')}</div></div>`}`;
 }
 
 // "Sites with tips", split into a "Recommended for your grade" group when a grade is set.
 function sitesWithTipsBlock(state, sites) {
-  const grade = teacherGrade(state);
-  const { recommended, other } = splitByGrade(sites, grade, (s) => siteGrades(s.url_pattern));
-  if (grade && recommended.length) {
+  const profile = teacherProfile(state);
+  const label = profileLabel(profile);
+  const { recommended, other } = splitByFit(sites, profile, (s) => siteGrades(s.url_pattern), (s) => siteSubjects(s.url_pattern));
+  if (label && recommended.length) {
     return `
-      <div class="next-row"><b><span class="gl">${CAP}</span> Recommended for ${esc(gradeLabel(grade))}</b><div class="chips">${recommended.map((w) => siteChip(w, true)).join('')}</div></div>
+      <div class="next-row"><b><span class="gl">${CAP}</span> Recommended for ${esc(label)}</b><div class="chips">${recommended.map((w) => siteChip(w, true)).join('')}</div></div>
       ${other.length ? `<div class="next-row"><b>More sites with tips</b><div class="chips">${other.map((w) => siteChip(w)).join('')}</div></div>` : ''}`;
   }
   return `<div class="next-row"><b>Sites with tips</b><div class="chips">${sites.map((w) => siteChip(w)).join('')}</div></div>`;
@@ -577,12 +609,12 @@ function resourceCard(r) {
     </div>`;
 }
 
-// One-button toggle between "for my grade" and "all" (only shown when a grade is set).
-function gradeToggle(grade, gradeOnly) {
+// One-button toggle between "for my class" and "all" (only shown when a grade or subject is set).
+function gradeToggle(label, gradeOnly) {
   return `
-    <div class="res-toggle" role="group" aria-label="Filter resources by grade">
+    <div class="res-toggle" role="group" aria-label="Filter resources by your grade and subject">
       <button type="button" class="seg-toggle" data-action="toggle-resource-filter" aria-pressed="${gradeOnly}">
-        <span class="seg-l${gradeOnly ? ' on' : ''}">For ${esc(gradeLabel(grade))}</span>
+        <span class="seg-l${gradeOnly ? ' on' : ''}">For ${esc(label)}</span>
         <span class="seg-l${gradeOnly ? '' : ' on'}">All</span>
       </button>
     </div>`;
@@ -621,29 +653,30 @@ function resourceRequestBlock(state) {
 }
 
 export function resourcesView(state) {
-  const grade = teacherGrade(state);
+  const profile = teacherProfile(state);
+  const label = profileLabel(profile);
   const cat = state.resourceCategory || '';
   const pool = cat ? RESOURCES.filter((r) => r.category === cat) : RESOURCES;
-  const gradeOnly = !!grade && state.resourceGradeOnly;
-  const { recommended, other } = splitByGrade(pool, grade);
+  const gradeOnly = !!label && state.resourceGradeOnly;
+  const { recommended, other } = splitByFit(pool, profile);
 
   let list;
   if (!pool.length) {
     list = `<p class="tiny-note">No resources in that category yet.</p>`;
-  } else if (!grade) {
+  } else if (!label) {
     list = `
-      <p class="res-hint"><span class="gl">${CAP}</span><span>Set the grade you teach and these get sorted for your students. <button type="button" class="linkish" data-action="change-grade">Set grade</button></span></p>
+      <p class="res-hint"><span class="gl">${CAP}</span><span>Set your grade and subject and these get sorted for your classroom. <button type="button" class="linkish" data-action="change-grade">Set grade &amp; subject</button></span></p>
       <div class="res-list">${pool.map(resourceCard).join('')}</div>`;
   } else if (gradeOnly) {
     const show = recommended.length ? recommended : pool;
     const hidden = other.length
       ? `<p class="res-more">${plural(other.length, 'other resource')} hidden · <button type="button" class="linkish" data-action="toggle-resource-filter">Show all</button></p>`
       : '';
-    list = `${gradeToggle(grade, gradeOnly)}<div class="res-list">${show.map(resourceCard).join('')}</div>${hidden}`;
+    list = `${gradeToggle(label, gradeOnly)}<div class="res-list">${show.map(resourceCard).join('')}</div>${hidden}`;
   } else {
     list = `
-      ${gradeToggle(grade, gradeOnly)}
-      ${recommended.length ? sectionHead(`Recommended for ${esc(gradeLabel(grade))}`) + `<div class="res-list">${recommended.map(resourceCard).join('')}</div>` : ''}
+      ${gradeToggle(label, gradeOnly)}
+      ${recommended.length ? sectionHead(`Recommended for ${esc(label)}`) + `<div class="res-list">${recommended.map(resourceCard).join('')}</div>` : ''}
       ${other.length ? sectionHead('Other resources') + `<div class="res-list">${other.map(resourceCard).join('')}</div>` : ''}`;
   }
 

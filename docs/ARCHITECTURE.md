@@ -52,7 +52,7 @@ Each account is a unique username and a password. No email, and no Supabase Auth
 
 - `rpc/create_teacher_account(p_username, p_password)` → `[{ user_id, username }]`. Usernames are 3–30 letters, numbers, `.`, `-` or `_`, unique ignoring case (unique index on `lower(username)`). A taken username fails with code `23505` (HTTP 409); the panel then shows "… is already taken" and offers to sign in. Passwords need 8+ characters and are stored as bcrypt hashes (`pgcrypto`).
 - `rpc/sign_in_teacher(p_username, p_password)` → `[{ user_id, username }]`, or `[]` when the username or password is wrong.
-- The panel keeps `pt.teacher` (`{ userId, username, gradeLevel }`) and `pt.setupDone`. A saved teacher from the old name + email setup has no `username`, so the panel signs it out on load. `gradeLevel` is the teacher's chosen grade band (or null); it's picked on the "You're set" screen and lives only in the browser.
+- The panel keeps `pt.teacher` (`{ userId, username, gradeLevel, subjects }`) and `pt.setupDone`. A saved teacher from the old name + email setup has no `username`, so the panel signs it out on load. `gradeLevel` is the teacher's chosen grade band (or null); it's picked on the "You're set" screen and lives only in the browser.
 
 "Sign out" removes `pt.teacher` and `pt.setupDone`, clears any running guide, and shows the sign-in form.
 
@@ -106,7 +106,7 @@ The panel filters by `sender.tab.id === activeTabId` and by `tipId`/`stepIndex`.
 ## Storage
 
 `chrome.storage.local`: `pt.teacher`, `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
-`chrome.storage.local`: `pt.teacher` (`{ userId, username, gradeLevel }`), `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
+`chrome.storage.local`: `pt.teacher` (`{ userId, username, gradeLevel, subjects }`), `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
 `chrome.storage.session`: `pt.redirect.<tabId>` (`{ from, to, at, kind }`, written by background, shown by the panel as "You were redirected here from …"), `pt.guide.<tabId>` (`{ tipId, stepIndex }`, written by the panel so a guide resumes after the panel reopens), `pt.allowedDomains`, and the background-only `pt.lastUrl.<tabId>` (the tab's last committed URL, used as the "from" of client redirects; it lives in storage because the service worker can be killed at any time).
 
 ## declarativeNetRequest rule ids

@@ -10,6 +10,7 @@ import * as views from './views.js';
 import * as bridge from './guide-bridge.js';
 import { createPanelEngagement } from './engagement-tracking.js';
 import { hostOf, isWebUrl } from './text.js';
+import { cleanSubjects } from '../data/segments.js';
 import { sharePrepTip } from '../lib/share.js';
 
 // ---------------------------------------------------------------------------
@@ -18,7 +19,7 @@ import { sharePrepTip } from '../lib/share.js';
 const state = {
   view: 'loading',          // 'setup' | 'loading' | 'error' | 'tips' | 'guide' | 'feedback' | 'resources' | 'sites'
   setupDone: false,
-  teacher: null,            // { userId, username, gradeLevel }
+  teacher: null,            // { userId, username, gradeLevel, subjects }
   resourceGradeOnly: true,  // Teacher Resources view: show only my-grade matches (vs. all)
   resourceCategory: '',     // Teacher Resources view: category filter ('' = all)
   setup: newSetup(),
@@ -36,8 +37,9 @@ const state = {
   feedback: null            // { tip, isHelpful, reasons, text, phase, error }
 };
 
-// Setup screens: 0 welcome, 1 pin, 2 username + password, 3 done (+ grade pick).
-function newSetup({ step = 0, mode = 'signup', grade = '' } = {}) {
+// Setup screens: 0 welcome, 1 pin, 2 username + password, 3 done (+ grade and subject pick).
+// `editing` = reopened later from the footer to change grade/subjects (not first-run).
+function newSetup({ step = 0, mode = 'signup', grade = '', subjects = [], editing = false } = {}) {
   return {
     step,
     mode,                   // 'signup' (create an account) | 'signin'
@@ -46,6 +48,8 @@ function newSetup({ step = 0, mode = 'signup', grade = '' } = {}) {
     confirm: '',            // signup only: the password typed again
     notice: null,           // 'taken' when signup picks a username that already exists
     grade,                  // chosen grade band ('' = all grades / not set)
+    subjects: cleanSubjects(subjects), // chosen subject ids (any number)
+    editing,
     saving: false,
     error: ''
   };
@@ -453,8 +457,8 @@ async function submitAccount(form) {
     if (!account) {
       s.error = 'That username and password don’t match. Check them and try again.';
     } else {
-      // Grade is picked on the "You're set" screen next, so it starts null and set-grade persists it.
-      state.teacher = { ...account, gradeLevel: s.grade || null };
+      // Grade and subjects are picked on the "You're set" screen next; set-grade / toggle-subject persist them.
+      state.teacher = { ...account, gradeLevel: s.grade || null, subjects: cleanSubjects(s.subjects) };
       state.setupDone = true;
       await chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher, [STORAGE.SETUP_DONE]: true });
       recordUsage();
@@ -601,11 +605,22 @@ const actions = {
     }
     render();
   },
+  'toggle-subject': (el) => {
+    const picked = new Set(state.setup.subjects);
+    if (!picked.delete(el.dataset.subject)) picked.add(el.dataset.subject);
+    state.setup.subjects = cleanSubjects([...picked]);
+    if (state.teacher) {
+      state.teacher = { ...state.teacher, subjects: state.setup.subjects };
+      chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher }).catch(() => {});
+    }
+    render();
+  },
 
-  // grade + resources
+  // grade, subjects + resources
   'change-grade': () => {
     if (state.guide) { bridge.clearGuide(state.guide.tabId); forgetGuide(state.guide.tabId); state.guide = null; }
-    state.setup = newSetup({ step: 3, grade: state.teacher?.gradeLevel || '' }); // "You're set" screen holds the picker
+    // The last setup screen holds both pickers.
+    state.setup = newSetup({ step: 3, grade: state.teacher?.gradeLevel || '', subjects: state.teacher?.subjects, editing: true });
     state.view = 'setup';
     render();
     window.scrollTo(0, 0);

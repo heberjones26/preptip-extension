@@ -170,14 +170,14 @@ tests/                    unit tests
 
 The extension picks it up within 10 minutes, or right away after you reload it. Highlights currently work for `menu`, `button`, `link`, `search`, `panel` and `dialog` targets; other steps show their instructions in the panel only.
 
-## Grade levels & Teacher Resources
+## Grade levels, subjects & Teacher Resources
 
-At setup a teacher can pick the grade they teach — **Pre-school, Kindergarten–3rd, 4th–6th, Middle school, High school, College**, or Special education (or "All grades"). It's stored locally in `pt.teacher.gradeLevel` and makes PrepTip's suggestions fit their students:
+At setup a teacher can pick the grade they teach — **Pre-school, Kindergarten–3rd, 4th–6th, Middle school, High school, College**, or Special education (or "All grades") — and any number of **subjects** (Math, Physics, Chemistry, Biology, Other science, English / ELA, Spanish & world languages, Social studies, Art, Music, PE & health, Computer science, or Something else). Both are optional, stored locally in `pt.teacher.gradeLevel` and `pt.teacher.subjects`, and change PrepTip's suggestions:
 
-- **Recommended sites by grade** — the "Sites with tips" list leads with a "Recommended for your grade" group, and the current site shows a grade badge when it fits.
-- **Common Teacher Resources** — a **Teacher resources** link (panel footer) opens a list of teacher-*built* sites (Teachers Pay Teachers, Kahoot, Nearpod, Edpuzzle, Gimkit, Newsela, PBS LearningMedia, PhET, OpenStax, BrainPOP) with a short blurb and an open-link — no walkthroughs, since those sites are already made for teachers. The list filters to the teacher's grade with a toggle to see all.
+- **Recommended sites by grade and subject** — the "Sites with tips" list leads with a "Recommended for High school · Physics" group. A site has to fit the grade *and* the subject; tools that name your subject (Desmos for a math or physics teacher, Quizlet for Spanish) come first, ahead of tools that suit everyone. The current site shows a "For Physics" or "For High school" badge when it names you.
+- **Common Teacher Resources** — a **Teacher resources** link (panel footer) opens a list of teacher-*built* sites (Teachers Pay Teachers, Kahoot, Nearpod, Edpuzzle, Gimkit, Newsela, PBS LearningMedia, PhET, OpenStax, BrainPOP) with a short blurb and an open-link — no walkthroughs, since those sites are already made for teachers. The list holds about 26 resources across subjects (including Conjuguemos for languages, The Physics Classroom, Code.org, CommonLit, iCivics, Chrome Music Lab and GoNoodle), filters by category, and narrows to the teacher's grade and subjects with a toggle to see all. Teachers can also suggest a resource to add.
 
-The grade bands, the site→grade tags, and the recommend/filter helpers live in [`src/data/segments.js`](src/data/segments.js); the curated resource list in [`src/data/resources.js`](src/data/resources.js). Both are bundled (no database) and covered by [`tests/segments.test.mjs`](tests/segments.test.mjs). Change your grade anytime from the footer.
+The grade bands, the subject list, the site→grade and site→subject tags, and the recommend/rank/label helpers live in [`src/data/segments.js`](src/data/segments.js); the curated resource list in [`src/data/resources.js`](src/data/resources.js). Both are bundled (no database) and covered by [`tests/segments.test.mjs`](tests/segments.test.mjs). Change your grade or subjects anytime from the footer.
 
 ## Metrics & OKR dashboard
 
