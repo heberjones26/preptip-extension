@@ -7,7 +7,9 @@
 // listed at https://ai.google.dev/gemini-api/docs/pricing).
 
 export const GEMINI_KEY_URL = 'https://aistudio.google.com/apikey';
-export const GEMINI_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+// Lightest first: measured with a real key, a full tip takes ~1s on flash-lite and ~10s on flash, with
+// comparable results. The second is only tried if the first id has been retired (404).
+export const GEMINI_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.8-flash'];
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
