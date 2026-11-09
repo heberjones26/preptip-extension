@@ -466,13 +466,35 @@ document.getElementById('errlog-days')?.addEventListener('click', (e) => {
   renderErrorLog();
 });
 
+// --- AI tip builder usage (rpc/ai_tip_summary; needs the ai_tip_events migration) --------------
+async function renderAiBuilder() {
+  try {
+    let row;
+    if (DEMO) row = { prompts_copied: 41, built_from_paste: 27, built_with_gemini: 9, teachers: 14 };
+    else { const rows = await rpc('ai_tip_summary?p_days=30'); row = Array.isArray(rows) ? rows[0] : rows; }
+    const n = (v) => Number(v) || 0;
+    const tiles = [
+      { label: 'Prompts copied', value: n(row?.prompts_copied), sub: 'to ChatGPT, Claude or Gemini' },
+      { label: 'Tips from pasted answers', value: n(row?.built_from_paste), sub: 'copy and paste path' },
+      { label: 'Tips from Gemini', value: n(row?.built_with_gemini), sub: 'with the teacher’s own key' },
+      { label: 'Teachers using it', value: n(row?.teachers), sub: 'at least once' },
+    ].map((t) => `
+      <div class="mini"><p class="kpi-label">${esc(t.label)}</p><p class="mini-val">${t.value}</p><p class="kpi-sub">${esc(t.sub)}</p></div>`).join('');
+    const none = !n(row?.prompts_copied) && !n(row?.built_from_paste) && !n(row?.built_with_gemini);
+    setPanel('aibuilder', `<div class="mini-row">${tiles}</div>${none ? '<p class="muted-note">No AI tips built yet.</p>' : ''}`);
+  } catch (err) {
+    console.warn('ai builder stats not available yet', err);
+    setPanel('aibuilder', `<p class="muted-note">Lives once the ai_tip_events migration is applied.</p>`);
+  }
+}
+
 // --- Orchestration ---------------------------------------------------------------------------
 async function load() {
   const updated = document.getElementById('updated');
   if (updated) updated.textContent = '';
   const [counts] = await Promise.all([
     fetchCounts(),
-    Promise.allSettled([renderKr1(), renderKr2(), renderKr3(), renderKr4(), renderTipPerf(), renderResourcePopularity(), renderErrorLog()]),
+    Promise.allSettled([renderKr1(), renderKr2(), renderKr3(), renderKr4(), renderTipPerf(), renderResourcePopularity(), renderErrorLog(), renderAiBuilder()]),
   ]);
   renderHero();
   renderKpis(counts);

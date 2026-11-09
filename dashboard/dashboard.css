@@ -174,6 +174,25 @@ main.wrap { padding-top: 22px; padding-bottom: 44px; }
 .pop-bar i { display: block; height: 100%; background: var(--brand); border-radius: 999px; }
 .pop-n { font-size: 0.85rem; font-weight: 600; color: var(--n700); min-width: 22px; text-align: right; }
 
+/* ---- In-page nav (the page is long now) ---- */
+html { scroll-behavior: smooth; }
+.page-nav { position: sticky; top: 0; z-index: 4; background: var(--white); border-bottom: 1px solid var(--n200); }
+.page-nav .wrap { display: flex; gap: 4px; overflow-x: auto; padding-top: 6px; padding-bottom: 6px; scrollbar-width: none; }
+.page-nav .wrap::-webkit-scrollbar { display: none; }
+.page-nav a { flex: none; font-size: 0.82rem; font-weight: 600; color: var(--n700); text-decoration: none; padding: 6px 12px; border-radius: 999px; white-space: nowrap; }
+.page-nav a:hover { background: var(--n100); color: var(--n900); }
+.summary, .objective, .panel { scroll-margin-top: 56px; }
+.obj-h, .panel-h { scroll-margin-top: 56px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* ---- How each number is measured ---- */
+.how > summary { cursor: pointer; font-weight: 700; font-size: 0.95rem; color: var(--n900); }
+.how[open] > summary { margin-bottom: 12px; }
+.how-list { margin: 0; display: grid; gap: 4px 0; }
+.how-list dt { margin-top: 10px; font-size: 0.86rem; font-weight: 700; color: var(--n900); }
+.how-list dd { margin: 0; font-size: 0.85rem; color: var(--n500); }
+.how-list code { font-family: var(--mono); font-size: 0.85em; color: var(--n700); background: var(--n100); padding: 1px 6px; border-radius: 6px; }
+
 /* ---- Error log ---- */
 .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .seg { display: inline-flex; padding: 2px; background: var(--n100); border-radius: 999px; gap: 2px; }
