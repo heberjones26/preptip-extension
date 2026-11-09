@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/geist@5/index.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/geist-mono@5/index.css">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%23E8590C'/%3E%3Cpath d='M12 6a4 4 0 0 0-2.4 7.2c.4.3.6.7.6 1.1v.2h3.6v-.2c0-.4.2-.8.6-1.1A4 4 0 0 0 12 6Z' fill='%23fff'/%3E%3Crect x='10.2' y='16' width='3.6' height='1.6' rx='.8' fill='%23fff'/%3E%3C/svg%3E">
   <link rel="stylesheet" href="dashboard.css">
 </head>
 <body>
@@ -33,9 +34,21 @@
     </div>
   </header>
 
+  <nav class="page-nav" aria-label="On this page">
+    <div class="wrap">
+      <a href="#summary">Overview</a>
+      <a href="#obj-a">Objective A</a>
+      <a href="#obj-b">Objective B</a>
+      <a href="#errlog-h">Error log</a>
+      <a href="#tipperf-h">Tips</a>
+      <a href="#respop-h">Resources</a>
+      <a href="#ai-h">AI builder</a>
+    </div>
+  </nav>
+
   <main id="main" class="wrap">
     <!-- At-a-glance: one hero figure + a KPI stat-tile strip (the dashboard summary). -->
-    <section class="summary" aria-label="At a glance">
+    <section class="summary" id="summary" aria-label="At a glance">
       <article class="hero" id="hero" aria-busy="true">
         <span class="loading">Loading…</span>
       </article>
@@ -82,6 +95,21 @@
       </div>
     </section>
 
+    <!-- Error log: what teachers ran into in the extension -->
+    <section class="panel" aria-labelledby="errlog-h">
+      <div class="panel-head">
+        <div>
+          <h2 id="errlog-h" class="panel-h">Error log</h2>
+          <p class="panel-sub">Problems teachers ran into in the extension, and problems they reported.</p>
+        </div>
+        <div class="seg" id="errlog-days" role="group" aria-label="Time window">
+          <button type="button" class="seg-btn on" data-days="7" aria-pressed="true">7 days</button>
+          <button type="button" class="seg-btn" data-days="30" aria-pressed="false">30 days</button>
+        </div>
+      </div>
+      <div id="errlog" class="panel-body" aria-busy="true"><span class="loading">Loading…</span></div>
+    </section>
+
     <!-- Insight panels -->
     <section class="panel" aria-labelledby="tipperf-h">
       <h2 id="tipperf-h" class="panel-h">Which tips are landing</h2>
@@ -94,6 +122,30 @@
       <p class="panel-sub">Which Common Teacher Resources teachers click through to.</p>
       <div id="respop" class="panel-body" aria-busy="true"><span class="loading">Loading…</span></div>
     </section>
+
+    <section class="panel" aria-labelledby="ai-h">
+      <h2 id="ai-h" class="panel-h">AI tip builder</h2>
+      <p class="panel-sub">How often teachers ask an AI to write a tip when we don&rsquo;t have one (last 30 days). Counts only: their questions and the AI&rsquo;s answers are never stored.</p>
+      <div id="aibuilder" class="panel-body" aria-busy="true"><span class="loading">Loading…</span></div>
+    </section>
+
+    <details class="panel how">
+      <summary>How each number is measured</summary>
+      <dl class="how-list">
+        <dt>Thumbs-up rate (KR 1)</dt>
+        <dd>👍 ratings divided by all 👍/👎 ratings on tips, from <code>feedback</code>. Needs at least 5 ratings before it counts. Target 80%.</dd>
+        <dt>Tips completed (KR 2)</dt>
+        <dd>Walkthroughs followed to their last step (<code>tip_complete</code>) out of those started (<code>tip_open</code>). Target is a completion rate; the headline is the count.</dd>
+        <dt>Days the app is opened (KR 3)</dt>
+        <dd>For each teacher, the distinct Monday–Friday days this week the side panel was opened (<code>app_open</code>), averaged across teachers. Target 3 of 5 days.</dd>
+        <dt>Opens that lead to a tip (KR 4)</dt>
+        <dd>Of panel openings, the share where the teacher opened a tip and stayed on it for more than 10 seconds (<code>tip_dwell_success</code>). Target 50%.</dd>
+        <dt>Error log</dt>
+        <dd>Problems the extension caught itself, plus what teachers report with &ldquo;Report a problem&rdquo;, from <code>error_log</code>. &ldquo;Per 100 opens&rdquo; counts automatic errors against panel openings in the same window. What teachers type in a report is never shown here.</dd>
+        <dt>AI tip builder</dt>
+        <dd>Counts of prompts copied and tips built (<code>ai_prompt_copied</code>, <code>ai_tip_pasted</code>, <code>ai_tip_gemini</code>).</dd>
+      </dl>
+    </details>
 
     <p class="foot-note">
       All four Key Results read live from Supabase — Objective A from tip ratings and completions,

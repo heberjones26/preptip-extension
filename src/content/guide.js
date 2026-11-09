@@ -134,12 +134,37 @@
     return text.length > 40 ? text.slice(0, 39) + '…' : text;
   }
 
+  // Which side of the viewport an element has scrolled off: 'above', 'below', or null while it is
+  // at least partly on screen.
+  function offscreenSide(r) {
+    if (r.bottom <= 0) return 'above';
+    if (r.top >= window.innerHeight) return 'below';
+    return null;
+  }
+
+  // Scrolled out of view, as opposed to parked off-screen by the site (hidden menus often sit at
+  // left:-9999px or top:-9999px): it lines up with the viewport sideways, sits inside the page's
+  // scrollable height, and isn't position:fixed (offsetParent is null for those, and no amount of
+  // scrolling brings a fixed element into view).
+  function isScrollReachable(el, r) {
+    if (r.right <= 0 || r.left >= window.innerWidth) return false;
+    if (el.offsetParent === null) return false;
+    const top = r.top + window.scrollY;
+    const pageHeight = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0);
+    return top >= 0 && top < pageHeight;
+  }
+
+  // While true, isVisible() also accepts a target that has merely been scrolled out of view.
+  // findTarget() only turns this on after a normal on-screen search comes up empty.
+  let allowOffscreen = false;
+
   // Visible = attached, has a size, at least partly inside the viewport, not visibility:hidden.
   function isVisible(el) {
     if (!el || !el.isConnected) return false;
     const r = el.getBoundingClientRect();
     if (r.width <= 0 || r.height <= 0) return false;
-    if (r.bottom <= 0 || r.right <= 0 || r.top >= window.innerHeight || r.left >= window.innerWidth) return false;
+    const onScreen = !(r.bottom <= 0 || r.right <= 0 || r.top >= window.innerHeight || r.left >= window.innerWidth);
+    if (!onScreen && !(allowOffscreen && isScrollReachable(el, r))) return false;
     return getComputedStyle(el).visibility !== 'hidden';
   }
 
@@ -306,7 +331,16 @@
   // For path [A, B, C]: highlight the DEEPEST segment that is visible right now.
   // Menu closed -> A (the menubar item). Menu open -> B. Submenu open -> C.
   // Returns { el, index } or null. Kinds we don't support (grid, cell, editor...) -> null.
+  // Anything on screen wins. Only when nothing on screen matches do we look again for a target
+  // the teacher has scrolled away from, so the guide can point back to it instead of giving up.
   function findTarget(kind, path) {
+    const onScreen = findTargetNow(kind, path);
+    if (onScreen) return onScreen;
+    allowOffscreen = true;
+    try { return findTargetNow(kind, path); } finally { allowOffscreen = false; }
+  }
+
+  function findTargetNow(kind, path) {
     if (kind === 'search') {
       const el = findSearch(path.join(' '));
       return el ? { el, index: 0 } : null;
@@ -555,6 +589,8 @@
       path,
       target: null,      // element highlighted now
       targetIndex: -1,   // which path segment it is
+      offscreen: null,   // 'above' | 'below' while the target is scrolled out of view
+      scrolledFor: null, // the element we already scrolled into view once (never fight the teacher's scrolling)
       done: false,       // STEP_DONE already sent
       offTrack: false,
       offTrackClicked: null,
@@ -612,6 +648,15 @@
     // Off-track recovery: the right menu is open again (we can see segment B or deeper).
     if (guide.offTrack && hit && hit.index >= 1) backOnTrack();
 
+    // First time we find a target below/above the fold, bring it into view once. After that the
+    // teacher is in charge of scrolling; a note at the screen edge tells them where it went.
+    if (guide.target && guide.target !== guide.scrolledFor) {
+      guide.scrolledFor = guide.target;
+      if (offscreenSide(guide.target.getBoundingClientRect())) {
+        try { guide.target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' }); } catch (e) { /* ignore */ }
+      }
+    }
+
     reportStatus();
     render();
   }
@@ -626,10 +671,11 @@
   function reportStatus() {
     const found = !!guide.target;
     const label = currentLabel();
-    const key = found + '|' + label;
+    const offscreen = found ? offscreenSide(guide.target.getBoundingClientRect()) : null;
+    const key = found + '|' + label + '|' + offscreen;
     if (key === guide.lastStatusKey) return;
     guide.lastStatusKey = key;
-    send({ type: MSG.GUIDE_STATUS, tipId: guide.tipId, stepIndex: guide.stepIndex, found, label });
+    send({ type: MSG.GUIDE_STATUS, tipId: guide.tipId, stepIndex: guide.stepIndex, found, label, offscreen });
   }
 
   // ---------------------------------------------------------------------------
@@ -704,6 +750,10 @@
     if (guide.stepType === 'your_turn') {
       return { small: stepLabel, before: firstSentence(guide.description, 90) || 'Follow these instructions', bold: '', after: '' };
     }
+    if (guide.offscreen) {
+      const down = guide.offscreen === 'below';
+      return { small: stepLabel, before: `Scroll ${down ? 'down' : 'up'} to find `, bold: currentLabel() || 'it', after: down ? ' ↓' : ' ↑' };
+    }
     const label = guide.kind === 'search' ? 'search box' : currentLabel();
     if (guide.kind === 'search') return { small: stepLabel, before: 'Click the ', bold: label, after: '' };
     if (guide.offTrack) return { small: 'Back on track', before: 'Click ', bold: label, after: ' instead' };
@@ -723,6 +773,9 @@
     }
     ensureHost();
 
+    const rect = guide.target.getBoundingClientRect();
+    guide.offscreen = offscreenSide(rect);
+
     const content = coachContent();
     const key = [content.small, content.before, content.bold, content.after].join('|');
     if (ui.coach.dataset.key !== key) {
@@ -736,11 +789,11 @@
     const isContainer = guide.kind === 'panel' || guide.kind === 'dialog';
     ui.ring.classList.toggle('fill', !isContainer);
     ui.ring.classList.toggle('recover', guide.offTrack);
-    ui.ring.hidden = false;
-    ui.cursor.hidden = isContainer;
+    ui.ring.hidden = !!guide.offscreen;
+    ui.cursor.hidden = isContainer || !!guide.offscreen;
     ui.coach.hidden = false;
 
-    position(guide.target.getBoundingClientRect()); // place it now...
+    position(rect); // place it now...
     if (!rafId) rafId = requestAnimationFrame(frame); // ...and keep it glued while things move
   }
 
@@ -749,7 +802,13 @@
     rafId = 0;
     if (!guide || guide.done || !guide.target) return;
     if (!guide.target.isConnected) { hideOverlay(); onMutation(); return; }
-    position(guide.target.getBoundingClientRect());
+    const r = guide.target.getBoundingClientRect();
+    if (offscreenSide(r) !== guide.offscreen) { // scrolled out of / back into view: redraw as the other state
+      lastLayoutKey = '';
+      render();
+      return; // render() schedules the next frame
+    }
+    position(r);
     rafId = requestAnimationFrame(frame);
   }
 
@@ -760,6 +819,21 @@
 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
+
+    if (guide.offscreen) {
+      // Scrolled out of view: no ring or cursor, just the note pinned to the edge the target left by.
+      // (.coach.above has its arrow on the bottom edge, .coach.below on the top edge.)
+      const cw = ui.coach.offsetWidth;
+      const ch = ui.coach.offsetHeight;
+      const m = 8;
+      const x = clamp(r.left - 4, m, vw - cw - m);
+      const below = guide.offscreen === 'below';
+      ui.coach.className = 'coach ' + (below ? 'above' : 'below');
+      ui.coach.style.left = x + 'px';
+      ui.coach.style.top = (below ? vh - ch - m : m) + 'px';
+      ui.coach.style.setProperty('--arrow', clamp(r.left + Math.min(24, r.width / 2) - x - 5, 10, cw - 20) + 'px');
+      return;
+    }
 
     // Ring (kept inside the viewport so a full-height sidebar still shows all four edges).
     const left = clamp(r.left - RING_PAD, 2, vw - 2);

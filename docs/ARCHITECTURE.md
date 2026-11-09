@@ -44,7 +44,7 @@ tips: [{
 Examples: `menu:Format > Conditional formatting`, `menu:View > Freeze > 1 row`, `button:Share`, `panel:Conditional format rules`.
 
 RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), call `rpc/register_teacher`, and call `rpc/tip_ratings` (per-tip helpful/total counts, used for "N teachers found this helpful" and never cached). It cannot read feedback rows or users.
-RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), **insert** into `events` (usage events of a known type), call `rpc/create_teacher_account` and `rpc/sign_in_teacher`, and call `rpc/tip_ratings` (per-tip helpful/total counts, used for "N teachers found this helpful" and never cached), `rpc/okr_tip_completions` (OKR 2 totals) and `rpc/resource_opens` (per-resource open counts). It cannot read feedback, users or events rows.
+RLS: the publishable key can **read** websites/tips/tip_steps, **insert** into feedback (needs `is_helpful` or text), **insert** into `events` (usage events of a known type), call `rpc/create_teacher_account` and `rpc/sign_in_teacher`, and call `rpc/tip_ratings` (per-tip helpful/total counts, used for "N teachers found this helpful" and never cached), `rpc/okr_tip_completions` (OKR 2 totals) and `rpc/resource_opens` (per-resource open counts). It can also **insert** into `error_log` and call `rpc/error_summary`, `rpc/error_trend` and `rpc/error_groups` (error totals and grouped issues). It cannot read feedback, users, events or error_log rows.
 
 ### Sign-in (R2)
 
@@ -52,9 +52,30 @@ Each account is a unique username and a password. No email, and no Supabase Auth
 
 - `rpc/create_teacher_account(p_username, p_password)` → `[{ user_id, username }]`. Usernames are 3–30 letters, numbers, `.`, `-` or `_`, unique ignoring case (unique index on `lower(username)`). A taken username fails with code `23505` (HTTP 409); the panel then shows "… is already taken" and offers to sign in. Passwords need 8+ characters and are stored as bcrypt hashes (`pgcrypto`).
 - `rpc/sign_in_teacher(p_username, p_password)` → `[{ user_id, username }]`, or `[]` when the username or password is wrong.
-- The panel keeps `pt.teacher` (`{ userId, username, gradeLevel }`) and `pt.setupDone`. A saved teacher from the old name + email setup has no `username`, so the panel signs it out on load. `gradeLevel` is the teacher's chosen grade band (or null); it's picked on the "You're set" screen and lives only in the browser.
+- The panel keeps `pt.teacher` (`{ userId, username, gradeLevel, subjects }`) and `pt.setupDone`. A saved teacher from the old name + email setup has no `username`, so the panel signs it out on load. `gradeLevel` is the teacher's chosen grade band (or null); it's picked on the "You're set" screen and lives only in the browser.
 
 "Sign out" removes `pt.teacher` and `pt.setupDone`, clears any running guide, and shows the sign-in form.
+
+### Build a tip with AI
+
+When there is no tip for what a teacher needs, **Build a tip with AI** (offered next to "Submit a tip request") writes one. Code: `src/lib/ai-tip.js` (prompt, parser, tip builder), `src/lib/gemini.js` (the optional one-click call), `src/lib/ai-key.js` (where the key lives), the `ai` view in `sidepanel.js` / `views.js`.
+
+1. **The prompt** describes PrepTip, the teacher's grade and subjects (from their class settings), the site, and what they typed, and asks for a strict JSON tip (`title`, `summary`, `minutes`, `steps`, `caution`). The teacher sees the whole prompt before anything leaves the panel.
+2. **Default path, copy and paste:** copy the prompt, open ChatGPT / Claude / Gemini, paste the reply back. PrepTip makes no network call and holds no key.
+3. **Optional path, a free Gemini key:** the teacher pastes their own key and PrepTip calls Gemini's `generateContent` directly from the panel (`x-goog-api-key` header, never in the URL; falls through to the next model id if one is retired). The key is kept in `chrome.storage.session` unless they tick "remember". It is only ever sent to Google, never to Supabase, and is scrubbed from the error log. Google's free tier may use submitted content to improve its products, which the screen says.
+4. **Both paths** go through `parseAiTip()`: it tolerates code fences and chatter, strips markup and numbering, limits lengths, and needs a title and at least two steps. The result becomes a catalog-shaped tip (`ai: true`, `tip_id: "ai-…"`, every step an instruction, never highlighted) that the normal guide screen can follow, saved in this browser.
+5. **AI tips stay out of the database.** They have no row in `tips`, so they are never rated, never counted in the OKRs, and `dbTipId()` returns `null` for them wherever a `tip_id` would be written (the foreign key would reject it). The only thing recorded is a count: `ai_prompt_copied`, `ai_tip_pasted` or `ai_tip_gemini` in `events` (migration `20261110000000_ai_tip_events.sql`, read back by `ai_tip_summary(days)`); the question, prompt and answer are never stored or sent to Supabase.
+
+The AI view and an AI tip's guide survive tab switches (copy-paste sends the teacher to another tab and back); everything else resets to the tip list when the tab changes.
+
+### Error log
+
+`error_log` ([supabase/migrations/20261109000000_error_log.sql](../supabase/migrations/20261109000000_error_log.sql)) records what goes wrong for teachers, from two sources in one table: `auto` (the extension caught it) and `reported` (a teacher pressed "Report a problem"). Insert-only for the public key, like `events`.
+
+- **What the panel logs automatically** (`problem()` in `sidepanel.js`): the tip list or ratings failing to load (`load`), a feedback / tip-request / resource-request save failing (`network`), an unexpected sign-in or sign-up failure (`account`), the on-page guide being unavailable on a page or a guided step's target not found after 8 s (`guide`, with the tip and step, so the team learns which tips no longer match the real site), and uncaught script errors (`ui`).
+- **What is never sent**: page URLs, page content, or anything a teacher typed other than their own report. `src/lib/errors.js` scrubs URLs, emails, key-like tokens and phone-like numbers from every message, and de-duplicates (60 s) and caps (20 per session) automatic errors. Rows carry the account id, the tip, a supported-site pattern and the extension version.
+- **"Report a problem"** (footer, and "Something wrong with this tip?" on the guide screen) stores a fixed reason plus an optional note. The note is scrubbed and stored, but the functions below never return it: they return only the fixed reason, so the public dashboard can't surface anything a teacher typed. Read notes in the Supabase table editor.
+- **Dashboard**: `error_summary(days)` (totals, teachers affected, app opens in the window), `error_trend(days)` (errors per day, zero days included) and `error_groups(days)` (identical issues grouped, most frequent first). The hub's Error log panel shows them over 7 or 30 days.
 
 ### Usage events & OKRs
 
@@ -78,7 +99,7 @@ The panel filters by `sender.tab.id === activeTabId` and by `tipId`/`stepIndex`.
 
 | type | payload | when |
 |---|---|---|
-| `PT_GUIDE_STATUS` | `{ tipId, stepIndex, found: boolean, label: string \| null }` | After each `PT_GUIDE_SHOW` and whenever "found" changes. `label` = the text of what's highlighted now (e.g. `"Format"` while waiting for the menu to open, then `"Conditional formatting"`). |
+| `PT_GUIDE_STATUS` | `{ tipId, stepIndex, found: boolean, label: string \| null, offscreen: 'above' \| 'below' \| null }` | After each `PT_GUIDE_SHOW` and whenever "found" changes. `label` = the text of what's highlighted now (e.g. `"Format"` while waiting for the menu to open, then `"Conditional formatting"`). |
 | `PT_GUIDE_STEP_DONE` | `{ tipId, stepIndex }` | **guided** steps only: the teacher clicked the final segment of the target path. |
 | `PT_GUIDE_OFFTRACK` | `{ tipId, stepIndex, clicked: 'Data', expected: 'Format' }` | **menu** steps only: the teacher opened a different top-level menu. |
 | `PT_GUIDE_BACK_ON_TRACK` | `{ tipId, stepIndex }` | After an off-track, when the expected item is clicked/opened. |
@@ -105,8 +126,8 @@ The panel filters by `sender.tab.id === activeTabId` and by `tipId`/`stepIndex`.
 
 ## Storage
 
-`chrome.storage.local`: `pt.teacher`, `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
-`chrome.storage.local`: `pt.teacher` (`{ userId, username, gradeLevel }`), `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`.
+`chrome.storage.local`: `pt.teacher` (`{ userId, username, gradeLevel, subjects }`), `pt.setupDone`, `pt.catalog`, `pt.nudgesSeen`, `pt.profiles` (grade and subjects remembered per account on this computer; kept when signing out, so signing back in restores them, and one account never sees another's), `pt.aiTips` (AI-built tips, newest first, max 10) and, only if the teacher ticks "remember", `pt.geminiKey`.
+`chrome.storage.session` also holds `pt.geminiKey` by default (gone when the browser closes). Signing out removes `pt.aiTips` and the key from both.
 `chrome.storage.session`: `pt.redirect.<tabId>` (`{ from, to, at, kind }`, written by background, shown by the panel as "You were redirected here from …"), `pt.guide.<tabId>` (`{ tipId, stepIndex }`, written by the panel so a guide resumes after the panel reopens), `pt.allowedDomains`, and the background-only `pt.lastUrl.<tabId>` (the tab's last committed URL, used as the "from" of client redirects; it lives in storage because the service worker can be killed at any time).
 
 ## declarativeNetRequest rule ids

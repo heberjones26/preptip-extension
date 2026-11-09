@@ -68,3 +68,150 @@ test('SITE_GRADES only references valid grade ids', () => {
     for (const g of grades) assert.ok(isGrade(g), `${pattern} has bad grade ${g}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Subjects
+// ---------------------------------------------------------------------------
+import {
+  SUBJECTS, SITE_SUBJECTS, subjectLabel, isSubject, cleanSubjects, siteSubjects,
+  fitsSubjects, splitByFit, profileLabel, matchBadge
+} from '../src/data/segments.js';
+
+test('SUBJECTS has the picker options, including the ones teachers asked for', () => {
+  const ids = SUBJECTS.map((s) => s.id);
+  for (const id of ['math', 'physics', 'ela', 'languages', 'other']) assert.ok(ids.includes(id), id);
+  assert.equal(new Set(ids).size, ids.length, 'ids are unique');
+  assert.equal(subjectLabel('languages'), 'Spanish & world languages');
+  assert.equal(isSubject('physics'), true);
+  assert.equal(isSubject('underwater-basket-weaving'), false);
+});
+
+test('cleanSubjects keeps known ids once each, in menu order, and survives junk', () => {
+  assert.deepEqual(cleanSubjects(['physics', 'bogus', 'math', 'physics']), ['math', 'physics']);
+  assert.deepEqual(cleanSubjects(undefined), []);
+  assert.deepEqual(cleanSubjects('math'), []);
+  assert.deepEqual(cleanSubjects(null), []);
+});
+
+test('fitsSubjects: no pick or a universal item fits; otherwise one subject must overlap', () => {
+  assert.equal(fitsSubjects(['math'], []), true);
+  assert.equal(fitsSubjects([], ['physics']), true);
+  assert.equal(fitsSubjects(undefined, ['physics']), true);
+  assert.equal(fitsSubjects(['math', 'physics'], ['physics', 'art']), true);
+  assert.equal(fitsSubjects(['math'], ['music']), false);
+});
+
+test('"Something else" answers the question but narrows nothing', () => {
+  assert.equal(fitsSubjects(['math'], ['other']), true);
+  assert.equal(profileLabel({ grade: '', subjects: ['other'] }), '');
+  const items = [{ id: 'a', subjects: ['math'] }];
+  assert.deepEqual(splitByFit(items, { grade: '', subjects: ['other'] }).recommended, []);
+});
+
+test('splitByFit: needs BOTH grade and subject, and puts items that name the subject first', () => {
+  const items = [
+    { id: 'universal-hs', grades: ['high'], subjects: [] },
+    { id: 'physics-hs', grades: ['high'], subjects: ['physics'] },
+    { id: 'physics-k3', grades: ['k3'], subjects: ['physics'] },
+    { id: 'art-hs', grades: ['high'], subjects: ['art'] },
+    { id: 'everything', grades: [], subjects: [] },
+  ];
+  const { recommended, other } = splitByFit(items, { grade: 'high', subjects: ['physics'] });
+  assert.deepEqual(recommended.map((i) => i.id), ['physics-hs', 'universal-hs', 'everything']);
+  assert.deepEqual(other.map((i) => i.id), ['physics-k3', 'art-hs']);
+});
+
+test('splitByFit: subject alone works, and no profile recommends nothing', () => {
+  const items = [{ id: 'm', subjects: ['math'] }, { id: 'a', subjects: ['art'] }];
+  assert.deepEqual(splitByFit(items, { subjects: ['math'] }).recommended.map((i) => i.id), ['m']);
+  assert.equal(splitByFit(items, { grade: '', subjects: [] }).recommended.length, 0);
+  assert.equal(splitByFit(items, undefined).other.length, 2);
+});
+
+test('profileLabel: grade, then subjects, trimmed to two with a +N', () => {
+  assert.equal(profileLabel({ grade: 'high', subjects: [] }), 'High school');
+  assert.equal(profileLabel({ grade: '', subjects: ['physics'] }), 'Physics');
+  assert.equal(profileLabel({ grade: 'high', subjects: ['physics', 'math'] }), 'High school · Math, Physics');
+  assert.equal(profileLabel({ grade: 'high', subjects: ['physics', 'math', 'chemistry'] }), 'High school · Math, Physics +1');
+  assert.equal(profileLabel({}), '');
+});
+
+test('matchBadge: a named subject wins, then a named grade, never for universal items', () => {
+  assert.equal(matchBadge(['high'], ['physics'], { grade: 'high', subjects: ['physics'] }), 'For Physics');
+  assert.equal(matchBadge(['high'], [], { grade: 'high', subjects: ['physics'] }), 'For High school');
+  assert.equal(matchBadge([], [], { grade: 'high', subjects: ['physics'] }), '');
+  assert.equal(matchBadge(['high'], ['math'], { grade: 'middle', subjects: ['physics'] }), '');
+});
+
+test('tagging: every site/resource subject is a real id and a resource names a subject only once', () => {
+  for (const [pattern, subs] of Object.entries(SITE_SUBJECTS)) {
+    for (const s of subs) assert.ok(isSubject(s), `${pattern} has bad subject ${s}`);
+  }
+  assert.deepEqual(siteSubjects('desmos.com'), ['math', 'physics']);
+  assert.deepEqual(siteSubjects('youtube.com'), []);
+  for (const r of RESOURCES) {
+    assert.ok(Array.isArray(r.subjects), `${r.name} needs a subjects array`);
+    for (const s of r.subjects) assert.ok(isSubject(s), `${r.name} has bad subject ${s}`);
+    assert.equal(new Set(r.subjects).size, r.subjects.length, `${r.name} repeats a subject`);
+  }
+});
+
+test('every subject in the picker has something to recommend', () => {
+  for (const s of SUBJECTS.filter((x) => x.id !== 'other')) {
+    const { recommended } = splitByFit(RESOURCES, { subjects: [s.id] });
+    const named = recommended.filter((r) => r.subjects.includes(s.id));
+    assert.ok(named.length >= 1, `no resource names ${s.label}`);
+  }
+});
+
+test('resource names and urls are unique', () => {
+  assert.equal(new Set(RESOURCES.map((r) => r.name)).size, RESOURCES.length);
+  assert.equal(new Set(RESOURCES.map((r) => r.url)).size, RESOURCES.length);
+});
+
+test('splitByFit: among items that name the subject, the most focused one ranks first', () => {
+  const items = [
+    { id: 'broad', subjects: ['ela', 'social', 'science', 'biology', 'chemistry', 'physics'] },
+    { id: 'mid', subjects: ['physics', 'math', 'chemistry'] },
+    { id: 'specific', subjects: ['physics'] },
+    { id: 'universal', subjects: [] },
+  ];
+  const { recommended } = splitByFit(items, { subjects: ['physics'] });
+  assert.deepEqual(recommended.map((i) => i.id), ['specific', 'mid', 'broad', 'universal']);
+});
+
+test('real data: a physics teacher sees physics-specific resources before broad ones', () => {
+  const { recommended } = splitByFit(RESOURCES, { grade: 'high', subjects: ['physics'] });
+  const names = recommended.map((r) => r.name);
+  assert.ok(names.indexOf('The Physics Classroom') < names.indexOf('Newsela'));
+  assert.ok(names.indexOf('The Physics Classroom') < names.indexOf('PBS LearningMedia'));
+  assert.ok(names.indexOf('GeoGebra') < names.indexOf('OpenStax'));
+});
+
+// ---------------------------------------------------------------------------
+// Class settings remembered per account on this computer
+// ---------------------------------------------------------------------------
+import { rememberProfile, recallProfile } from '../src/data/segments.js';
+
+test('class settings are remembered per account and come back after signing in again', () => {
+  let profiles = rememberProfile({}, 7, { gradeLevel: 'high', subjects: ['physics', 'math'] });
+  assert.deepEqual(recallProfile(profiles, 7), { gradeLevel: 'high', subjects: ['math', 'physics'] });
+  profiles = rememberProfile(profiles, 8, { gradeLevel: 'k3', subjects: [] });
+  assert.deepEqual(recallProfile(profiles, 8), { gradeLevel: 'k3', subjects: [] });
+  assert.deepEqual(recallProfile(profiles, 7).subjects, ['math', 'physics'], 'another account does not overwrite it');
+  assert.deepEqual(recallProfile(profiles, 99), { gradeLevel: null, subjects: [] }, 'someone new starts empty');
+});
+
+test('remembering never changes its input and shrugs off junk', () => {
+  const before = { 7: { gradeLevel: 'high', subjects: ['math'] } };
+  const frozen = JSON.stringify(before);
+  const after = rememberProfile(before, 7, { gradeLevel: 'college', subjects: ['art'] });
+  assert.equal(JSON.stringify(before), frozen);
+  assert.equal(after[7].gradeLevel, 'college');
+  assert.deepEqual(rememberProfile(undefined, 1, { gradeLevel: 'nope', subjects: ['nope', 'math'] })[1], { gradeLevel: null, subjects: ['math'] });
+  assert.deepEqual(rememberProfile('junk', 1, {}), { 1: { gradeLevel: null, subjects: [] } });
+  assert.deepEqual(rememberProfile({ a: 1 }, null, { gradeLevel: 'high' }), { a: 1 });
+  assert.deepEqual(recallProfile({ 3: 'garbage' }, 3), { gradeLevel: null, subjects: [] });
+  assert.deepEqual(recallProfile(null, 3), { gradeLevel: null, subjects: [] });
+  assert.deepEqual(recallProfile({ 3: { gradeLevel: 'bogus', subjects: 'math' } }, 3), { gradeLevel: null, subjects: [] });
+});

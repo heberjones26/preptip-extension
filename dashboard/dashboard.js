@@ -312,13 +312,189 @@ async function renderResourcePopularity() {
   }
 }
 
+// --- Error log (rpc/error_summary, error_trend, error_groups; needs the error_log migration) ----
+let errDays = 7;
+
+const ERR_CATEGORY = {
+  load: 'Tips wouldn’t load',
+  network: 'Saves that failed',
+  guide: 'Guided steps',
+  ui: 'Panel crashes',
+  account: 'Sign-in',
+  other: 'Other',
+};
+
+// "2h ago", "3d ago" — enough to see whether an issue is still happening.
+function ago(iso) {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (!Number.isFinite(mins)) return '—';
+  if (mins < 60) return `${Math.max(1, mins)}m ago`;
+  if (mins < 60 * 48) return `${Math.round(mins / 60)}h ago`;
+  return `${Math.round(mins / 1440)}d ago`;
+}
+
+// Deterministic demo numbers so ?demo=1 always looks the same.
+function demoErrorData(days) {
+  const trend = Array.from({ length: days }, (_, i) => {
+    const day = new Date(Date.now() - (days - 1 - i) * 86400000).toISOString().slice(0, 10);
+    return { day, n: [1, 0, 3, 4, 2, 6, 7, 2, 0, 5][i % 10] };
+  });
+  const h = (n) => new Date(Date.now() - n * 3600000).toISOString();
+  return {
+    summary: { total: days === 7 ? 23 : 71, auto: days === 7 ? 17 : 52, reported: days === 7 ? 6 : 19, teachers: days === 7 ? 9 : 18, opens: days === 7 ? 212 : 640 },
+    trend,
+    groups: [
+      { source: 'auto', category: 'guide', context: 'target-not-found step 2', detail: 'Couldn’t find “Format > Conditional formatting” (menu) on the page', tip_title: 'Color-code grades automatically', site_name: 'Google Sheets', n: 8, teachers: 5, last_seen: h(2) },
+      { source: 'auto', category: 'load', context: 'catalog', detail: 'Failed to fetch', tip_title: null, site_name: null, n: 5, teachers: 3, last_seen: h(20) },
+      { source: 'reported', category: 'guide', context: 'teacher-report', detail: 'The steps didn’t match my screen', tip_title: 'Average a row of scores', site_name: 'Google Sheets', n: 4, teachers: 4, last_seen: h(7) },
+      { source: 'auto', category: 'network', context: 'feedback', detail: 'Supabase POST feedback failed (503)', tip_title: 'Keep the header row visible', site_name: 'Google Sheets', n: 2, teachers: 2, last_seen: h(51) },
+      { source: 'reported', category: 'guide', context: 'teacher-report', detail: 'The highlight was in the wrong place', tip_title: 'Share view-only with co-teachers', site_name: 'Google Sheets', n: 2, teachers: 2, last_seen: h(30) },
+      { source: 'auto', category: 'ui', context: 'script-error', detail: 'Cannot read properties of undefined', tip_title: null, site_name: null, n: 1, teachers: 1, last_seen: h(90) },
+    ],
+  };
+}
+
+function trendChart(trend) {
+  const counts = trend.map((d) => Number(d.n) || 0);
+  const max = Math.max(1, ...counts);
+  const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const cols = trend.map((d, i) => `
+    <span class="tcol" title="${esc(fmt(d.day))}: ${counts[i]} error${counts[i] === 1 ? '' : 's'}">
+      <i class="${counts[i] ? '' : 'zero'}" style="height:${counts[i] ? Math.max(6, Math.round((counts[i] / max) * 100)) : 3}%"></i>
+    </span>`).join('');
+  const label = `Errors per day, ${trend.length} days: ${counts.join(', ')}`;
+  return `
+    <div class="trend" role="img" aria-label="${esc(label)}" style="grid-template-columns:repeat(${trend.length}, 1fr)">${cols}</div>
+    <div class="trend-axis" aria-hidden="true"><span>${esc(fmt(trend[0].day))}</span><span>peak ${max}/day</span><span>${esc(fmt(trend[trend.length - 1].day))}</span></div>`;
+}
+
+function categoryBars(groups) {
+  const totals = {};
+  for (const g of groups) totals[g.category] = (totals[g.category] || 0) + Number(g.n);
+  const rows = Object.entries(totals).sort((a, b) => b[1] - a[1]);
+  if (!rows.length) return '';
+  const max = rows[0][1];
+  return `<ul class="pop-list">${rows.map(([cat, n]) => `
+    <li><span class="pop-name">${esc(ERR_CATEGORY[cat] || cat)}</span>
+    <span class="pop-bar" aria-hidden="true"><i style="width:${Math.round((n / max) * 100)}%"></i></span>
+    <span class="pop-n">${n}</span></li>`).join('')}</ul>`;
+}
+
+function issuesTable(groups, days) {
+  const rows = groups.slice(0, 10).map((g) => {
+    const where = [g.tip_title, g.site_name].filter(Boolean).join(' · ') || (g.context || '—');
+    const text = String(g.detail || '').slice(0, 140);
+    return `
+      <tr>
+        <td><span class="badge ${g.source === 'reported' ? 'rep' : 'wait'}">${g.source === 'reported' ? 'Reported' : 'Auto'}</span>
+            <span class="issue-text">${esc(text)}</span>
+            <span class="issue-cat">${esc(ERR_CATEGORY[g.category] || g.category)}${g.context && g.context !== 'teacher-report' ? ` · ${esc(g.context)}` : ''}</span></td>
+        <td>${esc(where)}</td>
+        <td class="num">${Number(g.n)}</td>
+        <td class="num">${Number(g.teachers)}</td>
+        <td class="nowrap">${esc(ago(g.last_seen))}</td>
+      </tr>`;
+  }).join('');
+  return `
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Most frequent problems (scrolls sideways on small screens)">
+      <table class="err-table">
+        <caption class="sr-only">Most frequent problems in the last ${days} days</caption>
+        <thead><tr><th scope="col">Issue</th><th scope="col">Where</th><th scope="col" class="num">Times</th><th scope="col" class="num">Teachers</th><th scope="col">Last seen</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <p class="muted-note small">What teachers typed in their reports isn’t shown here; it’s in the Supabase <code>error_log</code> table.</p>`;
+}
+
+function paintErrorLog(summary, trend, groups, days) {
+  const total = Number(summary?.total) || 0;
+  const auto = Number(summary?.auto) || 0;
+  const opens = Number(summary?.opens) || 0;
+  const per100 = opens > 0 ? (auto / opens) * 100 : null;
+  const tiles = [
+    { label: 'Errors', value: total, sub: `${auto} automatic` },
+    { label: 'Per 100 app opens', value: per100 == null ? '—' : per100.toFixed(1), sub: per100 == null ? 'no opens tracked yet' : `${opens} opens` },
+    { label: 'Teachers affected', value: Number(summary?.teachers) || 0, sub: 'with at least one error' },
+    { label: 'Reported by teachers', value: Number(summary?.reported) || 0, sub: 'via “Report a problem”' },
+  ].map((t) => `
+    <div class="mini"><p class="kpi-label">${esc(t.label)}</p><p class="mini-val">${esc(String(t.value))}</p><p class="kpi-sub">${esc(t.sub)}</p></div>`).join('');
+
+  if (!total) {
+    return setPanel('errlog', `<div class="mini-row">${tiles}</div><p class="muted-note">No errors recorded in the last ${days} days.</p>`);
+  }
+  setPanel('errlog', `
+    <div class="mini-row">${tiles}</div>
+    <div class="err-cols">
+      <div><h3 class="perf-h">Errors per day</h3>${trend.length ? trendChart(trend) : ''}</div>
+      <div><h3 class="perf-h">What kind</h3>${categoryBars(groups)}</div>
+    </div>
+    <h3 class="perf-h issues-h">Most frequent issues</h3>
+    ${issuesTable(groups, days)}`);
+}
+
+async function renderErrorLog() {
+  const days = errDays;
+  try {
+    let summary, trend, groups;
+    if (DEMO) {
+      ({ summary, trend, groups } = demoErrorData(days));
+    } else {
+      const [s, t, g] = await Promise.all([
+        rpc(`error_summary?p_days=${days}`), rpc(`error_trend?p_days=${days}`), rpc(`error_groups?p_days=${days}`),
+      ]);
+      summary = Array.isArray(s) ? s[0] : s;
+      trend = t || [];
+      groups = g || [];
+    }
+    if (days !== errDays) return; // the window changed while this was loading
+    paintErrorLog(summary, trend, groups, days);
+  } catch (err) {
+    console.warn('error log not available yet', err);
+    setPanel('errlog', `<p class="muted-note">Lives once the error_log migration is applied.</p>`);
+  }
+}
+
+document.getElementById('errlog-days')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-days]');
+  if (!btn) return;
+  errDays = Number(btn.dataset.days);
+  for (const b of document.querySelectorAll('#errlog-days [data-days]')) {
+    const on = b === btn;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+  }
+  renderErrorLog();
+});
+
+// --- AI tip builder usage (rpc/ai_tip_summary; needs the ai_tip_events migration) --------------
+async function renderAiBuilder() {
+  try {
+    let row;
+    if (DEMO) row = { prompts_copied: 41, built_from_paste: 27, built_with_gemini: 9, teachers: 14 };
+    else { const rows = await rpc('ai_tip_summary?p_days=30'); row = Array.isArray(rows) ? rows[0] : rows; }
+    const n = (v) => Number(v) || 0;
+    const tiles = [
+      { label: 'Prompts copied', value: n(row?.prompts_copied), sub: 'to ChatGPT, Claude or Gemini' },
+      { label: 'Tips from pasted answers', value: n(row?.built_from_paste), sub: 'copy and paste path' },
+      { label: 'Tips from Gemini', value: n(row?.built_with_gemini), sub: 'with the teacher’s own key' },
+      { label: 'Teachers using it', value: n(row?.teachers), sub: 'at least once' },
+    ].map((t) => `
+      <div class="mini"><p class="kpi-label">${esc(t.label)}</p><p class="mini-val">${t.value}</p><p class="kpi-sub">${esc(t.sub)}</p></div>`).join('');
+    const none = !n(row?.prompts_copied) && !n(row?.built_from_paste) && !n(row?.built_with_gemini);
+    setPanel('aibuilder', `<div class="mini-row">${tiles}</div>${none ? '<p class="muted-note">No AI tips built yet.</p>' : ''}`);
+  } catch (err) {
+    console.warn('ai builder stats not available yet', err);
+    setPanel('aibuilder', `<p class="muted-note">Lives once the ai_tip_events migration is applied.</p>`);
+  }
+}
+
 // --- Orchestration ---------------------------------------------------------------------------
 async function load() {
   const updated = document.getElementById('updated');
   if (updated) updated.textContent = '';
   const [counts] = await Promise.all([
     fetchCounts(),
-    Promise.allSettled([renderKr1(), renderKr2(), renderKr3(), renderKr4(), renderTipPerf(), renderResourcePopularity()]),
+    Promise.allSettled([renderKr1(), renderKr2(), renderKr3(), renderKr4(), renderTipPerf(), renderResourcePopularity(), renderErrorLog(), renderAiBuilder()]),
   ]);
   renderHero();
   renderKpis(counts);

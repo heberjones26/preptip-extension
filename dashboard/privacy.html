@@ -42,7 +42,7 @@
 
   <main id="main" class="wrap policy">
     <h1>Privacy Policy</h1>
-    <p class="effective">Effective November 5, 2026</p>
+    <p class="effective">Effective November 8, 2026</p>
 
     <p>PrepTip is a Chrome extension that shows teachers short tips and guided walkthroughs for the web
       tools they already use, and blocks redirects to flagged websites. This policy explains what PrepTip
@@ -59,14 +59,23 @@
         <li><strong>Usage events.</strong> When you open PrepTip, open or finish a tip, or open a teacher
           resource, we record the event type, your account ID, the tip ID, the tool the tip belongs to
           (for example <em>Google Sheets</em>), a random session ID, and the time.</li>
+      <li><strong>Error reports.</strong> When PrepTip runs into a problem (for example a tip list that
+        won&rsquo;t load, a save that fails, or a step it can&rsquo;t find on the page) it records the kind
+        of problem, a short message with web addresses, email addresses and key-like text removed, the tip
+        and tool involved, your account ID, the extension version and the time. If you choose
+        <em>Report a problem</em>, we also store the reason you pick and any note you type, so please keep
+        student names and other personal details out of it.</li>
+      <li><strong>How often you use the AI tip builder.</strong> We count when you copy a prompt or build a
+        tip with AI (event type, account ID and time). We never receive your question, the prompt or the
+        AI&rsquo;s answer.</li>
       </ul>
     </div>
 
     <h2>What stays on your computer</h2>
     <p>PrepTip reads the address of the page you are on so it can match it to a known tool and show the
-      right tips. That address is checked inside your browser and is not sent to us. The list of flagged
+      right tips. That address is checked inside your browser and is not sent to us. The one exception is when you submit a tip request from a site we don&rsquo;t support yet: we include that site&rsquo;s name so we know what to build. The list of flagged
       websites ships inside the extension, so redirect blocking also happens entirely on your computer.
-      Your sign-in, settings and a cached copy of the tip catalog are kept in Chrome's extension storage.</p>
+      Your sign-in, the grade and subjects you pick, the tips you build with AI, and a cached copy of the tip catalog are kept in Chrome&rsquo;s extension storage on your computer. Your grade and subjects are used only on your computer to choose which sites and resources to suggest; they are not sent to us. They are remembered on this computer for your account, so they are still there when you sign back in.</p>
     <p>We do not record your browsing history, the contents of the pages you visit, your keystrokes, or
       your location.</p>
 
@@ -76,19 +85,37 @@
       <li>To show which tips teachers find most helpful and decide which tips to write next.</li>
       <li>To measure, in aggregate, whether PrepTip is helping teachers (for example, how many tips are
         completed).</li>
+    <li>To find and fix problems, using the error reports described above.</li>
     </ul>
     <p>We use this data only to run and improve PrepTip. We do not sell it, share it with advertisers,
       use it for advertising, or use it to determine creditworthiness or for lending.</p>
 
-    <h2>Where it is stored</h2>
+    <h2>The AI tip builder</h2>
+  <p>If we don&rsquo;t have a tip for what you need, PrepTip can help you write one with an AI assistant.
+    There are two ways to do it, and you choose.</p>
+  <ul>
+    <li><strong>Copy and paste (the default).</strong> PrepTip shows you a prompt made from your grade and
+      subjects, the site, and what you typed. If you copy it into ChatGPT, Claude or Gemini yourself, that
+      service&rsquo;s own privacy policy applies to what you paste there. PrepTip sends nothing in this
+      case.</li>
+    <li><strong>Your own Gemini key (optional).</strong> If you paste a free Gemini API key, PrepTip sends
+      that same prompt directly from your browser to Google, using your key. Your key is kept in your
+      browser only, is forgotten when you close it unless you choose to remember it, and is never sent to
+      us. Google&rsquo;s free tier may use content you send to improve its products, so please don&rsquo;t
+      include student names or other personal details.</li>
+  </ul>
+  <p>Tips built this way are saved on your computer only and are marked as AI-generated, because their
+    steps are not checked against the real site. Signing out removes them and your key.</p>
+
+  <h2>Where it is stored</h2>
     <p>Account details, feedback and usage events are stored in a database hosted by
       <a href="https://supabase.com/privacy">Supabase</a>, which acts only as our service provider.
       Database security rules let the extension read tips and add feedback, but not read anyone's
-      feedback, events or account details.</p>
+      feedback, events, error reports or account details.</p>
 
     <h2>Keeping and deleting your data</h2>
     <p>We keep your data while your account exists. Signing out of PrepTip removes your sign-in from
-      your browser, and removing the extension clears everything it stored there. To have your account, feedback and usage events deleted
+      your browser, and removing the extension clears everything it stored there. To have your account, feedback, usage events and error reports deleted
       from our database, open an issue on our
       <a href="https://github.com/heberjones26/preptip-extension/issues">GitHub project</a> with your
       username and we will remove them.</p>

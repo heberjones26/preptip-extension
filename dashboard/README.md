@@ -16,8 +16,21 @@ which a fixed-width Chrome side panel can't be.
 | B — Teachers use the app consistently | Days the app is opened (target 3 of 5) | `rpc/okr_app_usage` *(Objective-B work)* |
 | B | Opens that lead to a tip | `rpc/okr_tip_engagement` *(Objective-B work)* |
 
-Cards degrade gracefully: a Key Result whose function isn't live yet shows **"Awaiting data"** instead
-of erroring. OKR 1 works today; the rest light up as their functions are applied.
+Beyond the four Key Results the hub also shows:
+
+| Panel | What it answers | Source |
+|---|---|---|
+| Error log | What breaks for teachers: errors, per 100 opens, teachers affected, a per-day chart, the most frequent issues and which tip they happened on (7 or 30 days) | `rpc/error_summary`, `error_trend`, `error_groups` (needs the `error_log` migration) |
+| Which tips are landing | Most and least helpful tips by thumbs-up rate | `rpc/tip_ratings` |
+| Most-opened resources | Which Common Teacher Resources get clicked | `rpc/resource_opens` |
+| AI tip builder | How often teachers build a tip with AI (counts only) | `rpc/ai_tip_summary` (needs the `ai_tip_events` migration) |
+
+A "How each number is measured" section at the bottom defines every figure. What teachers type in a
+"Report a problem" note is never shown here (it stays in the Supabase table).
+
+Cards degrade gracefully: a panel whose function isn't live yet shows **"Awaiting data"** or "Lives once
+the … migration is applied" instead of erroring. OKR 1 works with no migrations; the rest light up as
+their functions are applied.
 
 ## Run it locally
 

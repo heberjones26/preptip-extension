@@ -3,13 +3,18 @@
 import { MSG, STORAGE } from '../lib/protocol.js';
 import {
   getCatalog, getTipRatings, submitFeedback, requestTip,
-  createAccount, signIn, requestResource, logEvent
+  createAccount, signIn, requestResource, logEvent, logError, submitErrorReport
 } from '../lib/supabase.js';
-import { matchSite, tipsForSite } from '../lib/sites.js';
+import { createErrorReporter, REPORT_REASONS, reportMessage } from '../lib/errors.js';
+import { matchSite, tipsForSite, parseTarget } from '../lib/sites.js';
 import * as views from './views.js';
 import * as bridge from './guide-bridge.js';
 import { createPanelEngagement } from './engagement-tracking.js';
 import { hostOf, isWebUrl } from './text.js';
+import { cleanSubjects, rememberProfile, recallProfile } from '../data/segments.js';
+import { promptFor, parseAiTip, toTip, cleanSavedTips, cleanQuestion, dbTipId } from '../lib/ai-tip.js';
+import { generateWithGemini, isUserFixable } from '../lib/gemini.js';
+import { createKeyStore } from '../lib/ai-key.js';
 import { sharePrepTip } from '../lib/share.js';
 
 // ---------------------------------------------------------------------------
@@ -18,7 +23,7 @@ import { sharePrepTip } from '../lib/share.js';
 const state = {
   view: 'loading',          // 'setup' | 'loading' | 'error' | 'tips' | 'guide' | 'feedback' | 'resources' | 'sites'
   setupDone: false,
-  teacher: null,            // { userId, username, gradeLevel }
+  teacher: null,            // { userId, username, gradeLevel, subjects }
   resourceGradeOnly: true,  // Teacher Resources view: show only my-grade matches (vs. all)
   resourceCategory: '',     // Teacher Resources view: category filter ('' = all)
   setup: newSetup(),
@@ -33,11 +38,17 @@ const state = {
   sharePhase: 'idle',
   request: newRequest(),
   guide: null,              // { tip, stepIndex, tabId, live, canHighlight, status, offtrack }
-  feedback: null            // { tip, isHelpful, reasons, text, phase, error }
+  feedback: null,           // { tip, isHelpful, reasons, text, phase, error }
+  report: newReport(),      // the "Report a problem" form
+  ai: newAi(),              // the "Build a tip with AI" screen
+  aiTips: [],               // AI-built tips saved in this browser (newest first)
+  profiles: {},             // class settings remembered per account on this computer (see segments.js)
+  aiKey: { has: false, remembered: false } // whether a Gemini key is saved (the key itself is never kept in state)
 };
 
-// Setup screens: 0 welcome, 1 pin, 2 username + password, 3 done (+ grade pick).
-function newSetup({ step = 0, mode = 'signup', grade = '' } = {}) {
+// Setup screens: 0 welcome, 1 pin, 2 username + password, 3 done (+ grade and subject pick).
+// `editing` = reopened later from the footer to change grade/subjects (not first-run).
+function newSetup({ step = 0, mode = 'signup', grade = '', subjects = [], editing = false } = {}) {
   return {
     step,
     mode,                   // 'signup' (create an account) | 'signin'
@@ -46,6 +57,8 @@ function newSetup({ step = 0, mode = 'signup', grade = '' } = {}) {
     confirm: '',            // signup only: the password typed again
     notice: null,           // 'taken' when signup picks a username that already exists
     grade,                  // chosen grade band ('' = all grades / not set)
+    subjects: cleanSubjects(subjects), // chosen subject ids (any number)
+    editing,
     saving: false,
     error: ''
   };
@@ -55,7 +68,34 @@ function newRequest() {
   return { open: false, text: '', saving: false, sent: false, error: '' };
 }
 
+// The "Build a tip with AI" screen. `returnTo` is the view to go back to.
+function newAi({ question = '', site = '', returnTo = 'tips' } = {}) {
+  return {
+    question, site, reply: '', tip: null, finished: null,
+    pasteError: '', geminiError: '', copied: false, copyFailed: false,
+    building: false, key: '', remember: false, keyOpen: false, returnTo
+  };
+}
+
+// The "Report a problem" form. `tip` is the tip being followed when it was opened (if any);
+// `returnTo` is the view to go back to.
+function newReport({ tip = null, returnTo = 'tips' } = {}) {
+  return { reason: '', text: '', saving: false, sent: false, error: '', tip, returnTo };
+}
+
 const $ = (sel) => document.querySelector(sel);
+
+// ---------------------------------------------------------------------------
+// Error log: what goes wrong for teachers (src/lib/errors.js + the error_log migration)
+// ---------------------------------------------------------------------------
+const extensionVersion = (() => { try { return chrome.runtime.getManifest().version; } catch { return ''; } })();
+const reportError = createErrorReporter({ send: logError, version: extensionVersion });
+
+// An automatic report, with the signed-in teacher filled in. Scrubbed, de-duplicated and capped
+// inside the reporter; never throws.
+function problem(category, context, err, extra = {}) {
+  reportError({ source: 'auto', category, context, message: err?.message ?? err, userId: state.teacher?.userId ?? null, ...extra });
+}
 
 // ---------------------------------------------------------------------------
 // Rendering
@@ -76,6 +116,8 @@ function mainHtml() {
     case 'guide': return views.guideView(state);
     case 'feedback': return views.feedbackView(state);
     case 'resources': return views.resourcesView(state);
+    case 'report': return views.reportView(state);
+    case 'ai': return views.aiView(state);
     case 'sites': return views.sitesView(state);
     default: {
       const ctx = tipsContext();
@@ -117,8 +159,11 @@ async function init() {
   wireDomEvents();
   wireChromeEvents();
 
-  const local = await chrome.storage.local.get([STORAGE.TEACHER, STORAGE.SETUP_DONE]);
+  const local = await chrome.storage.local.get([STORAGE.TEACHER, STORAGE.SETUP_DONE, STORAGE.AI_TIPS, STORAGE.PROFILES]);
+  state.profiles = local[STORAGE.PROFILES] && typeof local[STORAGE.PROFILES] === 'object' ? local[STORAGE.PROFILES] : {};
   state.teacher = local[STORAGE.TEACHER] || null;
+  state.aiTips = cleanSavedTips(local[STORAGE.AI_TIPS]);
+  loadAiKey();
   state.setupDone = local[STORAGE.SETUP_DONE] === true;
   // Accounts from before usernames (name + email) no longer exist in the database.
   if (state.teacher && !state.teacher.username) {
@@ -140,6 +185,7 @@ async function loadCatalog({ force = false } = {}) {
     state.catalog = await getCatalog({ force });
   } catch (err) {
     console.warn('PrepTip: could not load tips', err);
+    problem('load', 'catalog', err);
     state.catalog = null;
   }
   await ratings;
@@ -170,6 +216,7 @@ async function loadRatings() {
     if (state.view === 'tips') render();
   } catch (err) {
     console.warn('PrepTip: could not load helpful counts', err);
+    problem('load', 'ratings', err);
   }
 }
 
@@ -220,6 +267,10 @@ async function onActiveTab(tab) {
   updateSite();
 
   if (!state.catalog || ['setup', 'loading', 'error'].includes(state.view)) return render();
+
+  // The AI tip builder sends teachers to another tab (ChatGPT, Claude, Gemini) and back, and an AI tip's
+  // steps are followed on the teacher's own page, so a tab switch must not reset either of them.
+  if (state.view === 'ai' || (state.view === 'guide' && state.guide?.tip.ai)) return render();
 
   if (!sameTab) {
     // Leave the old tab clean. Its saved guide stays in session storage so it resumes later.
@@ -310,6 +361,7 @@ async function sendCurrentStep() {
   if (state.guide !== g || token !== sendToken) return; // something changed while we waited
   if (g.canHighlight !== ok) {
     g.canHighlight = ok;
+    if (!ok) problem('guide', 'highlight-unavailable', 'Could not show the on-page guide', { tipId: g.tip.tip_id, urlPattern: g.tip.url_pattern });
     if (state.view === 'guide') render();
   }
 }
@@ -332,6 +384,17 @@ function completeStep() {
 
 function finishGuide() {
   const g = state.guide;
+  if (g.tip.ai) { // AI tips only exist in this browser: nothing to rate or count
+    bridge.clearGuide(g.tabId);
+    forgetGuide(g.tabId);
+    state.guide = null;
+    state.ai.tip = g.tip;
+    state.ai.finished = g.tip.title;
+    state.view = 'ai';
+    render();
+    window.scrollTo(0, 0);
+    return;
+  }
   // OKR 2 numerator: a tip was followed through 100% of its steps.
   logEvent({ type: 'tip_complete', userId: state.teacher?.userId, tipId: g.tip.tip_id, urlPattern: g.tip.url_pattern });
   bridge.clearGuide(g.tabId);
@@ -351,8 +414,27 @@ async function exitGuide() {
     forgetGuide(g.tabId);
   }
   state.guide = null;
-  state.view = 'tips';
+  state.view = g?.tip.ai ? 'ai' : 'tips';
   render();
+}
+
+// If a guided step's target still can't be found after a while, the tip's steps probably no longer
+// match the real page. That's exactly what the team needs to know, so log it once per tip + step.
+const MISSING_TARGET_MS = 8000;
+let missingTimer = 0;
+function watchForMissingTarget(g) {
+  clearTimeout(missingTimer);
+  const step = g.tip.tip_steps[g.stepIndex];
+  if (g.status.found || step?.step_type !== 'guided' || g.offtrack) return;
+  const { tip, stepIndex } = g;
+  missingTimer = setTimeout(() => {
+    const now = state.guide;
+    if (state.view !== 'guide' || !now || now.tip !== tip || now.stepIndex !== stepIndex || now.status?.found) return;
+    const { kind, path } = parseTarget(step.target_element); // "menu:Format > Conditional formatting"
+    problem('guide', `target-not-found step ${stepIndex + 1}`,
+      `Couldn’t find “${path.join(' > ') || step.target_element}”${kind ? ` (${kind})` : ''} on the page`,
+      { tipId: tip.tip_id, urlPattern: tip.url_pattern });
+  }, MISSING_TARGET_MS);
 }
 
 // Messages from guide.js in the page we're guiding.
@@ -363,8 +445,9 @@ function onGuideMessage(msg, sender) {
 
   switch (msg.type) {
     case MSG.GUIDE_STATUS:
-      g.status = { found: !!msg.found, label: msg.label || null };
+      g.status = { found: !!msg.found, label: msg.label || null, offscreen: msg.offscreen || null };
       g.canHighlight = true;
+      watchForMissingTarget(g);
       break;
     case MSG.GUIDE_STEP_DONE:
       return completeStep();
@@ -397,7 +480,11 @@ async function signOut() {
   resetListState();
   state.teacher = null;
   state.setupDone = false;
-  await chrome.storage.local.remove([STORAGE.TEACHER, STORAGE.SETUP_DONE]);
+  await chrome.storage.local.remove([STORAGE.TEACHER, STORAGE.SETUP_DONE, STORAGE.AI_TIPS]);
+  await keyStore().clear(); // the Gemini key and AI tips belong to this teacher, not the next person on this computer
+  state.aiTips = [];
+  state.aiKey = { has: false, remembered: false };
+  state.ai = newAi();
   state.setup = newSetup({ step: 2, mode: 'signin' });
   state.view = 'setup';
   render();
@@ -453,8 +540,16 @@ async function submitAccount(form) {
     if (!account) {
       s.error = 'That username and password don’t match. Check them and try again.';
     } else {
-      // Grade is picked on the "You're set" screen next, so it starts null and set-grade persists it.
-      state.teacher = { ...account, gradeLevel: s.grade || null };
+      // Grade and subjects are picked on the "You're set" screen next; set-grade / toggle-subject persist them.
+      // Whatever was picked on this computer last time this account signed in comes back with it.
+      const saved = recallProfile(state.profiles, account.userId);
+      state.teacher = {
+        ...account,
+        gradeLevel: s.grade || saved.gradeLevel,
+        subjects: cleanSubjects(s.subjects).length ? cleanSubjects(s.subjects) : saved.subjects
+      };
+      s.grade = state.teacher.gradeLevel || '';       // so the pickers on the next screen show them
+      s.subjects = state.teacher.subjects;
       state.setupDone = true;
       await chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher, [STORAGE.SETUP_DONE]: true });
       recordUsage();
@@ -464,8 +559,12 @@ async function submitAccount(form) {
     }
   } catch (err) {
     console.warn('PrepTip: account request failed', err);
-    if (err.code === '23505') s.notice = 'taken'; // one account per username
-    else s.error = offlineOr('We couldn’t reach PrepTip right now. Please try again in a moment.');
+    if (err.code === '23505') {
+      s.notice = 'taken'; // one account per username
+    } else {
+      problem('account', s.mode, err); // an unexpected failure, not a typo or a taken name
+      s.error = offlineOr('We couldn’t reach PrepTip right now. Please try again in a moment.');
+    }
   }
   s.saving = false;
   render();
@@ -502,6 +601,7 @@ async function sendRequest(text) {
     r.open = false;
   } catch (err) {
     console.warn('PrepTip: request failed', err);
+    problem('network', 'tip-request', err);
     r.error = 'We couldn’t send that. Check your connection and try again.';
   }
   r.saving = false;
@@ -524,6 +624,136 @@ async function sendResourceRequest(text) {
     r.open = false;
   } catch (err) {
     console.warn('PrepTip: resource request failed', err);
+    problem('network', 'resource-request', err);
+    r.error = 'We couldn’t send that. Check your connection and try again.';
+  }
+  r.saving = false;
+  render();
+}
+
+// ---------------------------------------------------------------------------
+// Build a tip with AI (src/lib/ai-tip.js, src/lib/gemini.js, src/lib/ai-key.js)
+// ---------------------------------------------------------------------------
+const keyStore = () => createKeyStore({ local: chrome.storage.local, session: chrome.storage.session });
+
+// Pre-fill the website box from where the teacher is; they can change or clear it.
+function aiSiteGuess() {
+  const site = state.browseSite || state.site;
+  if (site) return site.name;
+  return isWebUrl(state.tab?.url) ? hostOf(state.tab.url) : '';
+}
+
+async function loadAiKey() {
+  const { key, remembered } = await keyStore().get();
+  state.aiKey = { has: !!key, remembered };
+  return key;
+}
+
+async function saveAiTips() {
+  state.aiTips = state.aiTips.slice(0, 10);
+  try { await chrome.storage.local.set({ [STORAGE.AI_TIPS]: state.aiTips }); } catch { /* it still works this session */ }
+}
+
+// Keep the grade and subjects with the account on this computer, not just in the signed-in session,
+// so they're still there after signing out and back in.
+function saveClassSettings() {
+  state.profiles = rememberProfile(state.profiles, state.teacher.userId, {
+    gradeLevel: state.teacher.gradeLevel, subjects: state.teacher.subjects
+  });
+  chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher, [STORAGE.PROFILES]: state.profiles }).catch(() => {});
+}
+
+// A tip was built: show it, keep it, count it (a count only — never the question or the answer).
+async function aiTipReady(parsed, method) {
+  const tip = toTip(parsed, { siteName: state.ai.site });
+  state.ai.tip = tip;
+  state.ai.finished = null;
+  state.ai.pasteError = '';
+  state.ai.geminiError = '';
+  state.aiTips = [tip, ...state.aiTips];
+  await saveAiTips();
+  logEvent({ type: method === 'gemini' ? 'ai_tip_gemini' : 'ai_tip_pasted', userId: state.teacher?.userId });
+}
+
+async function aiCopy() {
+  const text = promptFor(state.ai, state.teacher);
+  let ok = false;
+  try { await navigator.clipboard.writeText(text); ok = true; } catch { /* fall back to selecting the text */ }
+  if (!ok) {
+    const box = $('#ai-prompt');
+    if (box) { try { box.focus(); box.select(); ok = document.execCommand('copy'); } catch { /* ignore */ } }
+  }
+  state.ai.copied = ok;
+  state.ai.copyFailed = !ok;
+  if (ok) logEvent({ type: 'ai_prompt_copied', userId: state.teacher?.userId });
+  render();
+}
+
+async function aiBuildFromReply() {
+  const a = state.ai;
+  const parsed = parseAiTip(a.reply);
+  if (!parsed.ok) {
+    a.pasteError = parsed.error;
+    if (a.reply.trim()) problem('other', 'ai-parse', 'A pasted AI answer was not in the requested format'); // never the answer itself
+    return render();
+  }
+  await aiTipReady(parsed.tip, 'paste');
+  a.reply = '';
+  render();
+  window.scrollTo(0, 0);
+}
+
+async function aiBuildWithGemini() {
+  const a = state.ai;
+  if (a.building) return;
+  const typed = a.key.trim();
+  const key = typed || await loadAiKey();
+  if (!key) { a.geminiError = 'Paste your Gemini key first.'; return render(); }
+
+  a.building = true;
+  a.geminiError = '';
+  render();
+  try {
+    const text = await generateWithGemini({ key, prompt: promptFor(a, state.teacher) });
+    const parsed = parseAiTip(text);
+    if (!parsed.ok) {
+      const err = new Error('Gemini answered in an unusable format');
+      err.friendly = 'Gemini answered, but not in a form we could use. Try again, or use copy and paste.';
+      throw err;
+    }
+    if (typed) { // only keep a key that just worked
+      await keyStore().set(typed, a.remember);
+      state.aiKey = { has: true, remembered: a.remember };
+      a.key = '';
+    }
+    await aiTipReady(parsed.tip, 'gemini');
+  } catch (err) {
+    a.geminiError = err.friendly || 'Something went wrong. Try again, or use copy and paste.';
+    if (!isUserFixable(err)) problem('other', 'ai-gemini', err); // a wrong key or the free limit is not our bug
+  }
+  a.building = false;
+  render();
+  if (a.tip) window.scrollTo(0, 0);
+}
+
+async function sendReport() {
+  const r = state.report;
+  const reason = REPORT_REASONS.find((x) => x.id === r.reason);
+  if (!reason) { r.error = 'Pick what went wrong first.'; return render(); }
+  if (reason.id === 'other' && !r.text.trim()) { r.error = 'Tell us a little about what happened.'; return render(); }
+  r.saving = true;
+  r.error = '';
+  render();
+  try {
+    await submitErrorReport({
+      source: 'reported', category: reason.category, context: 'teacher-report',
+      message: reportMessage(reason.id, r.text),
+      tipId: dbTipId(r.tip), urlPattern: r.tip?.ai ? null : r.tip?.url_pattern ?? null,
+      userId: state.teacher?.userId ?? null, version: extensionVersion
+    });
+    r.sent = true;
+  } catch (err) {
+    console.warn('PrepTip: report failed', err);
     r.error = 'We couldn’t send that. Check your connection and try again.';
   }
   r.saving = false;
@@ -556,6 +786,7 @@ async function sendFeedback() {
     loadRatings(); // refresh from the aggregate; list view also redraws if it is already open
   } catch (err) {
     console.warn('PrepTip: feedback failed', err);
+    problem('network', 'feedback', err, { tipId: f.tip.tip_id, urlPattern: f.tip.url_pattern });
     f.phase = 'form';
     f.error = 'We couldn’t send that. You can try again or skip.';
   }
@@ -597,15 +828,81 @@ const actions = {
     if (state.teacher) {
       // On the "You're set" screen / "Change grade", a teacher already exists — persist right away.
       state.teacher = { ...state.teacher, gradeLevel: state.setup.grade || null };
-      chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher }).catch(() => {});
+      saveClassSettings();
+    }
+    render();
+  },
+  'toggle-subject': (el) => {
+    const picked = new Set(state.setup.subjects);
+    if (!picked.delete(el.dataset.subject)) picked.add(el.dataset.subject);
+    state.setup.subjects = cleanSubjects([...picked]);
+    if (state.teacher) {
+      state.teacher = { ...state.teacher, subjects: state.setup.subjects };
+      saveClassSettings();
     }
     render();
   },
 
-  // grade + resources
+  // build a tip with AI
+  'open-ai': () => {
+    state.ai = newAi({ question: cleanQuestion(state.request.text || state.query || ''), site: aiSiteGuess(), returnTo: state.view });
+    state.view = 'ai';
+    render();
+    window.scrollTo(0, 0);
+    loadAiKey().then(() => { if (state.view === 'ai') render(); });
+  },
+  'ai-back': () => {
+    state.view = ['tips', 'resources', 'sites'].includes(state.ai.returnTo) ? state.ai.returnTo : 'tips';
+    render();
+    window.scrollTo(0, 0);
+  },
+  'ai-copy': () => aiCopy(),
+  'ai-build': () => aiBuildFromReply(),
+  'ai-gemini': () => aiBuildWithGemini(),
+  'ai-key-forget': async () => {
+    await keyStore().clear();
+    state.aiKey = { has: false, remembered: false };
+    state.ai.key = '';
+    render();
+  },
+  'ai-follow': () => { if (state.ai.tip) startGuide(state.ai.tip, 0); },
+  'ai-discard': () => { state.ai.tip = null; state.ai.finished = null; render(); },
+  'ai-open-saved': (el) => {
+    const tip = state.aiTips.find((t) => t.tip_id === el.dataset.id);
+    if (!tip) return;
+    state.ai.tip = tip;
+    state.ai.finished = null;
+    render();
+    window.scrollTo(0, 0);
+  },
+  'ai-remove': async (el) => {
+    state.aiTips = state.aiTips.filter((t) => t.tip_id !== el.dataset.id);
+    if (state.ai.tip?.tip_id === el.dataset.id) state.ai.tip = null;
+    await saveAiTips();
+    render();
+  },
+
+  // report a problem
+  'report-problem': () => {
+    state.report = newReport({ tip: state.view === 'guide' ? state.guide?.tip ?? null : null, returnTo: state.view });
+    state.view = 'report';
+    render();
+    window.scrollTo(0, 0);
+  },
+  'report-reason': (el) => { state.report.reason = el.dataset.reason; state.report.error = ''; render(); },
+  'report-back': () => {
+    const back = state.report.returnTo;
+    const canReturn = { guide: !!state.guide, feedback: !!state.feedback, resources: true, sites: true, tips: true };
+    state.view = canReturn[back] ? back : 'tips';
+    render();
+    window.scrollTo(0, 0);
+  },
+
+  // grade, subjects + resources
   'change-grade': () => {
     if (state.guide) { bridge.clearGuide(state.guide.tabId); forgetGuide(state.guide.tabId); state.guide = null; }
-    state.setup = newSetup({ step: 3, grade: state.teacher?.gradeLevel || '' }); // "You're set" screen holds the picker
+    // The last setup screen holds both pickers.
+    state.setup = newSetup({ step: 3, grade: state.teacher?.gradeLevel || '', subjects: state.teacher?.subjects, editing: true });
     state.view = 'setup';
     render();
     window.scrollTo(0, 0);
@@ -681,6 +978,10 @@ const actions = {
 };
 
 function wireDomEvents() {
+  // Anything uncaught in the panel goes to the error log (de-duplicated and capped).
+  window.addEventListener('error', (e) => problem('ui', 'script-error', e.error || e.message));
+  window.addEventListener('unhandledrejection', (e) => problem('ui', 'unhandled-rejection', e.reason));
+
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-action]');
     if (!el || el.disabled) return;
@@ -698,6 +999,19 @@ function wireDomEvents() {
       renderResults();
     } else if (e.target.id === 'request-text') {
       state.request.text = e.target.value;
+    } else if (e.target.id === 'ai-question' || e.target.id === 'ai-site') {
+      state.ai[e.target.id === 'ai-site' ? 'site' : 'question'] = e.target.value;
+      const box = $('#ai-prompt'); // keep the visible prompt in step without re-drawing (and losing focus)
+      if (box) box.value = promptFor(state.ai, state.teacher);
+      state.ai.copied = false;
+    } else if (e.target.id === 'ai-reply') {
+      state.ai.reply = e.target.value;
+    } else if (e.target.id === 'ai-key') {
+      state.ai.key = e.target.value;
+    } else if (e.target.id === 'ai-remember') {
+      state.ai.remember = e.target.checked;
+    } else if (e.target.id === 'report-text') {
+      state.report.text = e.target.value;
     } else if (e.target.id === 'fb-text' && state.feedback) {
       state.feedback.text = e.target.value;
       const btn = $('#fb-submit');
@@ -717,8 +1031,12 @@ function wireDomEvents() {
     e.preventDefault();
     if (e.target.id === 'setup-form') submitAccount(e.target);
     if (e.target.id === 'request-form') sendRequest($('#request-text')?.value || '');
+    if (e.target.id === 'report-form') sendReport();
     if (e.target.id === 'resource-request-form') sendResourceRequest($('#request-text')?.value || '');
   });
+
+  // <details> doesn't bubble 'toggle', so listen while it's still travelling down.
+  document.addEventListener('toggle', (e) => { if (e.target.id === 'ai-gemini-box') state.ai.keyOpen = e.target.open; }, true);
 
   // Log when a teacher opens a Common Teacher Resource (doesn't block the link from opening).
   document.addEventListener('click', (e) => {

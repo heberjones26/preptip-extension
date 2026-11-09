@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PrepTip guide: scroll test</title>
+<!--
+  Dev-only test page for how src/content/guide.js behaves when the highlighted element is scrolled
+  out of view. Serve the repo root (npx http-server -p 5517 -c-1) and open
+  /docs/dev/guide-scroll-test.html.
+
+  1. Click "Show step". The page scrolls itself to the Share button once and the orange ring appears.
+  2. Scroll away by hand. The ring disappears and a note at the screen edge says
+     "Scroll up/down to find Share" with an arrow. It does not scroll you back.
+  3. Scroll back to the button. The ring returns.
+
+  The three decoy buttons (parked off to the side, parked above the page, fixed far below) must NEVER
+  be matched: "Show decoy" should leave the panel status at found: false.
+-->
+<style>
+  body { margin: 0; font: 15px system-ui, sans-serif; }
+  .bar { position: fixed; top: 0; left: 0; right: 0; z-index: 5; background: #1E2433; color: #fff; padding: 8px 12px; display: flex; gap: 8px; align-items: center; }
+  .bar button { font: inherit; padding: 4px 10px; }
+  .bar code { margin-left: auto; font-size: 12px; opacity: .8; }
+  .filler { height: 1600px; background: repeating-linear-gradient(#fff 0 80px, #f4f6fa 80px 160px); padding: 60px 20px 20px; }
+  .target-row { padding: 24px; }
+  .after { height: 1400px; background: #fafafa; padding: 20px; }
+</style>
+<script>
+  // Stub of the chrome extension API, defined BEFORE guide.js loads (same idea as guide-test.html).
+  (function () {
+    const listeners = [];
+    window.__ptLog = [];
+    window.chrome = { runtime: { id: 'stub-extension-id', lastError: undefined,
+      onMessage: { addListener: (fn) => listeners.push(fn), removeListener() {} },
+      sendMessage(msg, callback) {
+        if (msg.type === 'PT_GUIDE_STATUS') {
+          const line = 'found=' + msg.found + '  label=' + msg.label + '  offscreen=' + msg.offscreen;
+          window.__ptLog.push(line);
+          const out = document.getElementById('status'); if (out) out.textContent = line;
+        }
+        if (callback) setTimeout(() => callback(undefined), 10);
+      } } };
+    window.panelSend = (msg) => listeners.forEach((fn) => fn(msg, { id: 'stub-extension-id' }, () => {}));
+  })();
+</script>
+</head>
+<body>
+  <div class="bar">
+    <button id="show">Show step</button>
+    <button id="decoy">Show decoy</button>
+    <button id="clear">Clear</button>
+    <code id="status">status: (none yet)</code>
+  </div>
+  <div class="filler">Top of page. The Share button is far below.</div>
+  <div class="target-row"><button aria-label="Share">Share</button></div>
+  <div class="after">Bottom filler.</div>
+
+  <!-- Decoys: guide.js must not treat these as "scrolled out of view". -->
+  <button aria-label="Parked left"  style="position:absolute; left:-9999px; top:100px">Parked left</button>
+  <button aria-label="Parked above" style="position:absolute; top:-9999px; left:20px">Parked above</button>
+  <button aria-label="Fixed far"    style="position:fixed; top:4000px; left:20px">Fixed far</button>
+
+  <script>
+    const step = (label) => window.panelSend({ type: 'PT_GUIDE_SHOW', tipId: 'scroll', stepIndex: 0, totalSteps: 3,
+      step: { step_type: 'guided', target_element: 'button:' + label, step_description: 'Click ' + label + '.' } });
+    document.getElementById('show').onclick = () => step('Share');
+    document.getElementById('decoy').onclick = () => step('Parked above');
+    document.getElementById('clear').onclick = () => window.panelSend({ type: 'PT_GUIDE_CLEAR' });
+  </script>
+  <script src="../../src/content/guide.js"></script>
+</body>
+</html>

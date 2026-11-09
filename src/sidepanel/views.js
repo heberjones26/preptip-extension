@@ -9,13 +9,28 @@ import {
 import {
   LOGO, SEARCH, GLOBE, CHECK, THUMB, PUZZLE, PIN, INFO, OFFLINE, WAND, STEPS, CAP, BOOKS, EXTERNAL, siteIcon
 } from './icons.js';
-import { GRADES, gradeLabel, splitByGrade, siteGrades } from '../data/segments.js';
+import {
+  GRADES, SUBJECTS, gradeLabel, splitByFit, siteGrades, siteSubjects, profileLabel, matchBadge, cleanSubjects
+} from '../data/segments.js';
 import { RESOURCES } from '../data/resources.js';
 import { SHARE_MESSAGE } from '../lib/share.js';
+import { REPORT_REASONS } from '../lib/errors.js';
+import { promptFor, AI_ASSISTANTS, MAX_QUESTION, MAX_SITE } from '../lib/ai-tip.js';
+import { GEMINI_KEY_URL } from '../lib/gemini.js';
 
 // The teacher's chosen grade band (or '' for all grades / not set).
 function teacherGrade(state) {
   return state.teacher?.gradeLevel || '';
+}
+
+// The teacher's chosen subject ids (possibly none).
+function teacherSubjects(state) {
+  return cleanSubjects(state.teacher?.subjects);
+}
+
+// { grade, subjects } — what the recommendations are based on — and its short label ('' = nothing set).
+function teacherProfile(state) {
+  return { grade: teacherGrade(state), subjects: teacherSubjects(state) };
 }
 
 export const FEEDBACK_REASONS = ['Too many steps', 'Steps didn’t match my screen', 'Not what I needed'];
@@ -93,7 +108,8 @@ function requestBlock(state, label, hint = '') {
         </div>
       </form>`;
   }
-  return `<button type="button" class="btn outline full" data-action="open-request">${label}</button>${hint ? `<small class="muted">${hint}</small>` : ''}`;
+  return `<button type="button" class="btn outline full" data-action="open-request">${label}</button>
+    <button type="button" class="btn ghost full ai-entry" data-action="open-ai">${WAND}Build a tip with AI</button>${hint ? `<small class="muted">${hint}</small>` : ''}`;
 }
 
 // Unsupported-site search keeps this outside the results so there is only one form.
@@ -114,15 +130,19 @@ export function header(state) {
 export function footer(state) {
   if (state.view === 'setup' || !state.setupDone) return '';
   const name = state.teacher?.username || '';
-  const grade = teacherGrade(state);
-  const gradeBtn = `<button type="button" class="linkish grade" data-action="change-grade" title="${grade ? 'Change your grade' : 'Set the grade you teach'}">${CAP}${grade ? esc(gradeLabel(grade)) : 'Set grade'}</button>`;
+  const label = profileLabel(teacherProfile(state));
+  const gradeBtn = `<button type="button" class="linkish grade" data-action="change-grade" title="${label ? 'Change your grade or subject' : 'Set the grade and subject you teach'}">${CAP}${label ? esc(label) : 'Set grade & subject'}</button>`;
   const resourcesLink = state.view === 'resources'
     ? ''
     : `<button type="button" class="linkish" data-action="open-resources">${BOOKS}Teacher resources</button><span class="sep" aria-hidden="true">&middot;</span>`;
+  const reportLink = state.view === 'report'
+    ? ''
+    : `<button type="button" class="linkish" data-action="report-problem">Report a problem</button><span class="sep" aria-hidden="true">&middot;</span>`;
   return `
     ${name ? `<span class="foot-who">Signed in as ${esc(name)}</span><span class="sep" aria-hidden="true">&middot;</span>` : ''}
     ${gradeBtn}<span class="sep" aria-hidden="true">&middot;</span>
     ${resourcesLink}
+    ${reportLink}
     <button type="button" class="linkish" data-action="sign-out">Sign out</button>
     <span class="sep" aria-hidden="true">&middot;</span>
     <button type="button" class="linkish" data-action="share-preptip" ${state.sharePhase === 'sharing' ? 'disabled' : ''}>Share PrepTip</button>
@@ -180,6 +200,18 @@ function gradePicker(s) {
     </fieldset>`;
 }
 
+// Subject picker: any number of chips (a teacher can teach physics AND math).
+function subjectPicker(s) {
+  const picked = new Set(s.subjects || []);
+  return `
+    <fieldset class="field grades">
+      <legend><span class="gl">${BOOKS}</span> What do you teach? <span class="opt">optional &middot; pick any</span></legend>
+      <div class="grade-grid">
+        ${SUBJECTS.map((x) => `<button type="button" class="grade-chip${picked.has(x.id) ? ' on' : ''}" data-action="toggle-subject" data-subject="${esc(x.id)}" aria-pressed="${picked.has(x.id)}">${esc(x.label)}</button>`).join('')}
+      </div>
+    </fieldset>`;
+}
+
 // Shown when signup picks a username someone already has.
 function takenNotice(s) {
   if (s.notice !== 'taken') return '';
@@ -221,14 +253,21 @@ function setupForm(state) {
 function setupDone(state) {
   const sites = state.catalog?.websites || [];
   const name = esc(state.teacher?.username || 'teacher');
+  const editing = !!state.setup.editing;
+  const title = editing ? 'Your class'
+    : state.setup.mode === 'signin' ? `Welcome back, ${name}!` : `You&rsquo;re set, ${name}!`;
+  const lede = editing
+    ? 'Tell us what you teach and PrepTip will point you to the best sites and resources.'
+    : 'Open any of these sites and PrepTip will have tips ready.';
   return `
     <div class="win"><span class="win-ic">${CHECK}</span>
-      <h4>${state.setup.mode === 'signin' ? `Welcome back, ${name}!` : `You&rsquo;re set, ${name}!`}</h4>
-      <p>Open any of these sites and PrepTip will have tips ready.</p>
+      <h4>${title}</h4>
+      <p>${lede}</p>
     </div>
-    ${sites.length ? `<div class="chips center">${sites.map((w) => `<span class="chip">${esc(w.name)}</span>`).join('')}</div>` : ''}
+    ${!editing && sites.length ? `<div class="chips center">${sites.map((w) => `<span class="chip">${esc(w.name)}</span>`).join('')}</div>` : ''}
     ${gradePicker(state.setup)}
-    <button type="button" class="btn primary full" data-action="setup-finish">Show me tips</button>`;
+    ${subjectPicker(state.setup)}
+    <button type="button" class="btn primary full" data-action="setup-finish">${editing ? 'Save and show tips' : 'Show me tips'}</button>`;
 }
 
 export function setupView(state) {
@@ -263,14 +302,13 @@ export function errorView(state) {
 // ctx = { site, tips, browsing } from sidepanel.js
 export function tipsView(state, ctx) {
   const { site, tips, browsing } = ctx;
-  const grade = teacherGrade(state);
-  const recForGrade = grade && siteGrades(site.url_pattern).includes(grade);
+  const badge = matchBadge(siteGrades(site.url_pattern), siteSubjects(site.url_pattern), teacherProfile(state));
   return `
     ${browsing ? '<button type="button" class="back" data-action="end-browse">&larr; All sites with tips</button>' : ''}
     <button type="button" class="site-chip site-switch" data-action="show-sites" aria-label="Browse all sites with tips">
       <span class="fav">${siteIcon(site)}</span>
       <span class="site-copy"><b>${esc(site.name)}</b><small>${plural(tips.length, 'tip')} for this site</small></span>
-      ${recForGrade ? `<span class="rec-badge"><span class="gl">${CAP}</span>For ${esc(gradeLabel(grade))}</span>` : ''}
+      ${badge ? `<span class="rec-badge"><span class="gl">${CAP}</span>${esc(badge)}</span>` : ''}
       <span class="site-switch-icon" aria-hidden="true">&#8964;</span>
     </button>
     ${browsing ? `<p class="tiny-note">You&rsquo;re not on ${esc(site.name)} right now, so tips open as a step list. Open ${esc(site.name)} to get the orange highlights.</p>` : ''}
@@ -342,24 +380,26 @@ function siteChip(w, rec = false) {
 
 export function sitesView(state) {
   const sites = state.catalog?.websites || [];
-  const grade = teacherGrade(state);
-  const { recommended, other } = splitByGrade(sites, grade, (s) => siteGrades(s.url_pattern));
+  const profile = teacherProfile(state);
+  const label = profileLabel(profile);
+  const { recommended, other } = splitByFit(sites, profile, (s) => siteGrades(s.url_pattern), (s) => siteSubjects(s.url_pattern));
   return `
     <button type="button" class="back" data-action="end-browse">&larr; Back to tips</button>
     <div class="sec-h sites-heading"><h4>Sites with tips</h4><small>Choose a site to see its guides.</small></div>
-    ${grade && recommended.length ? `
-      <div class="next-row"><b><span class="gl">${CAP}</span> Recommended for ${esc(gradeLabel(grade))}</b><div class="chips">${recommended.map((w) => siteChip(w, true)).join('')}</div></div>
+    ${label && recommended.length ? `
+      <div class="next-row"><b><span class="gl">${CAP}</span> Recommended for ${esc(label)}</b><div class="chips">${recommended.map((w) => siteChip(w, true)).join('')}</div></div>
       ${other.length ? `<div class="next-row"><b>More sites with tips</b><div class="chips">${other.map((w) => siteChip(w)).join('')}</div></div>` : ''}`
       : `<div class="next-row"><b>Choose a site</b><div class="chips">${sites.map((w) => siteChip(w)).join('')}</div></div>`}`;
 }
 
 // "Sites with tips", split into a "Recommended for your grade" group when a grade is set.
 function sitesWithTipsBlock(state, sites) {
-  const grade = teacherGrade(state);
-  const { recommended, other } = splitByGrade(sites, grade, (s) => siteGrades(s.url_pattern));
-  if (grade && recommended.length) {
+  const profile = teacherProfile(state);
+  const label = profileLabel(profile);
+  const { recommended, other } = splitByFit(sites, profile, (s) => siteGrades(s.url_pattern), (s) => siteSubjects(s.url_pattern));
+  if (label && recommended.length) {
     return `
-      <div class="next-row"><b><span class="gl">${CAP}</span> Recommended for ${esc(gradeLabel(grade))}</b><div class="chips">${recommended.map((w) => siteChip(w, true)).join('')}</div></div>
+      <div class="next-row"><b><span class="gl">${CAP}</span> Recommended for ${esc(label)}</b><div class="chips">${recommended.map((w) => siteChip(w, true)).join('')}</div></div>
       ${other.length ? `<div class="next-row"><b>More sites with tips</b><div class="chips">${other.map((w) => siteChip(w)).join('')}</div></div>` : ''}`;
   }
   return `<div class="next-row"><b>Sites with tips</b><div class="chips">${sites.map((w) => siteChip(w)).join('')}</div></div>`;
@@ -421,6 +461,9 @@ function stepItem(g, step, i) {
 
 // One line under the intro that says what the page is doing.
 function liveLine(state, g, step) {
+  if (g.tip.ai) {
+    return '<p class="tiny-note ai-note"><b>AI-generated.</b> These steps haven&rsquo;t been checked against your screen, so follow along and trust what you see. Menu names can differ.</p>';
+  }
   if (!g.live) {
     const name = esc(siteName(state, g.tip.url_pattern));
     return `<p class="tiny-note">This tip is for ${name}. Open ${name} to see the orange highlights. You can still follow the steps here.</p>`;
@@ -431,6 +474,9 @@ function liveLine(state, g, step) {
   if (step.step_type !== 'guided' || g.offtrack) return '';
   if (g.status?.found) {
     const label = g.status.label || targetPath(step).slice(-1)[0] || 'the page';
+    if (g.status.offscreen) {
+      return `<div class="live"><i></i><span>Scroll ${g.status.offscreen === 'below' ? 'down' : 'up'} to find <b>${esc(label)}</b></span></div>`;
+    }
     return `<div class="live"><i></i><span>Look for the orange highlight on <b>${esc(label)}</b></span></div>`;
   }
   if (g.status && !g.status.found) {
@@ -494,7 +540,7 @@ export function guideView(state) {
 
   return `
     <div class="g-head">
-      <button type="button" class="back" data-action="stop-guide">&larr; All ${esc(shortSiteName(siteName(state, tip.url_pattern)))} tips</button>
+      <button type="button" class="back" data-action="stop-guide">&larr; ${tip.ai ? 'Back to your AI tip' : `All ${esc(shortSiteName(siteName(state, tip.url_pattern)))} tips`}</button>
       <h3>${esc(tip.title)}</h3>
       <div class="prog"><div class="prog-track"><i style="width:${pct}%"></i></div><span>Step ${g.stepIndex + 1} of ${total}</span></div>
     </div>
@@ -506,8 +552,122 @@ export function guideView(state) {
     ${menuHint}
     <div class="g-foot">
       ${buttons}
+      ${tip.ai ? '' : '<button type="button" class="linkish" data-action="report-problem">Something wrong with this tip?</button>'}
       <button type="button" class="linkish stop" data-action="stop-guide">Stop guide</button>
     </div>`;
+}
+
+// ---------- Build a tip with AI ----------
+
+function aiTipCard(tip) {
+  return `
+    <div class="ai-tip">
+      <p class="ai-flag">AI-generated &middot; check each step against your screen</p>
+      <h4>${esc(tip.title)}</h4>
+      <p class="ai-sum">${esc(tip.summary)}</p>
+      <ol class="ai-steps">${tip.tip_steps.map((s) => `<li>${esc(s.step_description)}</li>`).join('')}</ol>
+      ${tip.caution ? `<p class="tiny-note"><b>Heads up:</b> ${esc(tip.caution)}</p>` : ''}
+      <div class="row">
+        <button type="button" class="btn primary sm grow" data-action="ai-follow">Follow these steps</button>
+        <button type="button" class="btn ghost sm" data-action="ai-discard">Close</button>
+      </div>
+    </div>`;
+}
+
+export function aiView(state) {
+  const a = state.ai;
+  const key = state.aiKey;
+  const label = profileLabel(teacherProfile(state));
+  const prompt = promptFor(a, state.teacher);
+  const finished = a.finished
+    ? `<div class="thanks">${CHECK}<div><b>Nice work!</b><p>You finished &ldquo;${esc(a.finished)}&rdquo;.</p></div></div>` : '';
+  const saved = state.aiTips.length ? `
+    <div class="next-row ai-saved"><b>Your AI tips</b>
+      <ul class="ai-list">${state.aiTips.map((t) => `
+        <li><button type="button" class="linkish" data-action="ai-open-saved" data-id="${esc(t.tip_id)}">${esc(t.title)}</button>
+        <button type="button" class="x" data-action="ai-remove" data-id="${esc(t.tip_id)}" aria-label="Remove ${esc(t.title)}">&times;</button></li>`).join('')}
+      </ul>
+    </div>` : '';
+
+  const links = AI_ASSISTANTS.map((x) =>
+    `<a class="ai-link" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)} ${EXTERNAL}</a>`).join('');
+  const keyBlock = key.has
+    ? `<p class="ai-keyline">Using your saved key (${key.remembered ? 'remembered on this computer' : 'until you close the browser'}). <button type="button" class="linkish" data-action="ai-key-forget">Remove key</button></p>`
+    : `<label class="field"><span>Gemini API key</span>
+         <input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key" value="${esc(a.key)}">
+       </label>
+       <label class="check"><input type="checkbox" id="ai-remember" ${a.remember ? 'checked' : ''}> Remember it on this computer</label>`;
+
+  return `
+    <button type="button" class="back" data-action="ai-back">&larr; Back</button>
+    <div class="g-head"><h3>Build a tip with AI</h3></div>
+    <p class="tiny-note">No tip for this yet? An AI assistant can write one. Nothing leaves PrepTip unless you copy it yourself or choose the Gemini option below.</p>
+    ${finished}
+    ${a.tip ? aiTipCard(a.tip) : ''}
+
+    <div class="ai-form">
+      <label class="field"><span>1 &middot; What do you want to do?</span>
+        <textarea id="ai-question" rows="3" maxlength="${MAX_QUESTION}" placeholder="e.g. Make a seating chart I can print">${esc(a.question)}</textarea>
+      </label>
+      <label class="field"><span>Website <span class="opt">optional</span></span>
+        <input id="ai-site" maxlength="${MAX_SITE}" placeholder="e.g. Canva" value="${esc(a.site)}">
+      </label>
+      ${label ? `<p class="tiny-note">Your prompt says you teach <b>${esc(label)}</b>. Change that from the footer.</p>` : ''}
+
+      <label class="field"><span>2 &middot; Copy this prompt into an AI assistant</span>
+        <textarea id="ai-prompt" class="ai-prompt" rows="6" readonly>${esc(prompt)}</textarea>
+      </label>
+      <button type="button" class="btn primary full" data-action="ai-copy">${a.copied ? 'Copied!' : 'Copy prompt'}</button>
+      ${a.copyFailed ? '<p class="form-error" role="alert">We couldn&rsquo;t copy it automatically. Click the box above, select all, then copy.</p>' : ''}
+      <p class="ai-open"><span>Open</span>${links}</p>
+
+      <label class="field"><span>3 &middot; Paste the AI&rsquo;s answer here</span>
+        <textarea id="ai-reply" rows="5" placeholder="It should start with { and end with }">${esc(a.reply)}</textarea>
+      </label>
+      ${a.pasteError ? `<p class="form-error" role="alert">${esc(a.pasteError)}</p>` : ''}
+      <button type="button" class="btn primary full" data-action="ai-build">Build my tip</button>
+    </div>
+
+    <details class="ai-gemini" id="ai-gemini-box" ${a.keyOpen || key.has || a.geminiError ? 'open' : ''}>
+      <summary>Prefer one click? Use a free Gemini key</summary>
+      <p class="tiny-note">Get a free key from <a href="${esc(GEMINI_KEY_URL)}" target="_blank" rel="noopener">Google AI Studio</a>. Your key stays in this browser and is only sent to Google, along with the prompt above. On Google&rsquo;s free tier, Google may use what you send to improve its products, so don&rsquo;t include student names or other personal details.</p>
+      ${keyBlock}
+      ${a.geminiError ? `<p class="form-error" role="alert">${esc(a.geminiError)}</p>` : ''}
+      <button type="button" class="btn outline full" data-action="ai-gemini" ${a.building ? 'disabled' : ''}>${a.building ? 'Asking Gemini…' : 'Generate with Gemini'}</button>
+    </details>
+    ${saved}`;
+}
+
+// ---------- Report a problem ----------
+
+export function reportView(state) {
+  const r = state.report;
+  const back = '<button type="button" class="back" data-action="report-back">&larr; Back</button>';
+  if (r.sent) {
+    return `
+      ${back}
+      <div class="thanks">${CHECK}<div><b>Thanks, we got it.</b><p>The team reads every report to decide which tips to fix first.</p></div></div>
+      <button type="button" class="btn primary full" data-action="report-back">Back to PrepTip</button>`;
+  }
+  const reasons = REPORT_REASONS.map((x) =>
+    `<button type="button" class="chip pick${r.reason === x.id ? ' on' : ''}" data-action="report-reason" data-reason="${esc(x.id)}" aria-pressed="${r.reason === x.id}">${esc(x.label)}</button>`).join('');
+  return `
+    ${back}
+    <div class="g-head"><h3>Report a problem</h3></div>
+    <p class="tiny-note">Something not working, or not matching your screen? Tell us and we&rsquo;ll fix it.</p>
+    ${r.tip ? `<p class="tiny-note">About the tip <b>${esc(r.tip.title)}</b></p>` : ''}
+    <form id="report-form" class="request" novalidate>
+      <div class="reasons"><small>What went wrong?</small><div class="chips">${reasons}</div></div>
+      <label class="field"><span>Anything else we should know? <span class="opt">optional</span></span>
+        <textarea id="report-text" rows="3" maxlength="400" placeholder="e.g. My school&rsquo;s Google account shows a different menu">${esc(r.text)}</textarea>
+      </label>
+      <p class="tiny-note">Please don&rsquo;t include student names or other personal details.</p>
+      ${r.error ? `<p class="form-error" role="alert">${esc(r.error)}</p>` : ''}
+      <div class="row">
+        <button type="button" class="btn ghost sm" data-action="report-back">Cancel</button>
+        <button type="submit" class="btn primary sm grow" ${r.saving ? 'disabled' : ''}>${r.saving ? 'Sending…' : 'Send report'}</button>
+      </div>
+    </form>`;
 }
 
 // ---------- feedback (S6) ----------
@@ -574,12 +734,12 @@ function resourceCard(r) {
     </div>`;
 }
 
-// One-button toggle between "for my grade" and "all" (only shown when a grade is set).
-function gradeToggle(grade, gradeOnly) {
+// One-button toggle between "for my class" and "all" (only shown when a grade or subject is set).
+function gradeToggle(label, gradeOnly) {
   return `
-    <div class="res-toggle" role="group" aria-label="Filter resources by grade">
+    <div class="res-toggle" role="group" aria-label="Filter resources by your grade and subject">
       <button type="button" class="seg-toggle" data-action="toggle-resource-filter" aria-pressed="${gradeOnly}">
-        <span class="seg-l${gradeOnly ? ' on' : ''}">For ${esc(gradeLabel(grade))}</span>
+        <span class="seg-l${gradeOnly ? ' on' : ''}">For ${esc(label)}</span>
         <span class="seg-l${gradeOnly ? '' : ' on'}">All</span>
       </button>
     </div>`;
@@ -618,29 +778,30 @@ function resourceRequestBlock(state) {
 }
 
 export function resourcesView(state) {
-  const grade = teacherGrade(state);
+  const profile = teacherProfile(state);
+  const label = profileLabel(profile);
   const cat = state.resourceCategory || '';
   const pool = cat ? RESOURCES.filter((r) => r.category === cat) : RESOURCES;
-  const gradeOnly = !!grade && state.resourceGradeOnly;
-  const { recommended, other } = splitByGrade(pool, grade);
+  const gradeOnly = !!label && state.resourceGradeOnly;
+  const { recommended, other } = splitByFit(pool, profile);
 
   let list;
   if (!pool.length) {
     list = `<p class="tiny-note">No resources in that category yet.</p>`;
-  } else if (!grade) {
+  } else if (!label) {
     list = `
-      <p class="res-hint"><span class="gl">${CAP}</span><span>Set the grade you teach and these get sorted for your students. <button type="button" class="linkish" data-action="change-grade">Set grade</button></span></p>
+      <p class="res-hint"><span class="gl">${CAP}</span><span>Set your grade and subject and these get sorted for your classroom. <button type="button" class="linkish" data-action="change-grade">Set grade &amp; subject</button></span></p>
       <div class="res-list">${pool.map(resourceCard).join('')}</div>`;
   } else if (gradeOnly) {
     const show = recommended.length ? recommended : pool;
     const hidden = other.length
       ? `<p class="res-more">${plural(other.length, 'other resource')} hidden · <button type="button" class="linkish" data-action="toggle-resource-filter">Show all</button></p>`
       : '';
-    list = `${gradeToggle(grade, gradeOnly)}<div class="res-list">${show.map(resourceCard).join('')}</div>${hidden}`;
+    list = `${gradeToggle(label, gradeOnly)}<div class="res-list">${show.map(resourceCard).join('')}</div>${hidden}`;
   } else {
     list = `
-      ${gradeToggle(grade, gradeOnly)}
-      ${recommended.length ? sectionHead(`Recommended for ${esc(gradeLabel(grade))}`) + `<div class="res-list">${recommended.map(resourceCard).join('')}</div>` : ''}
+      ${gradeToggle(label, gradeOnly)}
+      ${recommended.length ? sectionHead(`Recommended for ${esc(label)}`) + `<div class="res-list">${recommended.map(resourceCard).join('')}</div>` : ''}
       ${other.length ? sectionHead('Other resources') + `<div class="res-list">${other.map(resourceCard).join('')}</div>` : ''}`;
   }
 

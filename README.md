@@ -170,14 +170,14 @@ tests/                    unit tests
 
 The extension picks it up within 10 minutes, or right away after you reload it. Highlights currently work for `menu`, `button`, `link`, `search`, `panel` and `dialog` targets; other steps show their instructions in the panel only.
 
-## Grade levels & Teacher Resources
+## Grade levels, subjects & Teacher Resources
 
-At setup a teacher can pick the grade they teach — **Pre-school, Kindergarten–3rd, 4th–6th, Middle school, High school, College**, or Special education (or "All grades"). It's stored locally in `pt.teacher.gradeLevel` and makes PrepTip's suggestions fit their students:
+At setup a teacher can pick the grade they teach — **Pre-school, Kindergarten–3rd, 4th–6th, Middle school, High school, College**, or Special education (or "All grades") — and any number of **subjects** (Math, Physics, Chemistry, Biology, Other science, English / ELA, Spanish & world languages, Social studies, Art, Music, PE & health, Computer science, or Something else). Both are optional, stored locally in `pt.teacher.gradeLevel` and `pt.teacher.subjects`, and change PrepTip's suggestions:
 
-- **Recommended sites by grade** — the "Sites with tips" list leads with a "Recommended for your grade" group, and the current site shows a grade badge when it fits.
-- **Common Teacher Resources** — a **Teacher resources** link (panel footer) opens a list of teacher-*built* sites (Teachers Pay Teachers, Kahoot, Nearpod, Edpuzzle, Gimkit, Newsela, PBS LearningMedia, PhET, OpenStax, BrainPOP) with a short blurb and an open-link — no walkthroughs, since those sites are already made for teachers. The list filters to the teacher's grade with a toggle to see all.
+- **Recommended sites by grade and subject** — the "Sites with tips" list leads with a "Recommended for High school · Physics" group. A site has to fit the grade *and* the subject; tools that name your subject (Desmos for a math or physics teacher, Quizlet for Spanish) come first, ahead of tools that suit everyone. The current site shows a "For Physics" or "For High school" badge when it names you.
+- **Common Teacher Resources** — a **Teacher resources** link (panel footer) opens a list of teacher-*built* sites (Teachers Pay Teachers, Kahoot, Nearpod, Edpuzzle, Gimkit, Newsela, PBS LearningMedia, PhET, OpenStax, BrainPOP) with a short blurb and an open-link — no walkthroughs, since those sites are already made for teachers. The list holds about 26 resources across subjects (including Conjuguemos for languages, The Physics Classroom, Code.org, CommonLit, iCivics, Chrome Music Lab and GoNoodle), filters by category, and narrows to the teacher's grade and subjects with a toggle to see all. Teachers can also suggest a resource to add.
 
-The grade bands, the site→grade tags, and the recommend/filter helpers live in [`src/data/segments.js`](src/data/segments.js); the curated resource list in [`src/data/resources.js`](src/data/resources.js). Both are bundled (no database) and covered by [`tests/segments.test.mjs`](tests/segments.test.mjs). Change your grade anytime from the footer.
+The grade bands, the subject list, the site→grade and site→subject tags, and the recommend/rank/label helpers live in [`src/data/segments.js`](src/data/segments.js); the curated resource list in [`src/data/resources.js`](src/data/resources.js). Both are bundled (no database) and covered by [`tests/segments.test.mjs`](tests/segments.test.mjs). Change your grade or subjects anytime from the footer. They're remembered for your account on this computer, so signing out and back in keeps them (they never leave the computer).
 
 ## Metrics & OKR dashboard
 
@@ -192,6 +192,26 @@ The extension feeds this by logging two events through `logEvent()` ([src/lib/su
 
 - [`..._seed_youtube_m365_padlet.sql`](supabase/migrations/20261101010000_seed_youtube_m365_padlet.sql) — **YouTube, Microsoft 365, Padlet**
 - [`..._seed_quizlet_khan_desmos.sql`](supabase/migrations/20261101020000_seed_quizlet_khan_desmos.sql) — **Quizlet, Khan Academy, Desmos**
+
+## Build a tip with AI
+
+No tip for what you need? **Build a tip with AI** (next to "Submit a tip request" whenever a search finds nothing) writes one:
+
+1. Say what you want to do. PrepTip builds a prompt that includes your grade, your subjects and the site, and shows you all of it.
+2. **Copy the prompt** and paste it into ChatGPT, Claude or Gemini (there are links), then **paste the answer back**. PrepTip turns it into a step-by-step tip you can follow right away. This is the default: no key, no account, nothing sent anywhere by PrepTip.
+3. **Or use a free Gemini key:** paste a key from [Google AI Studio](https://aistudio.google.com/apikey) and PrepTip asks Gemini for you. The key stays in your browser (forgotten when you close it unless you tick "remember"), is only sent to Google, and Google's free tier may use what you send to improve its products, so keep student names out.
+
+AI tips are marked **AI-generated** and are never highlighted on the page (nothing has verified them against the real site). They're saved in your browser (not shared, not rated, not counted in the OKRs). The only thing the team sees is how often the builder is used. Details in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#build-a-tip-with-ai).
+
+## Error log
+
+The team needs to know what breaks for teachers, so the extension keeps an error log (table `error_log`, shown in the hub's **Error log** panel):
+
+- **Automatic** — it records when tips or ratings fail to load, a save fails, sign-in fails unexpectedly, the on-page guide can't run, a guided step's target never shows up on the page (a sign the tip no longer matches the real site), or the panel hits an uncaught script error. Messages are scrubbed of URLs, emails and key-like text first; page content and the pages teachers visit are never sent.
+- **Teacher reports** — **Report a problem** (footer, or "Something wrong with this tip?" while following a tip) lets a teacher pick what went wrong and add a note. This catches the things that work but are wrong, which automatic capture can't see.
+- **In the hub** — errors, errors per 100 app opens, teachers affected, a per-day chart, a breakdown by kind, and the most frequent issues with the tip they happened on. What teachers type in a report is not shown on the public dashboard; it is kept in the Supabase table.
+
+Details and the privacy choices are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#error-log).
 
 ## Known limits
 
