@@ -28,7 +28,9 @@ for review. Once Google approves it, installed copies update themselves within a
 If a test fails, nothing is committed or uploaded. If `main` gets a new commit while the run is going, the
 push fails; start a new run. If the upload fails after the tag was pushed (for example because another
 version is still in review), use **Re-run failed jobs** on that run once it's fixed: it picks up the same
-tag instead of raising the version again.
+tag instead of raising the version again. If the fix needed a workflow change, re-running uses the old
+workflow, so start a new run with bump **none** instead: it publishes the version already on `main`,
+reusing its tag.
 
 ## Cutting a release (tag)
 
@@ -96,7 +98,7 @@ The publisher ID and extension ID aren't secret; they're set at the top of the w
   from the dashboard; the API publishes with the existing visibility.
 - Any new permission in `manifest.json` needs a justification on the dashboard's **Privacy** tab before
   the release is submitted, or the review will reject it.
-- If you'd rather not keep a key at all, Google also supports
-  [Workload Identity Federation](https://github.com/google-github-actions/auth#workload-identity-federation-through-a-service-account)
-  for GitHub Actions; swap `credentials_json` in the workflow for `workload_identity_provider` and
-  `service_account`.
+- The workflow trades the key for an access token itself (a signed JWT sent to Google's token endpoint),
+  so only the Chrome Web Store API needs to be enabled in the Cloud project. `google-github-actions/auth`
+  with `token_format: access_token` would also need the IAM Service Account Credentials API and a
+  Token Creator role.

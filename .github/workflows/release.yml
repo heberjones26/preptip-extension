@@ -19,9 +19,9 @@ on:
         type: boolean
         default: false
       bump:
-        description: Which part of the version to raise when publishing
+        description: Which part of the version to raise when publishing (none = publish the current version again, e.g. after a failed upload)
         type: choice
-        options: [patch, minor, major]
+        options: [patch, minor, major, none]
         default: patch
 
 permissions:
@@ -69,14 +69,17 @@ jobs:
             fi
             version=$(BUMP="$BUMP" node -e '
               const [a, b, c] = require("./manifest.json").version.split(".").map(Number);
-              const next = { major: [a + 1, 0, 0], minor: [a, b + 1, 0], patch: [a, b, c + 1] }[process.env.BUMP];
+              const next = { major: [a + 1, 0, 0], minor: [a, b + 1, 0], patch: [a, b, c + 1], none: [a, b, c] }[process.env.BUMP];
               console.log(next.join("."));')
             echo "release=true" >> "$GITHUB_OUTPUT"
             echo "tag=v$version" >> "$GITHUB_OUTPUT"
             echo "version=$version" >> "$GITHUB_OUTPUT"
             # "Re-run failed jobs" starts again from the same commit, so the tag may already exist.
+            # bump=none publishes the version already on main: reuse its tag, or tag main as it is.
             if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
               echo "bumped=already" >> "$GITHUB_OUTPUT"
+            elif [ "$BUMP" = none ]; then
+              echo "bumped=tagonly" >> "$GITHUB_OUTPUT"
             else
               echo "bumped=now" >> "$GITHUB_OUTPUT"
             fi
@@ -118,13 +121,14 @@ jobs:
 
       # Pushed with the workflow's own token, so this tag doesn't start a second Release run.
       - name: Commit and tag the version bump
-        if: steps.meta.outputs.bumped == 'now'
+        if: steps.meta.outputs.bumped == 'now' || steps.meta.outputs.bumped == 'tagonly'
         env:
           TAG: ${{ steps.meta.outputs.tag }}
+          BUMPED: ${{ steps.meta.outputs.bumped }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "Release $TAG"
+          if [ "$BUMPED" = now ]; then git commit -am "Release $TAG"; fi
           git tag "$TAG"
           # Fails if main moved since this run started; start a new run to release the newer main.
           git push --atomic origin HEAD:main "$TAG"
@@ -141,14 +145,38 @@ jobs:
             gh release create "$TAG" "${{ steps.zip.outputs.path }}" --generate-notes
           fi
 
+      # Trades the service account key for an access token directly (a signed JWT, Google's standard
+      # service-account flow). google-github-actions/auth would go through the IAM Credentials API
+      # instead, which has to be enabled in the Cloud project and needs an extra role.
       - name: Authenticate to Google
         id: google
         if: steps.meta.outputs.release == 'true'
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
-          token_format: access_token
-          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+        env:
+          KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
+        run: |
+          node -e '
+            const { sign } = require("crypto");
+            const key = JSON.parse(process.env.KEY);
+            const now = Math.floor(Date.now() / 1000);
+            const b64 = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
+            const claims = { iss: key.client_email, scope: "https://www.googleapis.com/auth/chromewebstore",
+              aud: key.token_uri, iat: now, exp: now + 3600 };
+            const unsigned = `${b64({ alg: "RS256", typ: "JWT" })}.${b64(claims)}`;
+            const jwt = `${unsigned}.${sign("RSA-SHA256", Buffer.from(unsigned), key.private_key).toString("base64url")}`;
+            fetch(key.token_uri, {
+              method: "POST",
+              headers: { "content-type": "application/x-www-form-urlencoded" },
+              body: new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt })
+            }).then(async (res) => {
+              const body = await res.json();
+              if (!body.access_token) {
+                console.log(`::error::Google sign-in failed (${res.status}): ${body.error_description || body.error || "no token"}`);
+                process.exitCode = 1;
+                return;
+              }
+              console.log(`::add-mask::${body.access_token}`);
+              require("fs").appendFileSync(process.env.GITHUB_OUTPUT, `access_token=${body.access_token}\n`);
+            });'
 
       - name: Upload to Chrome Web Store
         if: steps.meta.outputs.release == 'true'
