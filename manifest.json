@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "PrepTip",
   "short_name": "PrepTip",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Teacher-friendly tips and guided walkthroughs for the web tools you already use.",
   "minimum_chrome_version": "116",
   "icons": {
