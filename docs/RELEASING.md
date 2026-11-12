@@ -3,33 +3,50 @@
 Code changes (`manifest.json`, `src/`, `icons/`) reach teachers only through a Chrome Web Store release.
 Tip content lives in Supabase and needs no release.
 
-Releases are automated by [`.github/workflows/release.yml`](../.github/workflows/release.yml): pushing a
-`v*` tag tests the code, builds the zip, attaches it to a GitHub Release, uploads it to the Web Store and
-submits it for review. Once Google approves it, installed copies update themselves within a few hours.
+Releases are automated by [`.github/workflows/release.yml`](../.github/workflows/release.yml). A release
+tests the code, builds the zip, attaches it to a GitHub Release, uploads it to the Web Store and submits it
+for review. Once Google approves it, installed copies update themselves within a few hours.
 
-## Cutting a release
+## Cutting a release (button)
 
 1. Merge your changes to `main`.
-2. Bump `"version"` in `manifest.json` (and `package.json` to match). The store rejects any upload whose
-   version isn't higher than the last one.
-3. Tag and push:
+2. On GitHub, open **Actions → Release → Run workflow**. Leave the branch on `main`, tick
+   **Publish to the Chrome Web Store**, pick which part of the version to raise (`patch` turns 0.1.0 into
+   0.1.1; use `minor` or `major` for bigger releases) and click **Run workflow**.
+
+   From a terminal, the same thing is:
 
    ```bash
-   git switch main && git pull
-   git tag v0.1.1
-   git push origin v0.1.1
+   gh workflow run release.yml --ref main -f publish=true -f bump=patch
    ```
 
-4. Watch the **Release** run in the repo's Actions tab. The workflow fails before uploading if the tag
-   doesn't match the manifest version or a test fails.
-5. Track the review in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole/9d329ed8-79eb-43c7-8950-3506ae6f837c/aningbmgfcfgpjodmgonhmlkncicjdlf/edit/status).
+3. The run raises `"version"` in `manifest.json` and `package.json`, tests and builds, then commits
+   `Release v0.1.1` to `main` with a `v0.1.1` tag before uploading. Pull afterwards (`git pull`) so your
+   copy has the new version.
+4. Track the review in the [Developer Dashboard](https://chrome.google.com/webstore/devconsole/9d329ed8-79eb-43c7-8950-3506ae6f837c/aningbmgfcfgpjodmgonhmlkncicjdlf/edit/status).
 
-Only one version can be in review at a time. If a tag is pushed while an earlier version is still being
-reviewed, the upload step fails; wait for the review, then re-run the failed job from the Actions tab.
+If a test fails, nothing is committed or uploaded. If `main` gets a new commit while the run is going, the
+push fails; start a new run. If the upload fails after the tag was pushed (for example because another
+version is still in review), use **Re-run failed jobs** on that run once it's fixed: it picks up the same
+tag instead of raising the version again.
+
+## Cutting a release (tag)
+
+The older way still works: bump `"version"` in `manifest.json` (and `package.json`) yourself, merge to
+`main`, then push a matching tag. The run fails before uploading if the tag doesn't match the manifest.
+
+```bash
+git switch main && git pull
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+Only one version can be in review at a time, and the store rejects any upload whose version isn't higher
+than the last one.
 
 **Build the zip without releasing:** run `npm run package` locally (writes `dist/preptip-<version>.zip`),
-or Actions → **Release** → **Run workflow**, which builds and saves the zip as a run artifact but never
-uploads it.
+or Actions → **Release** → **Run workflow** with **Publish** unticked, which builds and saves the zip as a
+run artifact but never uploads it.
 
 ## One-time setup: API credentials
 

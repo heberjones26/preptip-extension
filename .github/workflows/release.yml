@@ -1,7 +1,9 @@
-# Releases PrepTip to the Chrome Web Store when a version tag is pushed:
-#   bump "version" in manifest.json, merge to main, then  git tag v0.1.1 && git push origin v0.1.1
-# Pull requests that touch the extension, and running it by hand (Actions tab -> Release -> Run
-# workflow), only test and build the zip; nothing is uploaded.
+# Releases PrepTip to the Chrome Web Store, two ways:
+#   - By hand: Actions -> Release -> Run workflow on main, with "Publish to the Chrome Web Store" ticked.
+#     It bumps "version" in manifest.json and package.json, commits and tags that on main, then releases.
+#   - By tag: bump "version" yourself, merge to main, then  git tag v0.1.1 && git push origin v0.1.1
+# Pull requests that touch the extension, and a by-hand run with "Publish" unticked, only test and
+# build the zip; nothing is uploaded.
 # Credential setup: docs/RELEASING.md
 name: Release
 
@@ -11,9 +13,24 @@ on:
   pull_request:
     paths: ["manifest.json", "src/**", "icons/**", "tests/**", "scripts/**", "package.json", ".github/workflows/release.yml"]
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish to the Chrome Web Store (unticked = only test and build the zip)
+        type: boolean
+        default: false
+      bump:
+        description: Which part of the version to raise when publishing
+        type: choice
+        options: [patch, minor, major]
+        default: patch
 
 permissions:
-  contents: write # attach the zip to a GitHub Release
+  contents: write # push the version bump and tag, attach the zip to a GitHub Release
+
+# One release at a time, so two runs can't claim the same version.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   CWS_PUBLISHER_ID: 9d329ed8-79eb-43c7-8950-3506ae6f837c
@@ -24,18 +41,68 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags, so a re-run can find the version it already made
       - uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Check tag matches manifest version
-        if: github.ref_type == 'tag'
+      - name: Decide whether this run releases
+        id: meta
+        env:
+          EVENT: ${{ github.event_name }}
+          PUBLISH: ${{ inputs.publish }}
+          BUMP: ${{ inputs.bump }}
         run: |
-          version=$(node -p "require('./manifest.json').version")
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match manifest.json version $version"
-            exit 1
+          if [ "$EVENT" = push ] && [ "$GITHUB_REF_TYPE" = tag ]; then
+            version=$(node -p "require('./manifest.json').version")
+            if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+              echo "::error::Tag $GITHUB_REF_NAME does not match manifest.json version $version"
+              exit 1
+            fi
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT" = workflow_dispatch ] && [ "$PUBLISH" = true ]; then
+            if [ "$GITHUB_REF" != refs/heads/main ]; then
+              echo "::error::Publish from main only (this run is on $GITHUB_REF_NAME)."
+              exit 1
+            fi
+            version=$(BUMP="$BUMP" node -e '
+              const [a, b, c] = require("./manifest.json").version.split(".").map(Number);
+              const next = { major: [a + 1, 0, 0], minor: [a, b + 1, 0], patch: [a, b, c + 1] }[process.env.BUMP];
+              console.log(next.join("."));')
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "tag=v$version" >> "$GITHUB_OUTPUT"
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+            # "Re-run failed jobs" starts again from the same commit, so the tag may already exist.
+            if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
+              echo "bumped=already" >> "$GITHUB_OUTPUT"
+            else
+              echo "bumped=now" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Use the version this release already tagged
+        if: steps.meta.outputs.bumped == 'already'
+        run: git checkout "${{ steps.meta.outputs.tag }}"
+
+      - name: Bump the version
+        if: steps.meta.outputs.bumped == 'now'
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: |
+          # Swap only the top-level "version" line so the rest of each file keeps its formatting.
+          node -e '
+            const fs = require("fs");
+            for (const f of ["manifest.json", "package.json"]) {
+              const text = fs.readFileSync(f, "utf8");
+              const next = text.replace(/^(  "version":\s*")[^"]*(")/m, `$1${process.env.VERSION}$2`);
+              if (JSON.parse(next).version !== process.env.VERSION) throw new Error(`Could not set the version in ${f}`);
+              fs.writeFileSync(f, next);
+            }'
+          git diff
 
       - run: npm test
       - run: npm run check
@@ -49,15 +116,34 @@ jobs:
           name: preptip-extension
           path: ${{ steps.zip.outputs.path }}
 
+      # Pushed with the workflow's own token, so this tag doesn't start a second Release run.
+      - name: Commit and tag the version bump
+        if: steps.meta.outputs.bumped == 'now'
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Release $TAG"
+          git tag "$TAG"
+          # Fails if main moved since this run started; start a new run to release the newer main.
+          git push --atomic origin HEAD:main "$TAG"
+
       - name: Attach zip to GitHub Release
-        if: github.ref_type == 'tag'
+        if: steps.meta.outputs.release == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" "${{ steps.zip.outputs.path }}" --generate-notes
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${{ steps.zip.outputs.path }}" --clobber
+          else
+            gh release create "$TAG" "${{ steps.zip.outputs.path }}" --generate-notes
+          fi
 
       - name: Authenticate to Google
         id: google
-        if: github.ref_type == 'tag'
+        if: steps.meta.outputs.release == 'true'
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
@@ -65,7 +151,7 @@ jobs:
           access_token_scopes: https://www.googleapis.com/auth/chromewebstore
 
       - name: Upload to Chrome Web Store
-        if: github.ref_type == 'tag'
+        if: steps.meta.outputs.release == 'true'
         env:
           TOKEN: ${{ steps.google.outputs.access_token }}
           ZIP: ${{ steps.zip.outputs.path }}
@@ -90,7 +176,7 @@ jobs:
           fi
 
       - name: Submit for review
-        if: github.ref_type == 'tag'
+        if: steps.meta.outputs.release == 'true'
         env:
           TOKEN: ${{ steps.google.outputs.access_token }}
         run: |
