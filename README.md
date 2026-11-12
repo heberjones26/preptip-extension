@@ -108,7 +108,7 @@ npm test
 npm run check
 ```
 
-**Releasing to the Chrome Web Store:** bump the manifest version and push a `v*` tag. See [docs/RELEASING.md](docs/RELEASING.md).
+**Releasing to the Chrome Web Store:** Actions → **Release** → **Run workflow** with **Publish** ticked (it bumps the version for you), or push a `v*` tag. See [docs/RELEASING.md](docs/RELEASING.md).
 
 ## Verifying the Vertical Slice
 
