@@ -365,9 +365,7 @@ function noResults(state, ctx, q, includeRequest = true) {
       <h4>We don&rsquo;t currently have a tip for this${ctx.site ? ` on ${esc(shortSiteName(ctx.site.name))}` : ''}.</h4>
       <p>No tips match &ldquo;${esc(q)}&rdquo;${ctx.site ? ` on ${esc(shortSiteName(ctx.site.name))}` : ''}. Submit the problem so we can make a tip to help.</p>
     </div>
-    ${includeRequest ? `<div class="next">
-      ${tipRequestHtml(state)}
-    </div>
+    ${includeRequest ? `<div class="tip-request">${tipRequestHtml(state)}</div>
     ${aiEntryHtml(state)}` : ''}`;
 }
 
@@ -426,7 +424,7 @@ export function unsupportedView(state, ctx) {
     <div class="sec-h"><h4>Looking for help with another tool?</h4></div>
     ${searchBox(state.query)}
     <div id="results" class="stack">${resultsHtml(state, ctx)}</div>
-    <div class="next"><div id="tip-request" class="next-row">${tipRequestHtml(state)}</div></div>
+    <div id="tip-request" class="tip-request">${tipRequestHtml(state)}</div>
     <div id="ai-entry">${aiEntryHtml(state)}</div>
     <div class="next">${sitesWithTipsBlock(state, sites)}</div>`;
 }
