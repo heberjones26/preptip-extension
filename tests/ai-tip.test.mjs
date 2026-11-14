@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  buildPrompt, parseAiTip, toTip, cleanSavedTips, dbTipId, cleanQuestion, AI_ASSISTANTS, MAX_QUESTION
+  buildPrompt, parseAiTip, toTip, cleanSavedTips, dbTipId, cleanQuestion, MAX_QUESTION
 } from '../src/lib/ai-tip.js';
 import {
   GEMINI_MODELS, GeminiError, geminiRequest, geminiText, generateWithGemini, isUserFixable, looksLikeKey
@@ -44,11 +44,6 @@ test('the question is cleaned: markup removed, spaces collapsed, length capped',
 test('the prompt never contains account details', () => {
   const p = buildPrompt({ question: 'q', site: 'Canva', grade: 'High school', subjects: ['Math'] });
   assert.ok(!/username|password|@/i.test(p.replace('@', '')));
-});
-
-test('every assistant link is https and named', () => {
-  assert.equal(AI_ASSISTANTS.length, 3);
-  for (const a of AI_ASSISTANTS) { assert.match(a.url, /^https:\/\//); assert.ok(a.name); }
 });
 
 // ---------------------------------------------------------------------------
@@ -270,32 +265,39 @@ test('storage that is missing or throws is treated as "no key", not a crash', as
 // The screen
 // ---------------------------------------------------------------------------
 const ai = (over = {}) => ({
-  question: '', site: '', reply: '', tip: null, finished: null, pasteError: '', geminiError: '', copied: false,
-  copyFailed: false, building: false, key: '', remember: false, keyOpen: false, returnTo: 'tips', ...over
+  question: '', site: '', tip: null, finished: null, geminiError: '',
+  building: false, key: '', remember: false, returnTo: 'tips', ...over
 });
 const aiState = (over = {}, stateOver = {}) => ({
   view: 'ai', setupDone: true, teacher: { userId: 1, username: 'nelly', gradeLevel: 'high', subjects: ['physics'] },
   ai: ai(over), aiKey: { has: false, remembered: false }, aiTips: [], ...stateOver
 });
 
-test('the AI screen shows the exact prompt, the three assistants, and what leaves the browser', () => {
+test('the AI screen is Gemini only: the question, the website, key setup and one Generate button', () => {
   const html = aiView(aiState({ question: 'print a seating chart', site: 'Canva' }));
-  assert.match(html, /<textarea id="ai-prompt"[^>]*readonly>[\s\S]*print a seating chart/);
-  assert.match(html, /I teach High school \(Physics\)/);
-  for (const a of AI_ASSISTANTS) assert.ok(html.includes(`href="${a.url}"`), a.name);
-  assert.equal((html.match(/rel="noopener"/g) || []).length >= 4, true, 'every outside link is noopener');
+  assert.match(html, /<textarea id="ai-question"[^>]*>print a seating chart</);
+  assert.match(html, /id="ai-site"[^>]*value="Canva"/);
+  assert.match(html, /you teach <b>High school · Physics<\/b>/);
+  // no copy-and-paste path
+  for (const gone of ['ai-prompt', 'ai-copy', 'ai-reply', 'ai-build"', 'chatgpt.com', 'claude.ai', '<details']) {
+    assert.ok(!html.includes(gone), `no ${gone}`);
+  }
+  // first time: how to get a key, and a box for it
+  assert.match(html, /One-time setup/);
+  assert.match(html, /href="https:\/\/aistudio\.google\.com\/apikey" target="_blank" rel="noopener"/);
+  assert.match(html, /Create API key/);
+  assert.match(html, /<input id="ai-key" type="password"/);
+  assert.equal((html.match(/data-action="ai-gemini"/g) || []).length, 1);
   assert.match(html, /only sent to Google/);
   assert.match(html, /Google may use what you send to improve its products/);
   assert.match(html, /student names/);
-  assert.match(html, /aistudio\.google\.com\/apikey/);
-  assert.ok(!/<details[^>]* open/.test(html), 'the key section starts closed');
 });
 
 test('the AI screen escapes everything a teacher or an AI could put in it', () => {
   const evil = '<img src=x onerror=alert(1)>';
   const tip = toTip({ title: 'Safe title', summary: 'Safe', minutes: 1, steps: ['Do this', 'Do that'], caution: '' });
   tip.title = evil; tip.tip_steps[0].step_description = evil; tip.caution = evil;
-  const html = aiView(aiState({ question: evil, site: evil, reply: evil, tip, pasteError: evil, geminiError: evil, finished: evil }, { aiTips: [tip] }));
+  const html = aiView(aiState({ question: evil, site: evil, key: evil, tip, geminiError: evil, finished: evil }, { aiTips: [tip] }));
   assert.ok(!html.includes('<img'), 'no raw markup anywhere');
   assert.match(html, /&lt;img/);
 });
@@ -305,16 +307,15 @@ test('with a saved key the screen offers to remove it and never prints it', () =
   assert.match(html, /data-action="ai-key-forget">Remove key/);
   assert.match(html, /until you close the browser/);
   assert.ok(!html.includes('id="ai-key"'), 'no key box when one is saved');
+  assert.ok(!html.includes('One-time setup'), 'no setup steps when a key is saved');
   assert.ok(!html.includes(KEY));
-  assert.match(html, /<details[^>]* open/, 'open so they can see it');
+  assert.match(html, /data-action="ai-gemini"[^>]*>[\s\S]*Generate tip/);
   assert.match(aiView(aiState({}, { aiKey: { has: true, remembered: true } })), /remembered on this computer/);
 });
 
 test('the AI screen shows progress, errors, a finished tip and the saved list', () => {
-  assert.match(aiView(aiState({ building: true })), /disabled>Asking Gemini/);
-  assert.match(aiView(aiState({ copied: true })), />Copied!</);
-  assert.match(aiView(aiState({ copyFailed: true })), /couldn&rsquo;t copy it automatically/);
-  assert.match(aiView(aiState({ pasteError: 'Paste the AI’s answer first.' })), /role="alert">Paste the AI’s answer first/);
+  assert.match(aiView(aiState({ building: true })), /disabled><svg[\s\S]*?<\/svg>Writing your tip…/);
+  assert.match(aiView(aiState({ geminiError: 'Type what you want to do first.' })), /role="alert">Type what you want to do first/);
   const tip = toTip(good, { now: () => 5, random: () => 0 });
   const html = aiView(aiState({ tip, finished: tip.title }, { aiTips: [tip] }));
   assert.match(html, /Nice work!/);
@@ -331,10 +332,16 @@ test('"Build a tip with AI" is offered wherever a teacher can ask for a tip that
     query: 'zzzz nothing matches', view: 'tips', setupDone: true, tab: { url: 'https://example.com' },
     catalog: { websites: [docs], tips: [tip] }, request: { open: false, text: '', saving: false, sent: false, error: '' }
   };
+  // its own small sparkle button, after (not inside) the bordered request box
+  const own = /<\/div>\s*(?:<div id="ai-entry">)?<button type="button" class="btn ai full" data-action="open-ai"><svg viewBox="0 0 24 24" aria-hidden="true">[\s\S]*?<\/svg>Build a tip with AI<\/button>/;
   // a search on a supported site that finds nothing
-  assert.match(resultsHtml(state, { site: docs, tips: [tip] }), /data-action="open-ai">[\s\S]*Build a tip with AI/);
+  assert.match(resultsHtml(state, { site: docs, tips: [tip] }), own);
   // the "this site isn't supported" screen
-  assert.match(unsupportedView({ ...state, query: '' }, { site: null, tips: [] }), /data-action="open-ai">[\s\S]*Build a tip with AI/);
+  const unsupported = unsupportedView({ ...state, query: '' }, { site: null, tips: [] });
+  assert.match(unsupported, own);
+  assert.ok(!/<div id="tip-request"[^>]*>[^]*?open-ai[^]*?<\/div><\/div>\s*<div id="ai-entry">/.test(unsupported), 'not inside the request box');
+  // a search that matched, under "Not quite it?"
+  assert.match(resultsHtml({ ...state, query: 'comment' }, { site: docs, tips: [tip] }), own);
   // but not while the request form itself is open
   const open = { ...state, request: { ...state.request, open: true } };
   assert.ok(!resultsHtml(open, { site: docs, tips: [tip] }).includes('data-action="open-ai"'));

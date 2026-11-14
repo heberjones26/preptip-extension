@@ -21,6 +21,9 @@ export const OFFLINE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 
 
 export const WAND = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20 15 9M14 4v3M19 9h-3M17.5 5.5l-2 2M9 4.5V6M4.5 9H6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 
+// AI sparkle — the "Build a tip with AI" button.
+export const SPARKLE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10 3c.7 4.6 2.4 6.3 7 7-4.6.7-6.3 2.4-7 7-.7-4.6-2.4-6.3-7-7 4.6-.7 6.3-2.4 7-7zM18.5 14c.4 2.1 1.4 3.1 3.5 3.5-2.1.4-3.1 1.4-3.5 3.5-.4-2.1-1.4-3.1-3.5-3.5 2.1-.4 3.1-1.4 3.5-3.5z"/></svg>';
+
 export const STEPS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="4.5" cy="6" r="1.6" fill="currentColor"/><circle cx="4.5" cy="12" r="1.6" fill="currentColor"/><circle cx="4.5" cy="18" r="1.6" fill="currentColor"/></svg>';
 
 // Graduation cap — the grade-level affordance.

@@ -1,21 +1,13 @@
 // "Build a tip with AI", minus the network: write the prompt, check what the AI sent back, and turn
 // it into a tip the guide screen can follow. Pure and dependency-free so it can be unit-tested.
 //
-// Two ways to get the AI's answer feed the same parser: the teacher copies the prompt into ChatGPT /
-// Claude / Gemini and pastes the reply back, or (optionally) PrepTip asks Gemini with the teacher's own
-// free key (src/lib/gemini.js).
+// The prompt goes to Gemini with the teacher's own free key (src/lib/gemini.js); its answer comes back
+// through parseAiTip().
 
 import { gradeLabel, subjectLabel, cleanSubjects } from '../data/segments.js';
 
 export const MAX_QUESTION = 300;
 export const MAX_SITE = 60;
-
-// Where "Open ..." sends the teacher to paste the prompt.
-export const AI_ASSISTANTS = [
-  { id: 'chatgpt', name: 'ChatGPT', url: 'https://chatgpt.com/' },
-  { id: 'claude', name: 'Claude', url: 'https://claude.ai/new' },
-  { id: 'gemini', name: 'Gemini', url: 'https://gemini.google.com/app' }
-];
 
 const clean = (text, max) => String(text ?? '')
   .replace(/<[^>]*>/g, '')            // no markup: tips are plain text
@@ -28,8 +20,7 @@ export function cleanQuestion(text) {
   return clean(text, MAX_QUESTION);
 }
 
-// The prompt the teacher copies (or that we send to Gemini). Everything in it is visible to the
-// teacher first. `grade` is a readable label ("High school"), `subjects` readable labels.
+// The prompt we send to Gemini. `grade` is a readable label ("High school"), `subjects` readable labels.
 export function buildPrompt({ question = '', site = '', grade = '', subjects = [] } = {}) {
   const what = cleanQuestion(question) || '(describe what you want to do)';
   const where = clean(site, MAX_SITE);

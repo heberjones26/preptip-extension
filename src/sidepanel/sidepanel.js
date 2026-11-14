@@ -71,9 +71,8 @@ function newRequest() {
 // The "Build a tip with AI" screen. `returnTo` is the view to go back to.
 function newAi({ question = '', site = '', returnTo = 'tips' } = {}) {
   return {
-    question, site, reply: '', tip: null, finished: null,
-    pasteError: '', geminiError: '', copied: false, copyFailed: false,
-    building: false, key: '', remember: false, keyOpen: false, returnTo
+    question, site, tip: null, finished: null, geminiError: '',
+    building: false, key: '', remember: false, returnTo
   };
 }
 
@@ -693,48 +692,20 @@ function saveClassSettings() {
 }
 
 // A tip was built: show it, keep it, count it (a count only — never the question or the answer).
-async function aiTipReady(parsed, method) {
+async function aiTipReady(parsed) {
   const tip = toTip(parsed, { siteName: state.ai.site });
   state.ai.tip = tip;
   state.ai.finished = null;
-  state.ai.pasteError = '';
   state.ai.geminiError = '';
   state.aiTips = [tip, ...state.aiTips];
   await saveAiTips();
-  logEvent({ type: method === 'gemini' ? 'ai_tip_gemini' : 'ai_tip_pasted', userId: state.teacher?.userId });
-}
-
-async function aiCopy() {
-  const text = promptFor(state.ai, state.teacher);
-  let ok = false;
-  try { await navigator.clipboard.writeText(text); ok = true; } catch { /* fall back to selecting the text */ }
-  if (!ok) {
-    const box = $('#ai-prompt');
-    if (box) { try { box.focus(); box.select(); ok = document.execCommand('copy'); } catch { /* ignore */ } }
-  }
-  state.ai.copied = ok;
-  state.ai.copyFailed = !ok;
-  if (ok) logEvent({ type: 'ai_prompt_copied', userId: state.teacher?.userId });
-  render();
-}
-
-async function aiBuildFromReply() {
-  const a = state.ai;
-  const parsed = parseAiTip(a.reply);
-  if (!parsed.ok) {
-    a.pasteError = parsed.error;
-    if (a.reply.trim()) problem('other', 'ai-parse', 'A pasted AI answer was not in the requested format'); // never the answer itself
-    return render();
-  }
-  await aiTipReady(parsed.tip, 'paste');
-  a.reply = '';
-  render();
-  window.scrollTo(0, 0);
+  logEvent({ type: 'ai_tip_gemini', userId: state.teacher?.userId });
 }
 
 async function aiBuildWithGemini() {
   const a = state.ai;
   if (a.building) return;
+  if (!cleanQuestion(a.question)) { a.geminiError = 'Type what you want to do first.'; return render(); }
   const typed = a.key.trim();
   const key = typed || await loadAiKey();
   if (!key) { a.geminiError = 'Paste your Gemini key first.'; return render(); }
@@ -755,7 +726,7 @@ async function aiBuildWithGemini() {
       state.aiKey = { has: true, remembered: a.remember };
       a.key = '';
     }
-    await aiTipReady(parsed.tip, 'gemini');
+    await aiTipReady(parsed.tip);
   } catch (err) {
     a.geminiError = err.friendly || 'Something went wrong. Try again, or use copy and paste.';
     if (!isUserFixable(err)) problem('other', 'ai-gemini', err); // a wrong key or the free limit is not our bug
@@ -885,8 +856,6 @@ const actions = {
     render();
     window.scrollTo(0, 0);
   },
-  'ai-copy': () => aiCopy(),
-  'ai-build': () => aiBuildFromReply(),
   'ai-gemini': () => aiBuildWithGemini(),
   'ai-key-forget': async () => {
     await keyStore().clear();
@@ -1030,11 +999,6 @@ function wireDomEvents() {
       state.request.text = e.target.value;
     } else if (e.target.id === 'ai-question' || e.target.id === 'ai-site') {
       state.ai[e.target.id === 'ai-site' ? 'site' : 'question'] = e.target.value;
-      const box = $('#ai-prompt'); // keep the visible prompt in step without re-drawing (and losing focus)
-      if (box) box.value = promptFor(state.ai, state.teacher);
-      state.ai.copied = false;
-    } else if (e.target.id === 'ai-reply') {
-      state.ai.reply = e.target.value;
     } else if (e.target.id === 'ai-key') {
       state.ai.key = e.target.value;
     } else if (e.target.id === 'ai-remember') {
@@ -1065,7 +1029,6 @@ function wireDomEvents() {
   });
 
   // <details> doesn't bubble 'toggle', so listen while it's still travelling down.
-  document.addEventListener('toggle', (e) => { if (e.target.id === 'ai-gemini-box') state.ai.keyOpen = e.target.open; }, true);
 
   // Log when a teacher opens a Common Teacher Resource (doesn't block the link from opening).
   document.addEventListener('click', (e) => {

@@ -7,7 +7,7 @@ import {
   emphasize, splitActions, offtrackCopy, targetPath, targetKind
 } from './text.js';
 import {
-  LOGO, SEARCH, GLOBE, CHECK, THUMB, PUZZLE, PIN, INFO, OFFLINE, WAND, STEPS, CAP, BOOKS, EXTERNAL, siteIcon
+  LOGO, SEARCH, GLOBE, CHECK, THUMB, PUZZLE, PIN, INFO, OFFLINE, WAND, SPARKLE, STEPS, CAP, BOOKS, EXTERNAL, siteIcon
 } from './icons.js';
 import {
   GRADES, SUBJECTS, gradeLabel, splitByFit, siteGrades, siteSubjects, profileLabel, matchBadge, cleanSubjects
@@ -15,7 +15,7 @@ import {
 import { RESOURCES } from '../data/resources.js';
 import { SHARE_MESSAGE } from '../lib/share.js';
 import { REPORT_REASONS } from '../lib/errors.js';
-import { promptFor, AI_ASSISTANTS, MAX_QUESTION, MAX_SITE } from '../lib/ai-tip.js';
+import { MAX_QUESTION, MAX_SITE } from '../lib/ai-tip.js';
 import { GEMINI_KEY_URL } from '../lib/gemini.js';
 
 // The teacher's chosen grade band (or '' for all grades / not set).
@@ -108,8 +108,13 @@ function requestBlock(state, label, hint = '') {
         </div>
       </form>`;
   }
-  return `<button type="button" class="btn outline full" data-action="open-request">${label}</button>
-    <button type="button" class="btn ghost full ai-entry" data-action="open-ai">${WAND}Build a tip with AI</button>${hint ? `<small class="muted">${hint}</small>` : ''}`;
+  return `<button type="button" class="btn outline full" data-action="open-request">${label}</button>${hint ? `<small class="muted">${hint}</small>` : ''}`;
+}
+
+// "Build a tip with AI": its own button, under the request box (hidden while the request form is open).
+export function aiEntryHtml(state) {
+  if (state.request?.open) return '';
+  return `<button type="button" class="btn ai full" data-action="open-ai">${SPARKLE}Build a tip with AI</button>`;
 }
 
 // Unsupported-site search keeps this outside the results so there is only one form.
@@ -348,7 +353,7 @@ function siteResults(state, ctx, q) {
     html += sectionHead('On other sites');
     html += `<div class="cards">${elsewhere.map((t) => tipCard(state, t, { site: siteName(state, t.url_pattern) })).join('')}</div>`;
   }
-  if (here.length) html += `<div class="next"><div class="next-row"><b>Not quite it?</b>${requestBlock(state, 'Request a tip')}</div></div>`;
+  if (here.length) html += `<div class="next"><div class="next-row"><b>Not quite it?</b>${requestBlock(state, 'Request a tip')}</div></div>${aiEntryHtml(state)}`;
   return html;
 }
 
@@ -362,7 +367,8 @@ function noResults(state, ctx, q, includeRequest = true) {
     </div>
     ${includeRequest ? `<div class="next">
       ${tipRequestHtml(state)}
-    </div>` : ''}`;
+    </div>
+    ${aiEntryHtml(state)}` : ''}`;
 }
 
 // Search from the unsupported-site view: every site, each card labeled.
@@ -421,6 +427,7 @@ export function unsupportedView(state, ctx) {
     ${searchBox(state.query)}
     <div id="results" class="stack">${resultsHtml(state, ctx)}</div>
     <div class="next"><div id="tip-request" class="next-row">${tipRequestHtml(state)}</div></div>
+    <div id="ai-entry">${aiEntryHtml(state)}</div>
     <div class="next">${sitesWithTipsBlock(state, sites)}</div>`;
 }
 
@@ -578,7 +585,6 @@ export function aiView(state) {
   const a = state.ai;
   const key = state.aiKey;
   const label = profileLabel(teacherProfile(state));
-  const prompt = promptFor(a, state.teacher);
   const finished = a.finished
     ? `<div class="thanks">${CHECK}<div><b>Nice work!</b><p>You finished &ldquo;${esc(a.finished)}&rdquo;.</p></div></div>` : '';
   const saved = state.aiTips.length ? `
@@ -589,52 +595,41 @@ export function aiView(state) {
       </ul>
     </div>` : '';
 
-  const links = AI_ASSISTANTS.map((x) =>
-    `<a class="ai-link" href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.name)} ${EXTERNAL}</a>`).join('');
+  // No key yet: how to get one, then a box to paste it. With a key: just which key is in use.
   const keyBlock = key.has
-    ? `<p class="ai-keyline">Using your saved key (${key.remembered ? 'remembered on this computer' : 'until you close the browser'}). <button type="button" class="linkish" data-action="ai-key-forget">Remove key</button></p>`
-    : `<label class="field"><span>Gemini API key</span>
-         <input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key" value="${esc(a.key)}">
-       </label>
-       <label class="check"><input type="checkbox" id="ai-remember" ${a.remember ? 'checked' : ''}> Remember it on this computer</label>`;
+    ? `<p class="ai-keyline">Using your Gemini key (${key.remembered ? 'remembered on this computer' : 'until you close the browser'}). <button type="button" class="linkish" data-action="ai-key-forget">Remove key</button></p>`
+    : `<div class="ai-setup">
+        <b>One-time setup: get a free Gemini key</b>
+        <ol>
+          <li>Open <a href="${esc(GEMINI_KEY_URL)}" target="_blank" rel="noopener">Google AI Studio</a> and sign in with a Google account.</li>
+          <li>Click &ldquo;Create API key&rdquo;, then copy the key.</li>
+          <li>Paste it below.</li>
+        </ol>
+        <label class="field"><span>Gemini API key</span>
+          <input id="ai-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key" value="${esc(a.key)}">
+        </label>
+        <label class="check"><input type="checkbox" id="ai-remember" ${a.remember ? 'checked' : ''}> Remember it on this computer</label>
+      </div>`;
 
   return `
     <button type="button" class="back" data-action="ai-back">&larr; Back</button>
     <div class="g-head"><h3>Build a tip with AI</h3></div>
-    <p class="tiny-note">No tip for this yet? An AI assistant can write one. Nothing leaves PrepTip unless you copy it yourself or choose the Gemini option below.</p>
+    <p class="tiny-note">No tip for this yet? Gemini can write step-by-step instructions for you. Your key stays in this browser and is only sent to Google, with your question. On Google&rsquo;s free tier, Google may use what you send to improve its products, so don&rsquo;t include student names or other personal details.</p>
     ${finished}
     ${a.tip ? aiTipCard(a.tip) : ''}
 
     <div class="ai-form">
-      <label class="field"><span>1 &middot; What do you want to do?</span>
+      <label class="field"><span>What do you want to do?</span>
         <textarea id="ai-question" rows="3" maxlength="${MAX_QUESTION}" placeholder="e.g. Make a seating chart I can print">${esc(a.question)}</textarea>
       </label>
       <label class="field"><span>Website <span class="opt">optional</span></span>
         <input id="ai-site" maxlength="${MAX_SITE}" placeholder="e.g. Canva" value="${esc(a.site)}">
       </label>
-      ${label ? `<p class="tiny-note">Your prompt says you teach <b>${esc(label)}</b>. Change that from the footer.</p>` : ''}
-
-      <label class="field"><span>2 &middot; Copy this prompt into an AI assistant</span>
-        <textarea id="ai-prompt" class="ai-prompt" rows="6" readonly>${esc(prompt)}</textarea>
-      </label>
-      <button type="button" class="btn primary full" data-action="ai-copy">${a.copied ? 'Copied!' : 'Copy prompt'}</button>
-      ${a.copyFailed ? '<p class="form-error" role="alert">We couldn&rsquo;t copy it automatically. Click the box above, select all, then copy.</p>' : ''}
-      <p class="ai-open"><span>Open</span>${links}</p>
-
-      <label class="field"><span>3 &middot; Paste the AI&rsquo;s answer here</span>
-        <textarea id="ai-reply" rows="5" placeholder="It should start with { and end with }">${esc(a.reply)}</textarea>
-      </label>
-      ${a.pasteError ? `<p class="form-error" role="alert">${esc(a.pasteError)}</p>` : ''}
-      <button type="button" class="btn primary full" data-action="ai-build">Build my tip</button>
-    </div>
-
-    <details class="ai-gemini" id="ai-gemini-box" ${a.keyOpen || key.has || a.geminiError ? 'open' : ''}>
-      <summary>Prefer one click? Use a free Gemini key</summary>
-      <p class="tiny-note">Get a free key from <a href="${esc(GEMINI_KEY_URL)}" target="_blank" rel="noopener">Google AI Studio</a>. Your key stays in this browser and is only sent to Google, along with the prompt above. On Google&rsquo;s free tier, Google may use what you send to improve its products, so don&rsquo;t include student names or other personal details.</p>
+      ${label ? `<p class="tiny-note">Gemini will know you teach <b>${esc(label)}</b>. Change that from the footer.</p>` : ''}
       ${keyBlock}
       ${a.geminiError ? `<p class="form-error" role="alert">${esc(a.geminiError)}</p>` : ''}
-      <button type="button" class="btn outline full" data-action="ai-gemini" ${a.building ? 'disabled' : ''}>${a.building ? 'Asking Gemini…' : 'Generate with Gemini'}</button>
-    </details>
+      <button type="button" class="btn ai full" data-action="ai-gemini" ${a.building ? 'disabled' : ''}>${SPARKLE}${a.building ? 'Writing your tip…' : 'Generate tip'}</button>
+    </div>
     ${saved}`;
 }
 

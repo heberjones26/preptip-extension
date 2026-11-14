@@ -195,11 +195,13 @@ The extension feeds this by logging two events through `logEvent()` ([src/lib/su
 
 ## Build a tip with AI
 
-No tip for what you need? **Build a tip with AI** (next to "Submit a tip request" whenever a search finds nothing) writes one:
+No tip for what you need? **Build a tip with AI** (its own button under "Submit a tip request" whenever a search finds nothing) asks Gemini to write one:
 
-1. Say what you want to do. PrepTip builds a prompt that includes your grade, your subjects and the site, and shows you all of it.
-2. **Copy the prompt** and paste it into ChatGPT, Claude or Gemini (there are links), then **paste the answer back**. PrepTip turns it into a step-by-step tip you can follow right away. This is the default: no key, no account, nothing sent anywhere by PrepTip.
-3. **Or use a free Gemini key:** paste a key from [Google AI Studio](https://aistudio.google.com/apikey) and PrepTip asks Gemini for you. The key stays in your browser (forgotten when you close it unless you tick "remember"), is only sent to Google, and Google's free tier may use what you send to improve its products, so keep student names out.
+1. Say what you want to do and, optionally, on which website. PrepTip adds your grade and subjects.
+2. **The first time,** get a free key from [Google AI Studio](https://aistudio.google.com/apikey) (the screen walks you through it) and paste it in. After that, it's one click: **Generate tip**.
+3. PrepTip turns Gemini's answer into a step-by-step tip you can follow right away.
+
+The key stays in your browser (forgotten when you close it unless you tick "remember") and is only sent to Google. Google's free tier may use what you send to improve its products, so keep student names out.
 
 AI tips are marked **AI-generated** and are never highlighted on the page (nothing has verified them against the real site). They're saved in your browser (not shared, not rated, not counted in the OKRs). The only thing the team sees is how often the builder is used. Details in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#build-a-tip-with-ai).
 
