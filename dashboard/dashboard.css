@@ -249,3 +249,11 @@ a:focus-visible, button:focus-visible { outline: 3px solid var(--brand); outline
 .req-list { list-style: none; margin: 0; padding: 0; font-size: 0.86rem; }
 .req-list li { display: flex; justify-content: space-between; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--n100); }
 .req-list .nowrap { white-space: nowrap; color: var(--n500); }
+
+/* Week-by-week trend under OKR 3 and 4 */
+.wk { position: relative; margin-top: 14px; }
+.wk .trend { height: 72px; }
+.wk .tcol i.hit { background: var(--green-500); }
+.wk .tcol i.partial { opacity: 0.55; }
+.wk-target { position: absolute; left: 0; right: 0; height: 0; border-top: 1px dashed var(--n500); pointer-events: none; }
+.kr-cap.small { font-size: 0.8rem; margin-top: 8px; }

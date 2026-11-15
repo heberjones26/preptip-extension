@@ -67,6 +67,10 @@ When there is no tip for what a teacher needs, **Build a tip with AI** (its own 
 
 The AI view and an AI tip's guide survive tab switches (getting a key sends the teacher to Google AI Studio and back); everything else resets to the tip list when the tab changes.
 
+### OKR history (weeks)
+
+`okr_app_usage()` and `okr_tip_engagement()` only answer "now" (OKR 3 resets every Monday). [supabase/migrations/20261116000000_okr_trends.sql](../supabase/migrations/20261116000000_okr_trends.sql) adds `okr_app_usage_weekly(weeks)`, `okr_tip_engagement_weekly(weeks)` (oldest first, empty weeks included, max 26) and `okr_app_usage_distribution()` (teachers by office days opened this week). Each uses the same counting rule as its current-week function, so the newest bar equals the headline number. `kr3Weeks` / `kr4Weeks` / `daysSpread` in `dashboard/okr.js` shape the rows for the chart. The history is optional on the page: if the migration isn't applied, the cards still show their headline figure.
+
 ### Requested tips
 
 A teacher's "Submit a tip request" (and "Suggest a resource") is a `feedback` row with no tip: `Tip request (<site>): <wording>` / `Resource request: <wording>`. The public key can't read `feedback`, so the hub's **Requested tips** panel goes through one function, `requested_tips(days)` ([supabase/migrations/20261115000000_requested_tips.sql](../supabase/migrations/20261115000000_requested_tips.sql)). It scrubs the wording **on read** with `scrub_public_text` (web addresses, emails, keys, long tokens, phone-like numbers), groups identical wording per site, and returns counts of requests and of distinct teachers, never a user id or username. Scrubbing on read (not just in the extension) covers requests stored before the function existed. `tests/requested-tips.test.mjs` pins the request format the extension writes to the SQL that parses it.

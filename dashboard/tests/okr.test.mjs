@@ -1,7 +1,7 @@
 // Run: node --test "dashboard/tests/**/*.test.mjs"   (or npm test from the repo root)
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { okr1FromRatings, okr2FromEvents, okrStatus, pctLabel } from '../okr.js';
+import { okr1FromRatings, okr2FromEvents, okrStatus, pctLabel, kr3Weeks, kr4Weeks, daysSpread } from '../okr.js';
 
 test('okr1: sums 👍/👎 across tips into one program-wide percent', () => {
   const ratings = {
@@ -80,4 +80,50 @@ test('pctLabel: rounds, and dashes on no data', () => {
   assert.equal(pctLabel(1), '100%');
   assert.equal(pctLabel(null), '—');
   assert.equal(pctLabel(NaN), '—');
+});
+
+// --- OKR 3 / 4 week by week -----------------------------------------------------------------
+test('kr3Weeks: averages per week, flags weeks that meet the target, marks the newest as partial', () => {
+  const w = kr3Weeks([
+    { week_start: '2026-11-02', teachers: 2, qualifying: 1, avg_office_days: '3.50' },
+    { week_start: '2026-11-09', teachers: 3, qualifying: 1, avg_office_days: '1.33' },
+  ], { targetDays: 3, ofDays: 5 });
+  assert.deepEqual(w.map((x) => x.value), [3.5, 1.33]);
+  assert.deepEqual(w.map((x) => x.hit), [true, false]);
+  assert.deepEqual(w.map((x) => x.partial), [false, true]);
+  assert.equal(w[0].qualifying, 1);
+});
+
+test('kr3Weeks: a week with no teachers is "no data", not zero days; values are clamped to the scale', () => {
+  const w = kr3Weeks([
+    { week_start: '2026-10-26', teachers: 0, qualifying: 0, avg_office_days: 0 },
+    { week_start: '2026-11-02', teachers: 1, qualifying: 1, avg_office_days: 9 },
+  ]);
+  assert.equal(w[0].value, null);
+  assert.equal(w[0].hit, false);
+  assert.equal(w[1].value, 5);
+  assert.deepEqual(kr3Weeks(null), []);
+  assert.deepEqual(kr3Weeks('nope'), []);
+});
+
+test('kr4Weeks: engaged over opens per week; an empty week is null (not 0%); never above 100%', () => {
+  const w = kr4Weeks([
+    { week_start: '2026-10-26', opens: 0, engaged: 0 },
+    { week_start: '2026-11-02', opens: 7, engaged: 1 },
+    { week_start: '2026-11-09', opens: 2, engaged: 5 }, // a dwell can land in a later week than its open
+  ]);
+  assert.equal(w[0].value, null);
+  assert.equal(w[1].value, 1 / 7);
+  assert.equal(w[2].value, 1);
+  assert.equal(w[2].partial, true);
+  assert.deepEqual(kr4Weeks(undefined), []);
+});
+
+test('daysSpread: reads like a sentence, skips empty rows, handles weekend-only and singular', () => {
+  assert.equal(daysSpread([
+    { office_days: 0, teachers: 1 }, { office_days: 1, teachers: 2 }, { office_days: 2, teachers: 0 }, { office_days: 3, teachers: 1 },
+  ]), '1 teacher on weekends only · 2 teachers on 1 office day · 1 teacher on 3 office days');
+  assert.equal(daysSpread([]), '');
+  assert.equal(daysSpread(null), '');
+  assert.equal(daysSpread([{ office_days: 'x', teachers: 3 }]), '');
 });

@@ -61,3 +61,55 @@ export function pctLabel(fraction) {
   if (fraction == null || Number.isNaN(fraction)) return '—';
   return `${Math.round(fraction * 100)}%`;
 }
+
+// --- OKR 3 / OKR 4 over time -----------------------------------------------------------------
+// The weekly rows come from rpc/okr_app_usage_weekly and rpc/okr_tip_engagement_weekly (oldest
+// first, empty weeks included). These turn them into what the chart draws. The newest week is
+// still in progress, so it is flagged `partial` and never judged against the target on its own.
+
+// OKR 3: average office days opened per teacher, per week. `value` is 0..ofDays.
+export function kr3Weeks(rows, { targetDays = 3, ofDays = 5 } = {}) {
+  const list = Array.isArray(rows) ? rows : [];
+  return list.map((r, i) => {
+    const teachers = Number(r?.teachers) || 0;
+    const value = teachers ? Math.min(ofDays, Math.max(0, Number(r?.avg_office_days) || 0)) : null;
+    return {
+      weekStart: String(r?.week_start ?? ''),
+      value,
+      teachers,
+      qualifying: Number(r?.qualifying) || 0,
+      hit: value != null && value >= targetDays,
+      partial: i === list.length - 1,
+    };
+  });
+}
+
+// OKR 4: share of panel openings that led to a >10s tip view, per week. `value` is 0..1, or null
+// for a week with no openings (an empty week is not "0%").
+export function kr4Weeks(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  return list.map((r, i) => {
+    const opens = Number(r?.opens) || 0;
+    const engaged = Number(r?.engaged) || 0;
+    return {
+      weekStart: String(r?.week_start ?? ''),
+      value: opens ? Math.min(1, engaged / opens) : null,
+      opens,
+      engaged,
+      partial: i === list.length - 1,
+    };
+  });
+}
+
+// "1 teacher on 3 days, 2 on 1 day, 1 on weekends only": this week's spread for OKR 3.
+export function daysSpread(rows) {
+  const parts = [];
+  for (const r of Array.isArray(rows) ? rows : []) {
+    const n = Number(r?.teachers) || 0;
+    const d = Number(r?.office_days);
+    if (!n || !Number.isInteger(d)) continue;
+    const who = `${n} teacher${n === 1 ? '' : 's'}`;
+    parts.push(d === 0 ? `${who} on weekends only` : `${who} on ${d} office day${d === 1 ? '' : 's'}`);
+  }
+  return parts.join(' · ');
+}

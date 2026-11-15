@@ -13,8 +13,8 @@ which a fixed-width Chrome side panel can't be.
 |---|---|---|
 | A — Tips are effective and helpful | Thumbs-up rate (target 80%, floor 5 ratings) | `rpc/tip_ratings` |
 | A | Tips completed end-to-end | `rpc/okr_tip_completions` (needs the `events` migration applied) |
-| B — Teachers use the app consistently | Days the app is opened (target 3 of 5) | `rpc/okr_app_usage` *(Objective-B work)* |
-| B | Opens that lead to a tip | `rpc/okr_tip_engagement` *(Objective-B work)* |
+| B — Teachers use the app consistently | Days the app is opened (target 3 of 5), plus an 8-week history and this week's spread (how many teachers opened on 1, 2, 3… days) | `rpc/okr_app_usage`, `okr_app_usage_weekly`, `okr_app_usage_distribution` |
+| B | Opens that lead to a tip, plus an 8-week history | `rpc/okr_tip_engagement`, `okr_tip_engagement_weekly` |
 
 Beyond the four Key Results the hub also shows:
 
