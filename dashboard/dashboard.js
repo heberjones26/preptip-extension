@@ -312,6 +312,92 @@ async function renderResourcePopularity() {
   }
 }
 
+// --- Requested tips (rpc/requested_tips; needs the requested_tips migration) ----------------------
+let reqDays = 90;
+
+function demoRequests() {
+  const h = (n) => new Date(Date.now() - n * 3600000).toISOString();
+  return [
+    { kind: 'tip', site: 'Canva', wording: 'How do I make a printable seating chart?', requests: 6, teachers: 5, last_requested: h(5) },
+    { kind: 'tip', site: 'Google Sheets', wording: 'Hide student names when sharing grades with parents', requests: 4, teachers: 4, last_requested: h(30) },
+    { kind: 'tip', site: 'Google Classroom', wording: 'Schedule an assignment to post next Monday', requests: 3, teachers: 3, last_requested: h(52) },
+    { kind: 'tip', site: null, wording: 'Record my screen for a lesson video', requests: 2, teachers: 2, last_requested: h(100) },
+    { kind: 'tip', site: 'Padlet', wording: 'Moderate comments before students see them', requests: 1, teachers: 1, last_requested: h(300) },
+    { kind: 'resource', site: null, wording: 'Seesaw for K-2', requests: 2, teachers: 2, last_requested: h(70) },
+  ];
+}
+
+function requestsTable(rows, days) {
+  const body = rows.slice(0, 25).map((r) => `
+      <tr>
+        <td><span class="issue-text">${esc(r.wording)}</span></td>
+        <td>${esc(r.site || '—')}</td>
+        <td class="num">${Number(r.requests)}</td>
+        <td class="num">${Number(r.teachers)}</td>
+        <td class="nowrap">${esc(ago(r.last_requested))}</td>
+      </tr>`).join('');
+  const more = rows.length > 25 ? `<p class="muted-note small">Showing the 25 most-asked of ${rows.length}.</p>` : '';
+  return `
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Requested tips (scrolls sideways on small screens)">
+      <table class="err-table">
+        <caption class="sr-only">Tips teachers asked for in the last ${days} days, most-asked first</caption>
+        <thead><tr><th scope="col">What they asked for</th><th scope="col">Site</th><th scope="col" class="num">Requests</th><th scope="col" class="num">Teachers</th><th scope="col">Last asked</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>${more}`;
+}
+
+function paintRequests(all, days) {
+  const tips = all.filter((r) => r.kind !== 'resource');
+  const resources = all.filter((r) => r.kind === 'resource');
+  const total = tips.reduce((a, r) => a + Number(r.requests), 0);
+  const sites = new Set(tips.map((r) => r.site).filter(Boolean)).size;
+  const tiles = [
+    { label: 'Tip requests', value: total, sub: `last ${days} days` },
+    { label: 'Different asks', value: tips.length, sub: 'same wording counted once' },
+    { label: 'Sites asked about', value: sites, sub: 'different sites named' },
+  ].map((t) => `
+    <div class="mini"><p class="kpi-label">${esc(t.label)}</p><p class="mini-val">${esc(String(t.value))}</p><p class="kpi-sub">${esc(t.sub)}</p></div>`).join('');
+
+  if (!tips.length && !resources.length) {
+    return setPanel('requests', `<div class="mini-row">${tiles}</div><p class="muted-note">No tip requests in the last ${days} days.</p>`);
+  }
+  const res = resources.length
+    ? `<h3 class="perf-h issues-h">Resource suggestions</h3>
+       <ul class="req-list">${resources.slice(0, 10).map((r) => `
+         <li><span class="issue-text">${esc(r.wording)}</span>
+         <span class="nowrap">${Number(r.requests)} ${Number(r.requests) === 1 ? 'request' : 'requests'} · ${esc(ago(r.last_requested))}</span></li>`).join('')}</ul>`
+    : '';
+  setPanel('requests', `
+    <div class="mini-row">${tiles}</div>
+    ${tips.length ? requestsTable(tips, days) : '<p class="muted-note">No tip requests, only resource suggestions.</p>'}
+    ${res}`);
+}
+
+async function renderRequests() {
+  const days = reqDays;
+  try {
+    const rows = DEMO ? demoRequests() : await rpc(`requested_tips?p_days=${days}`);
+    if (days !== reqDays) return; // the window changed while this was loading
+    paintRequests(Array.isArray(rows) ? rows : [], days);
+  } catch (err) {
+    console.warn('requested tips not available yet', err);
+    setPanel('requests', `<p class="muted-note">Lives once the requested_tips migration is applied.</p>`);
+  }
+}
+
+document.getElementById('req-days')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-days]');
+  if (!btn) return;
+  reqDays = Number(btn.dataset.days);
+  for (const b of document.querySelectorAll('#req-days [data-days]')) {
+    const on = b === btn;
+    b.classList.toggle('on', on);
+    b.setAttribute('aria-pressed', String(on));
+  }
+  renderRequests();
+});
+
 // --- Error log (rpc/error_summary, error_trend, error_groups; needs the error_log migration) ----
 let errDays = 7;
 
@@ -494,7 +580,7 @@ async function load() {
   if (updated) updated.textContent = '';
   const [counts] = await Promise.all([
     fetchCounts(),
-    Promise.allSettled([renderKr1(), renderKr2(), renderKr3(), renderKr4(), renderTipPerf(), renderResourcePopularity(), renderErrorLog(), renderAiBuilder()]),
+    Promise.allSettled([renderKr1(), renderKr2(), renderKr3(), renderKr4(), renderTipPerf(), renderResourcePopularity(), renderRequests(), renderErrorLog(), renderAiBuilder()]),
   ]);
   renderHero();
   renderKpis(counts);

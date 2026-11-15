@@ -67,6 +67,10 @@ When there is no tip for what a teacher needs, **Build a tip with AI** (its own 
 
 The AI view and an AI tip's guide survive tab switches (getting a key sends the teacher to Google AI Studio and back); everything else resets to the tip list when the tab changes.
 
+### Requested tips
+
+A teacher's "Submit a tip request" (and "Suggest a resource") is a `feedback` row with no tip: `Tip request (<site>): <wording>` / `Resource request: <wording>`. The public key can't read `feedback`, so the hub's **Requested tips** panel goes through one function, `requested_tips(days)` ([supabase/migrations/20261115000000_requested_tips.sql](../supabase/migrations/20261115000000_requested_tips.sql)). It scrubs the wording **on read** with `scrub_public_text` (web addresses, emails, keys, long tokens, phone-like numbers), groups identical wording per site, and returns counts of requests and of distinct teachers, never a user id or username. Scrubbing on read (not just in the extension) covers requests stored before the function existed. `tests/requested-tips.test.mjs` pins the request format the extension writes to the SQL that parses it.
+
 ### Error log
 
 `error_log` ([supabase/migrations/20261109000000_error_log.sql](../supabase/migrations/20261109000000_error_log.sql)) records what goes wrong for teachers, from two sources in one table: `auto` (the extension caught it) and `reported` (a teacher pressed "Report a problem"). Insert-only for the public key, like `events`.

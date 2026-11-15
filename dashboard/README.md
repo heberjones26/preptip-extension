@@ -20,6 +20,7 @@ Beyond the four Key Results the hub also shows:
 
 | Panel | What it answers | Source |
 |---|---|---|
+| Requested tips | The backlog of tips teachers asked for, most-asked first, with the site, how many times, how many teachers and when; resource suggestions listed separately. Wording is scrubbed in the database (links, emails, phone numbers removed) and never shows who asked | `rpc/requested_tips` |
 | Error log | What breaks for teachers: errors, per 100 opens, teachers affected, a per-day chart, the most frequent issues and which tip they happened on (7 or 30 days) | `rpc/error_summary`, `error_trend`, `error_groups` (needs the `error_log` migration) |
 | Which tips are landing | Most and least helpful tips by thumbs-up rate | `rpc/tip_ratings` |
 | Most-opened resources | Which Common Teacher Resources get clicked | `rpc/resource_opens` |
