@@ -2,6 +2,7 @@
 // Layout: a hero figure + KPI stat-tile strip (at-a-glance), then the Objective detail cards.
 // The math lives in okr.js (pure, tested); this file only does I/O and DOM.
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, OKR_CONFIG } from './config.js';
+import { aiPanelModel } from './ai-panel.js';
 import { okr1FromRatings, okr2FromEvents, pctLabel, kr3Weeks, kr4Weeks, daysSpread } from './okr.js';
 
 // ?demo=1 feeds representative numbers through the SAME render path (no network, no DB writes), so we
@@ -623,16 +624,10 @@ async function renderAiBuilder() {
     let row;
     if (DEMO) row = { prompts_copied: 41, built_from_paste: 27, built_with_gemini: 9, teachers: 14 };
     else { const rows = await rpc('ai_tip_summary?p_days=30'); row = Array.isArray(rows) ? rows[0] : rows; }
-    const n = (v) => Number(v) || 0;
-    const tiles = [
-      { label: 'Prompts copied', value: n(row?.prompts_copied), sub: 'to ChatGPT, Claude or Gemini' },
-      { label: 'Tips from pasted answers', value: n(row?.built_from_paste), sub: 'copy and paste path' },
-      { label: 'Tips from Gemini', value: n(row?.built_with_gemini), sub: 'with the teacher’s own key' },
-      { label: 'Teachers using it', value: n(row?.teachers), sub: 'at least once' },
-    ].map((t) => `
+    const m = aiPanelModel(row);
+    const tiles = m.tiles.map((t) => `
       <div class="mini"><p class="kpi-label">${esc(t.label)}</p><p class="mini-val">${t.value}</p><p class="kpi-sub">${esc(t.sub)}</p></div>`).join('');
-    const none = !n(row?.prompts_copied) && !n(row?.built_from_paste) && !n(row?.built_with_gemini);
-    setPanel('aibuilder', `<div class="mini-row">${tiles}</div>${none ? '<p class="muted-note">No AI tips built yet.</p>' : ''}`);
+    setPanel('aibuilder', `<div class="mini-row">${tiles}</div>${m.none ? '<p class="muted-note">No AI tips built yet.</p>' : ''}${m.legacy ? `<p class="muted-note small">${esc(m.legacy)}</p>` : ''}`);
   } catch (err) {
     console.warn('ai builder stats not available yet', err);
     setPanel('aibuilder', `<p class="muted-note">Lives once the ai_tip_events migration is applied.</p>`);
