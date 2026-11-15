@@ -1,6 +1,6 @@
 {
   "name": "preptip-extension",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "PrepTip: teacher tips browser extension (IS 401 prototype)",
   "type": "module",
