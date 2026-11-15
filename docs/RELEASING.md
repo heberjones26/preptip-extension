@@ -7,6 +7,10 @@ Tip content lives in Supabase and needs no release.
 
 Run `npm run package:all` to prepare browser-specific unpacked folders and archives. Chrome, Edge and Brave share `dist/preptip-<version>.zip`; Firefox receives `dist/preptip_firefox-<version>.zip` and Safari receives `dist/preptip_safari-<version>.zip`. The existing workflow continues to publish only the Chromium archive to the Chrome Web Store.
 
+The repository keeps production packages in [dist/](../dist/). Rebuild all targets with `npm run package:all` before committing updated packages. The release workflow also builds all targets; an automatic version bump commits the three unpacked distributions and their current-version browser ZIPs. Older versioned ZIPs may remain in the repository, but the workflow selects exactly `dist/preptip-<manifest version>.zip` for the Chrome Web Store and GitHub Release upload.
+
+Prepare `dist/preptip_firefox-source-<version>.zip` separately for each Firefox submission, following the [reviewer source instructions](FIREFOX_SOURCE_BUILD.md). This source-review archive is separate from the browser installation ZIPs and is not built or uploaded by the Chrome release workflow.
+
 Firefox's archive needs Mozilla signing before normal installation. Safari's archive can be loaded temporarily in supported macOS Safari versions, packaged with Xcode on a Mac, or submitted to Apple's web-based App Store Connect packager for distribution. Safari runtime testing requires a Mac. See [browser installation and packaging](BROWSERS.md) for exact commands and release checks. No Firefox or Safari store publication is performed by this repository's workflow.
 
 Releases are automated by [`.github/workflows/release.yml`](../.github/workflows/release.yml). A release

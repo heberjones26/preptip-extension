@@ -2,6 +2,8 @@
 
 A browser extension that gives teachers short, guided help inside the web tools they already use. Includes packages for Chrome, Edge, Brave, Firefox and desktop Safari. IS 401 prototype, built from our [PRD](docs/PRD.md) and [clickable mockup](docs/mockup/preptip-mockup.html).
 
+Browser distribution folders and ZIPs are stored in [dist/](dist/). See [browser installation and packaging](docs/BROWSERS.md) to choose and install the right package.
+
 ## App Summary
 
 Teachers are expected to use general-purpose tools such as Google Sheets, Canva and Canvas, but those tools are built for everyone, not for classrooms. When a teacher hits a wall, like wanting failing grades to turn red automatically, they either spend scarce prep time learning a complex feature or fall back on slow manual workarounds. PrepTip is a Chrome extension that recognizes which tool a teacher is on and opens a side panel of short, teacher-specific tips for that tool. Choosing a tip starts a guided walkthrough that highlights the exact menu to click on the real page, notices when the teacher opens the wrong menu, and points them back. Teachers can search tips in their own words, request a tip that doesn't exist yet, and rate each tip so the most helpful ones stand out. PrepTip also protects the classroom by blocking redirects to flagged websites before they load, and adds an "Add this moment to Slides" helper on YouTube. All tips live in a Supabase database, so the team can add new help without shipping a new version of the extension.

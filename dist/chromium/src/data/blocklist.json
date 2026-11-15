@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "notes": "Domains PrepTip blocks for classrooms (R6-R7). Subdomains are included. The .test and .example entries never resolve, so they are safe demo targets.",
+  "domains": [
+    { "domain": "testsafebrowsing.appspot.com", "reason": "Google's Safe Browsing test site, flagged for demo" },
+    { "domain": "preptip-flagged.test", "reason": "PrepTip demo domain that is flagged as malicious" },
+    { "domain": "malware.preptip.test", "reason": "Known malware download site (PrepTip demo entry)" },
+    { "domain": "free-robux-generator.example", "reason": "Game-currency scam that targets students" },
+    { "domain": "phishy-login.example", "reason": "Fake login page that steals school passwords" }
+  ]
+}

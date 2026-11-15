@@ -109,10 +109,14 @@ jobs:
 
       - run: npm test
       - run: npm run check
-      - run: npm run package
+      - run: npm run package:all
 
       - id: zip
-        run: echo "path=$(ls dist/preptip-*.zip)" >> "$GITHUB_OUTPUT"
+        run: |
+          version=$(node -p "require('./manifest.json').version")
+          path="dist/preptip-$version.zip"
+          test -f "$path"
+          echo "path=$path" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -128,7 +132,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ "$BUMPED" = now ]; then git commit -am "Release $TAG"; fi
+          if [ "$BUMPED" = now ]; then
+            version=$(node -p "require('./manifest.json').version")
+            git add -- manifest.json package.json dist/chromium dist/firefox dist/safari \
+              "dist/preptip-$version.zip" "dist/preptip_firefox-$version.zip" "dist/preptip_safari-$version.zip"
+            git commit -m "Release $TAG"
+          fi
           git tag "$TAG"
           # Fails if main moved since this run started; start a new run to release the newer main.
           git push --atomic origin HEAD:main "$TAG"

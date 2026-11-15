@@ -21,6 +21,14 @@ npm run package:all
 
 Build individual targets with `npm run package`, `npm run package:firefox` or `npm run package:safari`. Rebuilding replaces only that target's unpacked folder, so load it again after rebuilding. Each archive has its generated manifest at its root, excludes the development panel/stubs, and includes the runtime modules and bundled data. The checked-in [manifest](../manifest.json) remains directly loadable in Chromium browsers.
 
+## Store distributions in GitHub
+
+The [dist directory](../dist/) keeps the three unpacked browser folders, versioned browser ZIPs, and Firefox source-review ZIPs in the repository. When extension sources change, run `npm run package:all` and include the updated distribution folders and new ZIPs in the same commit. Versioned archives from earlier releases can stay in the directory.
+
+For a Firefox submission, prepare its matching source-review ZIP separately as described in the [submission packet](FIREFOX_SUBMISSION.md). `package:all` builds the installable browser packages; it does not create that source archive.
+
+Temporary staging and verification directories inside `dist/` stay ignored. ZIPs elsewhere in the repository also stay ignored.
+
 ## Chrome, Edge and Brave
 
 1. Visit `chrome://extensions`, `edge://extensions` or `brave://extensions` in the matching browser.

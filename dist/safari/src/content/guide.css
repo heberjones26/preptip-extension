@@ -1,0 +1,12 @@
+/*
+ * PrepTip guide: intentionally minimal.
+ *
+ * Everything guide.js draws (ring, guide cursor, coach tooltip, nudge card) lives inside
+ * a single <preptip-root> element with a shadow root, and its styles are injected as a
+ * <style> tag inside that shadow root, so they can't leak into the teacher's page and the
+ * page's CSS can't break them. The host element itself is styled with inline !important
+ * styles from guide.js.
+ *
+ * This file only exists because the manifest (and the side panel's chrome.scripting
+ * re-injection) load it. Put a rule here only if it truly has to live outside the shadow root.
+ */

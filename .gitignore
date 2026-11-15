@@ -6,4 +6,11 @@ node_modules/
 Thumbs.db
 .env
 .env.*
-dist/
+# Store browser distributions in Git, while keeping temporary build work ignored.
+/dist/*
+!/dist/chromium/
+!/dist/firefox/
+!/dist/safari/
+!/dist/preptip-*.zip
+!/dist/preptip_firefox-*.zip
+!/dist/preptip_safari-*.zip
