@@ -243,3 +243,9 @@ a:focus-visible, button:focus-visible { outline: 3px solid var(--brand); outline
   }
   .btn:hover { background: #22262e; }
 }
+
+/* Requested tips */
+#requests .mini-row { margin-top: 14px; }
+.req-list { list-style: none; margin: 0; padding: 0; font-size: 0.86rem; }
+.req-list li { display: flex; justify-content: space-between; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--n100); }
+.req-list .nowrap { white-space: nowrap; color: var(--n500); }

@@ -39,6 +39,7 @@
       <a href="#summary">Overview</a>
       <a href="#obj-a">Objective A</a>
       <a href="#obj-b">Objective B</a>
+      <a href="#requests-h">Requested tips</a>
       <a href="#errlog-h">Error log</a>
       <a href="#tipperf-h">Tips</a>
       <a href="#respop-h">Resources</a>
@@ -95,6 +96,21 @@
       </div>
     </section>
 
+    <!-- Requested tips: the backlog of tips teachers asked for -->
+    <section class="panel" aria-labelledby="requests-h">
+      <div class="panel-head">
+        <div>
+          <h2 id="requests-h" class="panel-h">Requested tips</h2>
+          <p class="panel-sub">What teachers asked us to write, most-asked first. Same ask on the same site is grouped. Links, emails and phone numbers are removed and no names are shown.</p>
+        </div>
+        <div class="seg" id="req-days" role="group" aria-label="Time window">
+          <button type="button" class="seg-btn" data-days="30" aria-pressed="false">30 days</button>
+          <button type="button" class="seg-btn on" data-days="90" aria-pressed="true">90 days</button>
+        </div>
+      </div>
+      <div id="requests" class="panel-body" aria-busy="true"><span class="loading">Loading…</span></div>
+    </section>
+
     <!-- Error log: what teachers ran into in the extension -->
     <section class="panel" aria-labelledby="errlog-h">
       <div class="panel-head">
@@ -140,6 +156,8 @@
         <dd>For each teacher, the distinct Monday–Friday days this week the side panel was opened (<code>app_open</code>), averaged across teachers. Target 3 of 5 days.</dd>
         <dt>Opens that lead to a tip (KR 4)</dt>
         <dd>Of panel openings, the share where the teacher opened a tip and stayed on it for more than 10 seconds (<code>tip_dwell_success</code>). Target 50%.</dd>
+        <dt>Requested tips</dt>
+        <dd>Teachers&rsquo; &ldquo;Submit a tip request&rdquo; messages (<code>feedback</code> rows with no tip), grouped by site and wording. &ldquo;Teachers&rdquo; counts different accounts, so one person asking three times is one teacher. Resource suggestions are listed separately.</dd>
         <dt>Error log</dt>
         <dd>Problems the extension caught itself, plus what teachers report with &ldquo;Report a problem&rdquo;, from <code>error_log</code>. &ldquo;Per 100 opens&rdquo; counts automatic errors against panel openings in the same window. What teachers type in a report is never shown here.</dd>
         <dt>AI tip builder</dt>
