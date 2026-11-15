@@ -115,6 +115,23 @@ button:disabled { cursor: default; }
 .resources-heading small { color: var(--ink-2); font-weight: 400; }
 .site-switch-icon { display: grid; place-items: center; flex: none; width: 22px; height: 22px; margin-left: auto; color: var(--brand-dk); }
 .site-switch-icon svg { display: block; width: 20px; height: 20px; }
+.quickstart-entry {
+  width: 100%; display: flex; align-items: center; gap: 10px;
+  padding: 12px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--soft-2); text-align: left;
+}
+.quickstart-entry:hover { border-color: var(--brand); background: var(--brand-soft); }
+.quickstart-icon { flex: none; color: var(--brand-dk); }
+.quickstart-icon svg { width: 23px; height: 23px; }
+.quickstart-entry b { display: block; font-size: 13.5px; }
+.quickstart-entry small { display: block; margin-top: 3px; color: var(--ink-2); font-size: 12px; }
+.quickstart-go { margin-left: auto; flex: none; color: var(--brand-dk); font-size: 20px; }
+.quickstart-label { display: flex; align-items: center; gap: 6px; color: var(--brand-dk); font-size: 12px; font-weight: 700; }
+.quickstart-label svg { width: 18px; height: 18px; flex: none; }
+.quickstart-head h3 { margin: 10px 0 8px; font-size: 20px; line-height: 1.25; }
+.quickstart-head p { margin: 0; color: var(--ink-2); line-height: 1.5; }
+.quickstart-sections h4 { margin: 0 0 5px; font-size: 14px; }
+.quickstart-sections.howto li { padding: 14px 0; }
 .site-chip.muted { background: var(--soft); }
 .site-chip.muted small { color: var(--ink-3); }
 .site-chip.muted .fav svg { width: 18px; height: 18px; color: var(--ink-3); }
@@ -285,6 +302,13 @@ button.chip.link:hover { background: #DCF2E4; }
 
 /* ---------------- guide (S3–S5) ---------------- */
 .g-head h3 { margin: 6px 0 10px; font-size: 18px; font-weight: 800; line-height: 1.25; }
+.summary-toggle { margin-top: 12px; gap: 6px; }
+.summary-toggle svg { width: 17px; height: 17px; }
+.tip-summary { padding: 14px; border: 1px solid #F2B08A; border-radius: 12px; background: var(--brand-soft); }
+.tip-summary h4 { margin: 0 0 6px; color: var(--brand-dk); font-size: 14px; }
+.tip-summary p { margin: 0; line-height: 1.5; }
+.tip-summary ol { padding-left: 20px; margin: 10px 0 0; color: var(--ink-2); font-size: 13px; }
+.tip-summary li + li { margin-top: 6px; }
 .prog { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 800; color: var(--brand-dk); white-space: nowrap; }
 .prog-track { flex: 1; min-width: 0; height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; }
 .prog-track i { display: block; height: 100%; background: var(--brand); border-radius: 3px; transition: width .3s; }

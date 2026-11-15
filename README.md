@@ -1,6 +1,6 @@
 # PrepTip
 
-A Chrome extension that gives teachers short, guided help inside the web tools they already use. IS 401 prototype, built from our [PRD](docs/PRD.md) and [clickable mockup](docs/mockup/preptip-mockup.html).
+A browser extension that gives teachers short, guided help inside the web tools they already use. Includes packages for Chrome, Edge, Brave, Firefox and desktop Safari. IS 401 prototype, built from our [PRD](docs/PRD.md) and [clickable mockup](docs/mockup/preptip-mockup.html).
 
 ## App Summary
 
@@ -74,7 +74,13 @@ flowchart TB
 | Security | Postgres row-level security policies and two small database functions ([migrations](supabase/migrations/)) | The extension uses Supabase's public "publishable" key. RLS limits that key to reading tips, adding feedback, registering a teacher and reading helpful counts. It can't read or change anyone's feedback or personal data. |
 | Tooling | Git and GitHub; Node.js only for the optional tests and checks (built-in `node:test`, no dependencies) | Nothing to `npm install` before running the extension |
 
-## How to Get It Running
+## Browser support
+
+Chrome, Edge and Brave use the Chromium package and a native side panel. Firefox uses its native sidebar. Desktop Safari opens PrepTip in a separate window that stays available while you work on a website.
+
+With Node.js 20 or newer, run `npm run package:all` to create [dist/chromium/](dist/chromium/), [dist/firefox/](dist/firefox/) and [dist/safari/](dist/safari/), plus separate upload archives. No dependencies need to be installed. See [browser installation and packaging](docs/BROWSERS.md) for Firefox 140+, Safari 18+ and each browser's loading steps. Safari installation/testing needs access to Safari on a Mac; the Safari ZIP can also be submitted through Apple's web-based App Store Connect packager.
+
+## How to Get It Running (Chrome)
 
 You need **Google Chrome 116 or newer** (Edge and Brave work too) and a Google account to open a Google Sheet. The database is already hosted on Supabase and the extension is pre-configured to use it ([src/config.js](src/config.js)), so there is nothing to set up on the backend.
 
@@ -169,6 +175,12 @@ tests/                    unit tests
 2. Insert its `tip_steps` rows.
 
 The extension picks it up within 10 minutes, or right away after you reload it. Highlights currently work for `menu`, `button`, `link`, `search`, `panel` and `dialog` targets; other steps show their instructions in the panel only.
+
+## QuickStart guides and tip summaries
+
+Each supported site's tip list includes a **First time using this site?** card. Open its **QuickStart guide** for an overview of the tool, its main navigation, a classroom workflow, and sharing or student access. These bundled guides also work while browsing another site's tips and when the catalog has no individual tips for a supported site. Site-specific content lives in [src/data/quickstarts.js](src/data/quickstarts.js); new catalog sites receive a general orientation until a tailored guide is added.
+
+While following any tip, choose **Summarize tip** to see its purpose and a short recap of the steps. **Hide summary** closes the recap without changing your current step. Summaries use the tip's existing text, so no AI key or additional network request is needed.
 
 ## Grade levels, subjects & Teacher Resources
 

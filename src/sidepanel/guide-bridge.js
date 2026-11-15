@@ -2,6 +2,7 @@
 // Every function swallows errors: if a page can't be scripted (chrome:// pages, the Web Store),
 // the panel still works as a plain step list.
 import { MSG } from '../lib/protocol.js';
+import { extensionApi as chrome } from '../lib/browser.js';
 
 async function ping(tabId) {
   const res = await chrome.tabs.sendMessage(tabId, { type: MSG.PING });

@@ -9,7 +9,8 @@
   const REDIRECT_FRESH_MS = 2 * 60 * 1000;
 
   const $ = (id) => document.getElementById(id);
-  const ext = globalThis.chrome && globalThis.chrome.runtime && globalThis.chrome.runtime.id ? globalThis.chrome : null;
+  const browserApi = globalThis.browser || globalThis.chrome;
+  const ext = browserApi?.runtime?.id ? browserApi : null;
 
   // --- Parse the blocked URL ------------------------------------------------------------------
   // The DNR rule appends the original URL *unencoded* (?url=https://x.test/a?b=1&c=2), so take

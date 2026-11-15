@@ -2,6 +2,28 @@ import { STORAGE } from './protocol.js';
 import { USAGE_KEY, addOpening, openingDetails } from './usage.js';
 import { ENGAGEMENT_KEY, updateEngagement } from './engagement.js';
 
+// URL.origin is "null" for some extension schemes. Compare the complete runtime
+// URL instead, retaining its browser-generated host as well as its scheme/path.
+export function isPanelSender(sender, api) {
+  if (!api?.runtime?.id || sender?.id !== api.runtime.id || typeof sender.url !== 'string') return false;
+  try {
+    const url = new URL(sender.url);
+    const expected = new URL(api.runtime.getURL('src/sidepanel/sidepanel.html'));
+    if (url.protocol !== expected.protocol || url.host !== expected.host || url.pathname !== expected.pathname ||
+        url.username || url.password || url.hash) return false;
+    const entries = [...url.searchParams];
+    return entries.length === 0 || (entries.length === 1 && entries[0][0] === 'windowId' && /^\d+$/.test(entries[0][1]));
+  } catch { return false; }
+}
+
+export function panelDocumentId(sender, event) {
+  if (typeof sender.documentId === 'string' && sender.documentId) return sender.documentId;
+  // Browsers without MessageSender.documentId receive a per-document token from
+  // our verified extension page. It remains stable through engagement retries.
+  return typeof event.panelDocumentId === 'string' && /^[A-Za-z0-9_-]{8,128}$/.test(event.panelDocumentId)
+    ? `panel:${event.panelDocumentId}` : null;
+}
+
 // One queue owns both counters. An opening is committed once with the same
 // teacher and timestamp in KR 3 and KR 4, including when a message is retried.
 export function createMetricsRecorder(storage, { now = () => new Date() } = {}) {

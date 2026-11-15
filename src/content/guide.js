@@ -19,6 +19,7 @@
  */
 (function () {
   'use strict';
+  const chrome = globalThis.browser || globalThis.chrome;
 
   // ---------------------------------------------------------------------------
   // 0. Run once per page (the side panel may inject this file again)
@@ -194,24 +195,17 @@
 
   // Send a message and resolve with the response, or null if nobody answered
   // (panel closed, background not loaded...). Never throws.
-  function send(message) {
-    return new Promise((resolve) => {
-      if (!contextAlive()) {
-        destroy();
-        resolve(null);
-        return;
-      }
-      try {
-        chrome.runtime.sendMessage(message, (response) => {
-          // Reading lastError tells Chrome we handled "Receiving end does not exist".
-          const err = chrome.runtime.lastError;
-          resolve(err || response === undefined ? null : response);
-        });
-      } catch (e) {
-        if (/context invalidated/i.test(String(e && e.message))) destroy();
-        resolve(null);
-      }
-    });
+  async function send(message) {
+    if (!contextAlive()) {
+      destroy();
+      return null;
+    }
+    try {
+      return (await chrome.runtime.sendMessage(message)) ?? null;
+    } catch (e) {
+      if (/context invalidated/i.test(String(e && e.message))) destroy();
+      return null;
+    }
   }
 
   // ---------------------------------------------------------------------------

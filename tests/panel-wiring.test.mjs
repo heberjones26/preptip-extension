@@ -48,16 +48,24 @@ test('panel and service-worker integration', async (t) => {
   const tip = (id) => ({ tip_id: id, url_pattern: 'docs.google.com/spreadsheets', title: `Tip ${id}`, summary: 'Test tip',
     description: 'Steps', feature_name: 'Testing', estimated_required_minutes: 1, keywords: 'test',
     tip_steps: [1, 2].map((n) => ({ step_id: n, step_order: n, step_type: 'guided', target_element: 'menu:File', step_description: `Step ${n}` })) });
-  h.saved[STORAGE.CATALOG] = { fetchedAt: Date.now(), websites: [{ url_pattern: 'docs.google.com/spreadsheets', name: 'Google Sheets' }], tips: [tip(8), tip(9)] };
+  h.saved[STORAGE.CATALOG] = { fetchedAt: Date.now(), websites: [
+    { url_pattern: 'docs.google.com/spreadsheets', name: 'Google Sheets' },
+    { url_pattern: 'canva.com', name: 'Canva' }
+  ], tips: [tip(8), tip(9)] };
   let registrationId = 1;
   const requests = [];
+  const events = [];
   let failRequest = false;
   t.mock.method(globalThis, 'fetch', async (url, options) => {
+    if (String(url) === chrome.runtime.getURL('src/data/blocklist.json')) {
+      return new Response(JSON.stringify({ domains: [] }), { status: 200 });
+    }
     assert.ok(String(url).includes('/rest/v1/'), `Unexpected fetch: ${url}`);
     if (String(url).endsWith('/feedback')) {
       requests.push(JSON.parse(options.body));
       if (failRequest) return new Response(JSON.stringify({ message: 'Offline' }), { status: 503 });
     }
+    if (String(url).endsWith('/events')) events.push(JSON.parse(options.body));
     const body = String(url).includes('create_teacher_account') || String(url).includes('sign_in_teacher')
       ? [{ user_id: registrationId, username: `test${registrationId}` }] : [];
     return new Response(JSON.stringify(body), { status: 200 });
@@ -75,6 +83,7 @@ test('panel and service-worker integration', async (t) => {
     document.emit('click', { target: { closest: () => el }, preventDefault() {} });
   };
   const totals = () => engagementReport(h.saved[ENGAGEMENT_KEY]);
+  const tipEvents = () => events.filter((event) => ['tip_open', 'tip_complete'].includes(event.event_type));
   const allOpenings = () => Object.values(h.saved[USAGE_KEY]?.teachers || {}).reduce((n, u) => n + Object.values(u.days).reduce((sum, d) => sum + d.opens, 0), 0);
 
   await import('../src/background.js');
@@ -87,6 +96,76 @@ test('panel and service-worker integration', async (t) => {
     await dispatch({ type: MSG.TAB_CONTEXT_CHANGED }); await settle();
     click('clear-search'); await settle();
     assert.equal(totals().openings, 1);
+  });
+  await t.test('QuickStart opens for the current site and returns without recording a tip visit', async () => {
+    const before = totals();
+    const eventCount = tipEvents().length;
+    assert.match(document.querySelector('#view').innerHTML, /data-action="open-quickstart"/);
+    click('open-quickstart'); await settle();
+    assert.equal(document.querySelector('#view').dataset.view, 'quickstart');
+    assert.match(document.querySelector('#view').innerHTML, /Google Sheets/);
+    assert.match(document.querySelector('#view').innerHTML, /class="quickstart-sections howto"/);
+    click('report-problem'); await settle();
+    assert.equal(document.querySelector('#view').dataset.view, 'report');
+    click('report-back'); await settle();
+    assert.equal(document.querySelector('#view').dataset.view, 'quickstart');
+    assert.match(document.querySelector('#view').innerHTML, /Google Sheets/);
+    await h.tick(11000); await settle();
+    click('close-quickstart'); await settle();
+    assert.equal(document.querySelector('#view').dataset.view, 'tips');
+    assert.match(document.querySelector('#view').innerHTML, /2 tips for this site/);
+    assert.deepEqual(totals(), before);
+    assert.equal(tipEvents().length, eventCount);
+    assert.equal(sessionValues['pt.guide.11'], undefined);
+  });
+  await t.test('same-tab navigation keeps QuickStart open and returns to its original site tips', async () => {
+    const originalTab = activeTab;
+    const before = totals();
+    const eventCount = tipEvents().length;
+    click('open-quickstart'); await settle();
+    activeTab = { ...activeTab, url: 'https://example.com/another-tool' };
+    chrome.tabs.onUpdated.emit(activeTab.id, { url: activeTab.url, status: 'loading' }, activeTab);
+    await settle(); await settle();
+    assert.equal(document.querySelector('#view').dataset.view, 'quickstart');
+    assert.match(document.querySelector('#view').innerHTML, /Google Sheets QuickStart/);
+
+    click('close-quickstart'); await settle();
+    assert.equal(document.querySelector('#view').dataset.view, 'tips');
+    assert.match(document.querySelector('#view').innerHTML, /2 tips for this site/);
+    assert.match(document.querySelector('#view').innerHTML, /First time using Google Sheets/);
+    assert.match(document.querySelector('#view').innerHTML, /data-action="end-browse"/);
+    assert.deepEqual(totals(), before);
+    assert.equal(tipEvents().length, eventCount);
+
+    click('end-browse');
+    activeTab = originalTab;
+    chrome.tabs.onUpdated.emit(activeTab.id, { url: activeTab.url, status: 'loading' }, activeTab);
+    await settle(); await settle();
+    click('end-browse'); await settle();
+    assert.equal(document.querySelector('#view').dataset.view, 'tips');
+    assert.match(document.querySelector('#view').innerHTML, /2 tips for this site/);
+    assert.doesNotMatch(document.querySelector('#view').innerHTML, /data-action="end-browse"/);
+  });
+  await t.test('a browsed site with no tips has a QuickStart and keeps its site and search on return', async () => {
+    const before = totals();
+    const eventCount = tipEvents().length;
+    click('show-sites'); click('browse-site', { pattern: 'canva.com' });
+    assert.match(document.querySelector('#view').innerHTML, /No individual tips for this site yet/);
+    assert.match(document.querySelector('#view').innerHTML, /First time using Canva/);
+    document.emit('input', { target: { id: 'search', value: 'classroom poster' } });
+    click('open-quickstart'); await settle();
+    assert.equal(document.querySelector('#view').dataset.view, 'quickstart');
+    assert.match(document.querySelector('#view').innerHTML, /Canva/);
+    assert.ok(!document.querySelector('#view').innerHTML.includes('Google Sheets'));
+    click('close-quickstart'); await settle();
+    assert.equal(document.querySelector('#view').dataset.view, 'tips');
+    assert.match(document.querySelector('#view').innerHTML, /First time using Canva/);
+    assert.match(document.querySelector('#view').innerHTML, /value="classroom poster"/);
+    assert.deepEqual(totals(), before);
+    assert.equal(tipEvents().length, eventCount);
+    click('end-browse'); click('end-browse'); await settle();
+    assert.match(document.querySelector('#view').innerHTML, /2 tips for this site/);
+    assert.match(document.querySelector('#view').innerHTML, /value=""/);
   });
   await t.test('unmatched search prefills a request and preserves it through a failed send and retry', async () => {
     document.emit('input', { target: { id: 'search', value: 'seating chart' } });
@@ -114,7 +193,26 @@ test('panel and service-worker integration', async (t) => {
   await t.test('real tip clicks, steps and completion obey the strict timer', async () => {
     click('open-tip', { tipId: '8' }); await settle();
     assert.equal(document.querySelector('#view').dataset.view, 'guide');
+    const beforeSummary = totals();
+    const eventCount = tipEvents().length;
+    assert.match(document.querySelector('#view').innerHTML, /aria-expanded="false" aria-controls="tip-summary"/);
+    click('toggle-tip-summary'); await settle();
+    assert.match(document.querySelector('#view').innerHTML, /aria-expanded="true" aria-controls="tip-summary"/);
+    assert.match(document.querySelector('#view').innerHTML, /<h4 id="tip-summary-heading">Tip summary<\/h4>\s*<p>Test tip<\/p>/);
+    assert.deepEqual(sessionValues['pt.guide.11'], { tipId: 8, stepIndex: 0 });
+    assert.deepEqual(totals(), beforeSummary);
+    assert.equal(tipEvents().length, eventCount);
     await h.tick(6000); click('step-done'); await settle();
+    assert.match(document.querySelector('#view').innerHTML, /Step 2 of 2/);
+    assert.match(document.querySelector('#view').innerHTML, /aria-expanded="true" aria-controls="tip-summary"/);
+    assert.deepEqual(sessionValues['pt.guide.11'], { tipId: 8, stepIndex: 1 });
+    const afterStepEvents = tipEvents().length;
+    click('toggle-tip-summary'); await settle();
+    assert.match(document.querySelector('#view').innerHTML, /aria-expanded="false" aria-controls="tip-summary"/);
+    assert.deepEqual(sessionValues['pt.guide.11'], { tipId: 8, stepIndex: 1 });
+    assert.deepEqual(totals(), beforeSummary);
+    assert.equal(tipEvents().length, afterStepEvents);
+    click('toggle-tip-summary'); await settle();
     await h.tick(4000); await settle();
     assert.equal(totals().successfulOpenings, 0);
     await h.tick(1); await settle();
@@ -122,9 +220,12 @@ test('panel and service-worker integration', async (t) => {
     click('step-done'); await settle();
     assert.equal(document.querySelector('#view').dataset.view, 'feedback');
     assert.equal(totals().tipClicks, 1);
+    assert.equal(events.filter((event) => event.event_type === 'tip_open').length, 1);
+    assert.equal(events.filter((event) => event.event_type === 'tip_complete').length, 1);
   });
   await t.test('stopping early and navigating away do not qualify another visit', async () => {
     click('back-to-tips'); click('open-tip', { tipId: '9' }); await settle();
+    assert.match(document.querySelector('#view').innerHTML, /aria-expanded="false" aria-controls="tip-summary"/);
     await h.tick(8000); click('stop-guide'); await h.tick(20000); await settle();
     const visits = () => Object.values(Object.values(h.saved[ENGAGEMENT_KEY].sessions)[0].visits);
     assert.equal(visits()[1].successful, false);

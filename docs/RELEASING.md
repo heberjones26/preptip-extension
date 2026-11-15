@@ -1,7 +1,13 @@
 # Releasing PrepTip to the Chrome Web Store
 
-Code changes (`manifest.json`, `src/`, `icons/`) reach teachers only through a Chrome Web Store release.
+Code changes (`manifest.json`, `src/`, `icons/`) reach Chrome Web Store installations through a store release. Other browsers have their own distribution steps below.
 Tip content lives in Supabase and needs no release.
+
+## Other browsers
+
+Run `npm run package:all` to prepare browser-specific unpacked folders and archives. Chrome, Edge and Brave share `dist/preptip-<version>.zip`; Firefox receives `dist/preptip_firefox-<version>.zip` and Safari receives `dist/preptip_safari-<version>.zip`. The existing workflow continues to publish only the Chromium archive to the Chrome Web Store.
+
+Firefox's archive needs Mozilla signing before normal installation. Safari's archive can be loaded temporarily in supported macOS Safari versions, packaged with Xcode on a Mac, or submitted to Apple's web-based App Store Connect packager for distribution. Safari runtime testing requires a Mac. See [browser installation and packaging](BROWSERS.md) for exact commands and release checks. No Firefox or Safari store publication is performed by this repository's workflow.
 
 Releases are automated by [`.github/workflows/release.yml`](../.github/workflows/release.yml). A release
 tests the code, builds the zip, attaches it to a GitHub Release, uploads it to the Web Store and submits it

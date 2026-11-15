@@ -7,7 +7,7 @@ import {
   emphasize, splitActions, offtrackCopy, targetPath, targetKind
 } from './text.js';
 import {
-  LOGO, SEARCH, GLOBE, CHECK, THUMB, PUZZLE, PIN, INFO, OFFLINE, WAND, SPARKLE, STEPS, CAP, BOOKS, EXTERNAL, CHEVRON_DOWN, siteIcon
+  LOGO, SEARCH, GLOBE, CHECK, THUMB, PUZZLE, PIN, INFO, OFFLINE, WAND, SPARKLE, STEPS, CAP, BOOKS, EXTERNAL, ARROW_DOWN, siteIcon
 } from './icons.js';
 import {
   GRADES, SUBJECTS, gradeLabel, splitByFit, siteGrades, siteSubjects, profileLabel, matchBadge, cleanSubjects
@@ -17,6 +17,8 @@ import { SHARE_MESSAGE } from '../lib/share.js';
 import { REPORT_REASONS } from '../lib/errors.js';
 import { MAX_QUESTION, MAX_SITE } from '../lib/ai-tip.js';
 import { GEMINI_KEY_URL } from '../lib/gemini.js';
+import { quickStartFor } from '../data/quickstarts.js';
+import { summarizeTip } from '../lib/tip-summary.js';
 
 // The teacher's chosen grade band (or '' for all grades / not set).
 function teacherGrade(state) {
@@ -137,7 +139,7 @@ export function header(state) {
   const who = name
     ? `<span class="who"><span class="avatar">${esc(name[0].toUpperCase())}</span>${esc(name)}</span>`
     : '';
-  // Chrome already shows the extension name and icon in its side-panel frame.
+  // The browser already shows the extension name in its sidebar or guide window.
   return who;
 }
 
@@ -181,16 +183,16 @@ function setupWelcome() {
 
 function setupPin() {
   return `
-    <h2>Pin PrepTip to your toolbar</h2>
+    <h2>Keep PrepTip in your toolbar</h2>
     <p class="lede">So it&rsquo;s always one click away.</p>
     <div class="pin-demo" aria-hidden="true">
       <div class="pd-bar"><span class="pd-omni"></span><span class="pd-ic hl">${PUZZLE}</span></div>
       <div class="pd-menu"><small>Extensions</small><div class="pd-row">${LOGO}<b>PrepTip</b><span class="pd-ic hl">${PIN}</span></div></div>
     </div>
     <ol class="howto">
-      <li><span class="pin">1</span><div><b>Click the puzzle piece</b><p>It&rsquo;s at the top right of Chrome, next to the address bar.</p></div></li>
-      <li><span class="pin">2</span><div><b>Find PrepTip and click the pin</b><p>The orange lightbulb now stays in your toolbar.</p></div></li>
-      <li><span class="pin">3</span><div><b>Click the lightbulb anytime</b><p>This panel opens with tips for whatever site you&rsquo;re on.</p></div></li>
+      <li><span class="pin">1</span><div><b>Open your browser&rsquo;s extension controls</b><p>In Chrome, Edge, Brave, or Firefox, look for the Extensions puzzle piece. In Safari, enable PrepTip in Settings &rarr; Extensions.</p></div></li>
+      <li><span class="pin">2</span><div><b>Keep PrepTip visible</b><p>Use Pin, Show in Toolbar, or your browser&rsquo;s Customize Toolbar controls to keep the orange lightbulb within reach.</p></div></li>
+      <li><span class="pin">3</span><div><b>Click the lightbulb on a teaching website</b><p>Your tips open in a sidebar or a separate guide window that stays open while you work.</p></div></li>
     </ol>
     <div class="row">
       <button type="button" class="btn ghost" data-action="setup-back">Back</button>
@@ -312,7 +314,7 @@ export function errorView(state) {
     <div class="empty">
       <div class="empty-ic">${OFFLINE}</div>
       <h4>We couldn&rsquo;t load tips</h4>
-      <p>Check your internet connection, then try again.</p>
+      <p>${state.accessError ? esc(state.accessError) : 'Check your internet connection, then try again. Allow PrepTip to connect to its tip service if your browser asks.'}</p>
     </div>
     <button type="button" class="btn primary full" data-action="retry" ${state.retrying ? 'disabled' : ''}>${state.retrying ? 'Trying…' : 'Retry'}</button>`;
 }
@@ -329,12 +331,38 @@ export function tipsView(state, ctx) {
       <span class="fav">${siteIcon(site)}</span>
       <span class="site-copy"><b>${esc(site.name)}</b><small>${plural(tips.length, 'tip')} for this site</small></span>
       ${badge ? `<span class="rec-badge"><span class="gl">${CAP}</span>${esc(badge)}</span>` : ''}
-      <span class="site-switch-icon" aria-hidden="true">${CHEVRON_DOWN}</span>
+      <span class="site-switch-icon" aria-hidden="true">${ARROW_DOWN}</span>
     </button>
     ${browsing ? `<p class="tiny-note">You&rsquo;re not on ${esc(site.name)} right now, so tips open as a step list. Open ${esc(site.name)} to get the orange highlights.</p>` : ''}
     ${staleNote(state)}
+    ${quickStartEntry(site)}
     ${searchBox(state.query)}
     <div id="results" class="stack">${resultsHtml(state, ctx)}</div>`;
+}
+
+function quickStartEntry(site) {
+  if (!site) return '';
+  return `<button type="button" class="quickstart-entry" data-action="open-quickstart">
+    <span class="quickstart-icon">${BOOKS}</span>
+    <span><b>First time using ${esc(site.name)}?</b><small>QuickStart guide &middot; Learn the basics for your classroom</small></span>
+    <span class="quickstart-go" aria-hidden="true">&rarr;</span>
+  </button>`;
+}
+
+export function quickStartView(state) {
+  const site = state.quickStart.site;
+  const guide = quickStartFor(site);
+  return `
+    <button type="button" class="back" data-action="close-quickstart">&larr; Back to ${esc(shortSiteName(site.name))} tips</button>
+    <div class="quickstart-head">
+      <span class="quickstart-label">${BOOKS}First-time user guide &middot; ~${guide.minutes} min</span>
+      <h3 id="quickstart-title" tabindex="-1">${esc(guide.title)}</h3>
+      <p>${esc(guide.overview)}</p>
+    </div>
+    <ol class="quickstart-sections howto">
+      ${guide.sections.map((section, i) => `<li><span class="pin">${i + 1}</span><div><h4>${esc(section.title)}</h4><p>${esc(section.body)}</p></div></li>`).join('')}
+    </ol>
+    <button type="button" class="btn primary full" data-action="close-quickstart">Explore ${esc(shortSiteName(site.name))} tips</button>`;
 }
 
 // The part under the search box. sidepanel.js re-renders only this while the teacher types.
@@ -429,12 +457,13 @@ export function unsupportedView(state, ctx) {
   const label = ctx.site?.name || (isWebUrl(url) ? hostOf(url) : 'This page');
   const sites = state.catalog?.websites || [];
   return `
-    <div class="site-chip muted"><span class="fav">${GLOBE}</span><div><b>${esc(label)}</b><small>Not supported yet</small></div></div>
+    <div class="site-chip${ctx.site ? '' : ' muted'}"><span class="fav">${siteIcon(ctx.site)}</span><div><b>${esc(label)}</b><small>${ctx.site ? 'QuickStart guide available' : 'Not supported yet'}</small></div></div>
     ${staleNote(state)}
+    ${quickStartEntry(ctx.site)}
     <div class="empty">
       <div class="empty-ic">${GLOBE}</div>
-      <h4>No tips available for this site</h4>
-      <p>We don&rsquo;t have guides for this website yet. Here&rsquo;s what you can do instead:</p>
+      <h4>${ctx.site ? 'No individual tips for this site yet' : 'No tips available for this site'}</h4>
+      <p>${ctx.site ? 'Start with the QuickStart guide above, or request help with a specific task.' : 'We don&rsquo;t have guides for this website yet. Here&rsquo;s what you can do instead:'}</p>
     </div>
     <div class="sec-h"><h4>Looking for help with another tool?</h4></div>
     ${searchBox(state.query)}
@@ -550,6 +579,7 @@ export function guideView(state) {
   const pct = Math.round(((g.stepIndex + 1) / total) * 100);
   const yourTurn = step.step_type === 'your_turn';
   const overview = steps.map((s, i) => stepItem(g, s, i)).join('');
+  const summary = g.summaryOpen ? summarizeTip(tip) : null;
 
   const buttons = yourTurn
     ? `<button type="button" class="btn primary sm" data-action="step-done">I&rsquo;m done</button>`
@@ -563,7 +593,12 @@ export function guideView(state) {
       <button type="button" class="back" data-action="stop-guide">&larr; ${tip.ai ? 'Back to your AI tip' : `All ${esc(shortSiteName(siteName(state, tip.url_pattern)))} tips`}</button>
       <h3>${esc(tip.title)}</h3>
       <div class="prog"><div class="prog-track"><i style="width:${pct}%"></i></div><span>Step ${g.stepIndex + 1} of ${total}</span></div>
+      <button type="button" class="btn outline sm summary-toggle" data-action="toggle-tip-summary" aria-expanded="${!!g.summaryOpen}" aria-controls="tip-summary">${STEPS}${g.summaryOpen ? 'Hide summary' : 'Summarize tip'}</button>
     </div>
+    <section id="tip-summary" class="tip-summary" aria-labelledby="tip-summary-heading" ${summary ? '' : 'hidden'}>
+      <h4 id="tip-summary-heading">Tip summary</h4>
+      ${summary ? `<p>${esc(summary.overview)}</p>${summary.actions.length ? `<ol>${summary.actions.map((action) => `<li>${esc(action)}</li>`).join('')}</ol>` : ''}` : ''}
+    </section>
     ${offtrackBanner(g, step)}
     ${liveLine(state, g, step)}
     ${overview ? `<ol class="steps">${overview}</ol>` : ''}

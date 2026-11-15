@@ -1,6 +1,8 @@
 // Tiny Supabase REST (PostgREST) client. No SDK, so the extension needs no build step.
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, CATALOG_TTL_MS } from '../config.js';
 import { STORAGE } from './protocol.js';
+import { extensionApi as chrome } from './browser.js';
+import { canSendTelemetry } from './telemetry.js';
 
 // Errors carry the HTTP status and Postgres error code (e.g. '23505' when a username is taken).
 async function rest(path, { method = 'GET', body, prefer } = {}) {
@@ -119,7 +121,8 @@ export function requestTip({ userId, siteName, text }) {
 // Fire-and-forget: a logging failure must never interrupt what the teacher is doing, so we swallow
 // errors here. (Before the migration is applied this will fail quietly, which is fine.)
 // `label` carries a free-text name (e.g. the resource opened) for events that aren't tied to a tip.
-export function logEvent({ type, userId = null, tipId = null, urlPattern = null, label = null, sessionId = null }) {
+export async function logEvent({ type, userId = null, tipId = null, urlPattern = null, label = null, sessionId = null }) {
+  if (!(await canSendTelemetry())) return;
   return rest('events', {
     method: 'POST',
     prefer: 'return=minimal',
@@ -138,7 +141,8 @@ export function submitErrorReport({ source, category, message, context = null, t
 }
 
 // Fire-and-forget for automatic reports: logging a problem must never cause another one.
-export function logError(event) {
+export async function logError(event) {
+  if (!(await canSendTelemetry())) return;
   return submitErrorReport(event).catch((err) => { console.debug('PrepTip: could not log an error', err); });
 }
 

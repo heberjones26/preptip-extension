@@ -44,6 +44,7 @@ export function metricsHarness({ modern = true, preview = false, hidden = false 
   const chrome = {
     runtime: {
       id: 'test', getURL: (path) => `chrome-extension://test/${path}`,
+      getManifest: () => ({ manifest_version: 3, version: '0.1.1' }),
       async sendMessage(event) {
         sent.push(structuredClone(event));
         const result = await recorder(event, 'panel-document');

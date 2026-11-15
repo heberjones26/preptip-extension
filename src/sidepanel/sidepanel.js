@@ -16,12 +16,16 @@ import { promptFor, parseAiTip, toTip, cleanSavedTips, cleanQuestion, dbTipId } 
 import { generateWithGemini, isUserFixable } from '../lib/gemini.js';
 import { createKeyStore } from '../lib/ai-key.js';
 import { sharePrepTip } from '../lib/share.js';
+import { extensionApi as chrome } from '../lib/browser.js';
+import { activeTabQuery, sourceWindowId } from './panel-context.js';
+import { requestHostAccess } from '../lib/host-access.js';
+import { SUPABASE_URL } from '../config.js';
 
 // ---------------------------------------------------------------------------
 // State. Everything the screens need lives here; render() turns it into HTML.
 // ---------------------------------------------------------------------------
 const state = {
-  view: 'loading',          // 'setup' | 'loading' | 'error' | 'tips' | 'guide' | 'feedback' | 'resources' | 'sites'
+  view: 'loading',          // 'setup' | 'loading' | 'error' | 'tips' | 'quickstart' | 'guide' | 'feedback' | 'resources' | 'sites'
   setupDone: false,
   teacher: null,            // { userId, username, gradeLevel, subjects }
   resourceGradeOnly: true,  // Teacher Resources view: show only my-grade matches (vs. all)
@@ -30,11 +34,13 @@ const state = {
   catalog: null,
   ratings: {},              // { [tip_id]: { helpful, total } } read live from feedback
   retrying: false,
+  accessError: '',
   windowId: null,
   tab: null,                // { id, url } of the active tab in this window
   site: null,               // website row matching tab.url, or null
   browseSite: null,         // a site picked from "Sites with tips" while on an unsupported page
   query: '',
+  quickStart: null,         // { site } for the first-time user guide being read
   sharePhase: 'idle',
   request: newRequest(),
   guide: null,              // { tip, stepIndex, tabId, live, canHighlight, status, offtrack }
@@ -83,6 +89,8 @@ function newReport({ tip = null, returnTo = 'tips' } = {}) {
 }
 
 const $ = (sel) => document.querySelector(sel);
+const sourceWindow = sourceWindowId(document.location.href);
+if (sourceWindow != null) state.windowId = sourceWindow;
 
 // ---------------------------------------------------------------------------
 // Error log: what goes wrong for teachers (src/lib/errors.js + the error_log migration)
@@ -118,6 +126,7 @@ function mainHtml() {
     case 'report': return views.reportView(state);
     case 'ai': return views.aiView(state);
     case 'sites': return views.sitesView(state);
+    case 'quickstart': return views.quickStartView(state);
     default: {
       const ctx = tipsContext();
       return ctx.site && ctx.tips.length ? views.tipsView(state, ctx) : views.unsupportedView(state, ctx);
@@ -181,6 +190,7 @@ async function init() {
 }
 
 async function loadCatalog({ force = false } = {}) {
+  state.accessError = '';
   const ratings = loadRatings();
   try {
     state.catalog = await getCatalog({ force });
@@ -199,6 +209,20 @@ async function loadCatalog({ force = false } = {}) {
     return render();
   }
   await showHome();
+}
+
+async function retryCatalog() {
+  state.retrying = true;
+  state.accessError = '';
+  render();
+  try {
+    await requestHostAccess(SUPABASE_URL, 'the tip service');
+    await loadCatalog({ force: true });
+  } catch (error) {
+    state.retrying = false;
+    state.accessError = error.friendly || 'Please try again.';
+    render();
+  }
 }
 
 // Helpful counts are nice-to-have: if they fail to load, cards just don't show them.
@@ -245,7 +269,7 @@ function updateSite() {
 async function refreshActiveTab({ silent = false } = {}) {
   let tab;
   try {
-    [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    [tab] = await chrome.tabs.query(activeTabQuery(document.location.href));
   } catch { return; }
   if (!tab) return;
   if (silent) {
@@ -259,6 +283,7 @@ async function refreshActiveTab({ silent = false } = {}) {
 }
 
 async function onActiveTab(tab) {
+  if (sourceWindow != null && tab.windowId !== sourceWindow) return;
   const url = tab.url || tab.pendingUrl || '';
   const prev = state.tab;
   const sameTab = prev && prev.id === tab.id;
@@ -314,6 +339,7 @@ function resetListState() {
   state.browseSite = null;
   state.query = '';
   state.request = newRequest();
+  state.quickStart = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -356,6 +382,7 @@ function startGuide(tip, stepIndex = 0) {
     // Only highlight on the page when the tab is on the tip's own site.
     live: !!state.site && state.site.url_pattern === tip.url_pattern,
     canHighlight: null,
+    summaryOpen: false,
     status: null,
     offtrack: null
   };
@@ -577,6 +604,7 @@ async function submitAccount(form) {
   s.saving = true;
   render();
   try {
+    await requestHostAccess(SUPABASE_URL, 'the tip service');
     const account = s.mode === 'signup'
       ? await createAccount({ username: s.username, password: s.password })
       : await signIn({ username: s.username, password: s.password });
@@ -611,7 +639,9 @@ async function submitAccount(form) {
     }
   } catch (err) {
     console.warn('PrepTip: account request failed', err);
-    if (err.code === '23505') {
+    if (err.name === 'HostAccessError') {
+      s.error = err.friendly;
+    } else if (err.code === '23505') {
       s.notice = 'taken'; // one account per username
     } else {
       problem('account', s.mode, err); // an unexpected failure, not a typo or a taken name
@@ -759,13 +789,19 @@ async function aiBuildWithGemini() {
   if (a.building) return;
   if (!cleanQuestion(a.question)) { a.geminiError = 'Type what you want to do first.'; return render(); }
   const typed = a.key.trim();
-  const key = typed || await loadAiKey();
-  if (!key) { a.geminiError = 'Paste your Gemini key first.'; return render(); }
+  if (!typed && !state.aiKey.has) { a.geminiError = 'Paste your Gemini key first.'; return render(); }
 
   a.building = true;
   a.geminiError = '';
   render();
   try {
+    await requestHostAccess('https://generativelanguage.googleapis.com', 'Gemini');
+    const key = typed || await loadAiKey();
+    if (!key) {
+      a.building = false;
+      a.geminiError = 'Paste your Gemini key first.';
+      return render();
+    }
     const text = await generateWithGemini({ key, prompt: promptFor(a, state.teacher) });
     const parsed = parseAiTip(text);
     if (!parsed.ok) {
@@ -781,7 +817,7 @@ async function aiBuildWithGemini() {
     await aiTipReady(parsed.tip);
   } catch (err) {
     a.geminiError = err.friendly || 'Something went wrong. Try again, or use copy and paste.';
-    if (!isUserFixable(err)) problem('other', 'ai-gemini', err); // a wrong key or the free limit is not our bug
+    if (err.name !== 'HostAccessError' && !isUserFixable(err)) problem('other', 'ai-gemini', err); // a wrong key or the free limit is not our bug
   }
   a.building = false;
   render();
@@ -951,7 +987,7 @@ const actions = {
   'report-reason': (el) => { state.report.reason = el.dataset.reason; state.report.error = ''; render(); },
   'report-back': () => {
     const back = state.report.returnTo;
-    const canReturn = { guide: !!state.guide, feedback: !!state.feedback, resources: true, sites: true, tips: true };
+    const canReturn = { guide: !!state.guide, quickstart: !!state.quickStart?.site, feedback: !!state.feedback, resources: true, sites: true, tips: true };
     state.view = canReturn[back] ? back : 'tips';
     render();
     window.scrollTo(0, 0);
@@ -972,7 +1008,26 @@ const actions = {
   'set-resource-category': (el) => { state.resourceCategory = el.dataset.cat || ''; render(); window.scrollTo(0, 0); },
 
   // list + search
-  'retry': () => { state.retrying = true; render(); loadCatalog({ force: true }); },
+  'open-quickstart': () => {
+    const { site } = tipsContext();
+    if (!site) return;
+    state.quickStart = { site };
+    state.view = 'quickstart';
+    render();
+    window.scrollTo(0, 0);
+    $('#quickstart-title')?.focus({ preventScroll: true });
+  },
+  'close-quickstart': () => {
+    const site = state.quickStart?.site;
+    // Keep the guide's site selected if the teacher navigated elsewhere while reading.
+    if (site && site.url_pattern !== state.site?.url_pattern) state.browseSite = site;
+    state.quickStart = null;
+    state.view = 'tips';
+    render();
+    window.scrollTo(0, 0);
+    $('[data-action="open-quickstart"]')?.focus();
+  },
+  'retry': () => retryCatalog(),
   'open-tip': (el) => {
     const tip = findTip(el.dataset.tipId);
     if (!tip) return;
@@ -1014,6 +1069,12 @@ const actions = {
   'close-request': () => { state.request = newRequest(); render(); },
 
   // guide
+  'toggle-tip-summary': () => {
+    if (state.view !== 'guide' || !state.guide) return;
+    state.guide.summaryOpen = !state.guide.summaryOpen;
+    render();
+    $('[data-action="toggle-tip-summary"]')?.focus({ preventScroll: true });
+  },
   'stop-guide': () => exitGuide(),
   'step-done': () => completeStep(),
   'show-again': () => { resetStepStatus(); render(); sendCurrentStep(); },
@@ -1107,6 +1168,18 @@ function wireDomEvents() {
 // Chrome events
 // ---------------------------------------------------------------------------
 function wireChromeEvents() {
+  chrome.windows?.onRemoved?.addListener((windowId) => {
+    if (sourceWindow == null || windowId !== sourceWindow) return;
+    if (state.guide) {
+      bridge.clearGuide(state.guide.tabId);
+      state.guide = null;
+    }
+    state.tab = null;
+    state.site = null;
+    resetListState();
+    if (state.setupDone) state.view = state.catalog ? 'tips' : 'error';
+    render();
+  });
   chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
     if (state.windowId != null && windowId !== state.windowId) return; // another window's tab
     chrome.tabs.get(tabId).then(onActiveTab).catch(() => {});

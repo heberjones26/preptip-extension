@@ -8,7 +8,8 @@
 import { MSG, STORAGE } from './lib/protocol.js';
 import { getCatalog } from './lib/supabase.js';
 import { matchSite, tipsForSite } from './lib/sites.js';
-import { createMetricsRecorder } from './lib/metrics.js';
+import { createMetricsRecorder, isPanelSender, panelDocumentId } from './lib/metrics.js';
+import { extensionApi as chrome, getExtensionApi, createPanelController } from './lib/browser.js';
 
 // ---------------------------------------------------------------------------------------------
 // Constants
@@ -105,7 +106,12 @@ const bareHost = (url) => hostOf(url).replace(/^www\./, '');
 // Listeners are still registered synchronously at the top level, as MV3 requires.
 // ---------------------------------------------------------------------------------------------
 
-const inExtension = Boolean(globalThis.chrome?.runtime?.id);
+const inExtension = Boolean(getExtensionApi()?.runtime?.id);
+const panelController = createPanelController();
+let declarativeBlockingFailed = false;
+const hasDeclarativeBlocking = () => !declarativeBlockingFailed &&
+  ['getDynamicRules', 'updateDynamicRules', 'getSessionRules', 'updateSessionRules']
+    .every((method) => typeof chrome.declarativeNetRequest?.[method] === 'function');
 
 function blockedPageUrl() {
   return chrome.runtime.getURL(BLOCKED_PAGE_PATH);
@@ -211,8 +217,14 @@ async function loadBlocklist() {
 }
 
 async function rebuildBlockRules() {
+  declarativeBlockingFailed = false;
   try {
     const domains = await loadBlocklist();
+    fallbackDomains = domains;
+    if (!hasDeclarativeBlocking()) {
+      console.warn('[PrepTip] Declarative blocking unavailable; flagged pages will use navigation warnings');
+      return;
+    }
     const rules = buildBlockRules(domains, blockedPageUrl());
 
     const checked = [];
@@ -234,8 +246,22 @@ async function rebuildBlockRules() {
     });
     console.info(`[PrepTip] blocking ${checked.length} flagged domains`);
   } catch (err) {
+    declarativeBlockingFailed = true;
     console.error('[PrepTip] could not build block rules:', err);
   }
+}
+
+// Older or restricted browsers still receive the warning page when declarative
+// request rules are unavailable. Modern supported browsers block before loading.
+let fallbackDomains;
+async function warnFlaggedNavigation(tabId, url) {
+  if (hasDeclarativeBlocking() || !isHttp(url)) return;
+  fallbackDomains ||= await loadBlocklist();
+  const host = hostOf(url);
+  if (!fallbackDomains.some(({ domain }) => host === domain || host.endsWith(`.${domain}`))) return;
+  const saved = await chrome.storage.session.get(STORAGE.ALLOWED_DOMAINS);
+  if (saved[STORAGE.ALLOWED_DOMAINS]?.includes(host)) return;
+  await chrome.tabs.update(tabId, { url: `${blockedPageUrl()}?url=${encodeURIComponent(url)}` });
 }
 
 // "I understand the risk, continue" -> allow this hostname for the rest of the browser session.
@@ -250,6 +276,8 @@ async function allowDomain(url) {
     allowed.push(host);
     await chrome.storage.session.set({ [STORAGE.ALLOWED_DOMAINS]: allowed });
   }
+
+  if (!hasDeclarativeBlocking()) return;
 
   const sessionRules = await chrome.declarativeNetRequest.getSessionRules();
   const already = sessionRules.some((r) => r.action.type === 'allow' && r.condition.requestDomains?.includes(host));
@@ -283,7 +311,7 @@ function onBeforeRedirect(details) {
   if (details.tabId < 0 || details.frameId !== 0) return;
   const { url: from, redirectUrl: to } = details;
   // Our own DNR redirect into the warning page is not a site redirect.
-  if (!to || to.startsWith(`chrome-extension://${chrome.runtime.id}/`)) return;
+  if (!to || to.startsWith(chrome.runtime.getURL(''))) return;
   if (!isHttp(from) || !isHttp(to)) return;
   recordRedirect(details.tabId, from, to, 'server').catch(() => {});
 }
@@ -336,12 +364,12 @@ function onMessage(msg, sender, sendResponse) {
 
   switch (msg.type) {
     case MSG.ENGAGEMENT:
-      if (sender.id !== chrome.runtime.id || sender.url !== chrome.runtime.getURL('src/sidepanel/sidepanel.html')) {
+      if (!isPanelSender(sender, chrome)) {
         sendResponse({ ok: false, error: 'Not allowed' });
         return false;
       }
       recordMetrics ||= createMetricsRecorder(chrome.storage.local);
-      return respondAsync(recordMetrics(msg, sender.documentId), sendResponse);
+      return respondAsync(recordMetrics(msg, panelDocumentId(sender, msg)), sendResponse);
 
     case MSG.GET_SITE_INFO:
       return respondAsync(getSiteInfo(sender), sendResponse);
@@ -350,13 +378,10 @@ function onMessage(msg, sender, sendResponse) {
       return respondAsync(markNudgeSeen(msg.urlPattern).then(() => ({ ok: true })), sendResponse);
 
     case MSG.OPEN_PANEL: {
-      const tabId = sender.tab?.id;
-      // Call open() synchronously, before any await, so Chrome can still see the user gesture.
+      // Call open() synchronously so native sidebar APIs retain the user gesture.
       let opening;
       try {
-        opening = tabId != null
-          ? chrome.sidePanel.open({ tabId })
-          : Promise.reject(new Error('No tab'));
+        opening = panelController.open(sender.tab);
       } catch (err) {
         opening = Promise.reject(err);
       }
@@ -390,20 +415,19 @@ function onMessage(msg, sender, sendResponse) {
 // ---------------------------------------------------------------------------------------------
 
 if (inExtension) {
-  Promise.resolve()
-    .then(() => chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }))
-    .catch((err) => console.warn('[PrepTip] setPanelBehavior:', err));
+  panelController.configure();
 
   // Tabs that were already open when PrepTip was installed or Chrome started get their badge too.
   const refreshAllTabs = () => chrome.tabs.query({})
     .then((tabs) => Promise.all(tabs.map((t) => updateBadge(t.id, t.url))))
     .catch(() => {});
 
-  chrome.runtime.onInstalled.addListener(() => { rebuildBlockRules(); refreshAllTabs(); });
-  chrome.runtime.onStartup.addListener(() => { rebuildBlockRules(); refreshAllTabs(); });
+  chrome.runtime.onInstalled?.addListener(() => { rebuildBlockRules(); refreshAllTabs(); });
+  chrome.runtime.onStartup?.addListener(() => { rebuildBlockRules(); refreshAllTabs(); });
 
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete' || changeInfo.url) {
+      warnFlaggedNavigation(tabId, tab.url || changeInfo.url).catch((error) => console.warn('[PrepTip] navigation warning:', error));
       refreshTab(tabId, tab.url || changeInfo.url, tab.active);
     }
   });
@@ -419,8 +443,12 @@ if (inExtension) {
     chrome.storage.session.remove([STORAGE.redirectKey(tabId), lastUrlKey(tabId)]).catch(() => {});
   });
 
-  chrome.webRequest.onBeforeRedirect.addListener(onBeforeRedirect, { urls: ['<all_urls>'], types: ['main_frame'] });
-  chrome.webNavigation.onCommitted.addListener((d) => { onCommitted(d).catch((e) => console.warn('[PrepTip] onCommitted:', e)); });
+  chrome.webRequest?.onBeforeRedirect?.addListener(onBeforeRedirect, { urls: ['<all_urls>'], types: ['main_frame'] });
+  chrome.webNavigation?.onBeforeNavigate?.addListener((d) => {
+    if (d.frameId === 0 && d.tabId >= 0) warnFlaggedNavigation(d.tabId, d.url)
+      .catch((error) => console.warn('[PrepTip] navigation warning:', error));
+  });
+  chrome.webNavigation?.onCommitted?.addListener((d) => { onCommitted(d).catch((e) => console.warn('[PrepTip] onCommitted:', e)); });
 
   chrome.runtime.onMessage.addListener(onMessage);
 }

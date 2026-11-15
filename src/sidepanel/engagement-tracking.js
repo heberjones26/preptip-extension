@@ -1,14 +1,17 @@
 import { MSG } from '../lib/protocol.js';
 import { createDwellTracker } from '../lib/engagement.js';
 import { logEvent } from '../lib/supabase.js';
+import { getExtensionApi } from '../lib/browser.js';
+import { isPanelSender } from '../lib/metrics.js';
 
 export function createPanelEngagement({
-  document = globalThis.document, window = globalThis.window, chrome = globalThis.chrome,
+  document = globalThis.document, window = globalThis.window, chrome = getExtensionApi(),
   now = () => performance.now(), date = () => new Date(), uuid = () => crypto.randomUUID(),
   schedule = (fn, ms) => setTimeout(fn, ms), cancel = (id) => clearTimeout(id)
 } = {}) {
   const noop = { open() {}, click() {}, stop() {}, flush: async () => {} };
-  if (!chrome?.runtime?.id || document?.location?.href !== chrome.runtime.getURL('src/sidepanel/sidepanel.html')) return noop;
+  if (!isPanelSender({ id: chrome?.runtime?.id, url: document?.location?.href }, chrome)) return noop;
+  const panelDocumentId = uuid();
 
   let teacherId = null;
   let session = null;
@@ -48,7 +51,7 @@ export function createPanelEngagement({
   }
   function send(event) {
     if (!session) return;
-    queue.push({ type: MSG.ENGAGEMENT, ...session, ...event, at: date().toISOString() });
+    queue.push({ type: MSG.ENGAGEMENT, panelDocumentId, ...session, ...event, at: date().toISOString() });
     retryCount = 0;
     void flush();
   }
