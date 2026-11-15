@@ -113,7 +113,8 @@ button:disabled { cursor: default; }
 .site-chip small { display: block; margin-top: 2px; color: var(--brand-dk); font-size: 11.5px; font-weight: 700; }
 .resources-heading b { font-size: 15px; font-weight: 700; }
 .resources-heading small { color: var(--ink-2); font-weight: 400; }
-.site-switch-icon { margin-left: auto; color: var(--brand-dk); font-size: 19px; line-height: 1; }
+.site-switch-icon { display: grid; place-items: center; flex: none; width: 22px; height: 22px; margin-left: auto; color: var(--brand-dk); }
+.site-switch-icon svg { display: block; width: 20px; height: 20px; }
 .site-chip.muted { background: var(--soft); }
 .site-chip.muted small { color: var(--ink-3); }
 .site-chip.muted .fav svg { width: 18px; height: 18px; color: var(--ink-3); }

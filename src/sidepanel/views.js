@@ -7,7 +7,7 @@ import {
   emphasize, splitActions, offtrackCopy, targetPath, targetKind
 } from './text.js';
 import {
-  LOGO, SEARCH, GLOBE, CHECK, THUMB, PUZZLE, PIN, INFO, OFFLINE, WAND, SPARKLE, STEPS, CAP, BOOKS, EXTERNAL, siteIcon
+  LOGO, SEARCH, GLOBE, CHECK, THUMB, PUZZLE, PIN, INFO, OFFLINE, WAND, SPARKLE, STEPS, CAP, BOOKS, EXTERNAL, CHEVRON_DOWN, siteIcon
 } from './icons.js';
 import {
   GRADES, SUBJECTS, gradeLabel, splitByFit, siteGrades, siteSubjects, profileLabel, matchBadge, cleanSubjects
@@ -329,7 +329,7 @@ export function tipsView(state, ctx) {
       <span class="fav">${siteIcon(site)}</span>
       <span class="site-copy"><b>${esc(site.name)}</b><small>${plural(tips.length, 'tip')} for this site</small></span>
       ${badge ? `<span class="rec-badge"><span class="gl">${CAP}</span>${esc(badge)}</span>` : ''}
-      <span class="site-switch-icon" aria-hidden="true">&#8964;</span>
+      <span class="site-switch-icon" aria-hidden="true">${CHEVRON_DOWN}</span>
     </button>
     ${browsing ? `<p class="tiny-note">You&rsquo;re not on ${esc(site.name)} right now, so tips open as a step list. Open ${esc(site.name)} to get the orange highlights.</p>` : ''}
     ${staleNote(state)}
