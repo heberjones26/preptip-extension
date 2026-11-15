@@ -3,7 +3,7 @@
 import { MSG, STORAGE } from '../lib/protocol.js';
 import {
   getCatalog, getTipRatings, submitFeedback, requestTip,
-  createAccount, signIn, requestResource, logEvent, logError, submitErrorReport
+  createAccount, signIn, getTeacherProfile, saveTeacherProfile, requestResource, logEvent, logError, submitErrorReport
 } from '../lib/supabase.js';
 import { createErrorReporter, REPORT_REASONS, reportMessage } from '../lib/errors.js';
 import { matchSite, tipsForSite, parseTarget } from '../lib/sites.js';
@@ -42,7 +42,7 @@ const state = {
   report: newReport(),      // the "Report a problem" form
   ai: newAi(),              // the "Build a tip with AI" screen
   aiTips: [],               // AI-built tips saved in this browser (newest first)
-  profiles: {},             // class settings remembered per account on this computer (see segments.js)
+  profiles: {},             // local per-account mirror of class settings (see segments.js)
   aiKey: { has: false, remembered: false } // whether a Gemini key is saved (the key itself is never kept in state)
 };
 
@@ -172,6 +172,8 @@ async function init() {
   }
   if (!state.setupDone) state.view = 'setup';
   recordUsage();
+
+  if (state.setupDone && state.teacher?.userId != null) syncClassSettingsFromDatabase();
 
   await refreshActiveTab({ silent: true });
   render();
@@ -552,6 +554,19 @@ function accountFormError(s) {
   return '';
 }
 
+function updatePasswordFeedback(password) {
+  const box = $('#password-feedback');
+  if (!box) return;
+  const strength = !password ? '' : password.length < 8 ? 'weak' : password.length < 12 ? 'fair' : 'good';
+  const hint = !password ? 'Enter a password to check its strength.'
+    : password.length < 8 ? 'Too short — use at least 8 characters.'
+      : password.length < 12 ? 'Acceptable length. 12 or more characters is stronger.'
+        : 'Good length. Choose a unique password.';
+  box.dataset.strength = strength;
+  const text = box.querySelector('.password-hint');
+  if (text) text.textContent = hint;
+}
+
 async function submitAccount(form) {
   const s = state.setup;
   readAccountForm(form);
@@ -569,8 +584,15 @@ async function submitAccount(form) {
       s.error = 'That username and password don’t match. Check them and try again.';
     } else {
       // Grade and subjects are picked on the "You're set" screen next; set-grade / toggle-subject persist them.
-      // Whatever was picked on this computer last time this account signed in comes back with it.
-      const saved = recallProfile(state.profiles, account.userId);
+      const localSaved = recallProfile(state.profiles, account.userId);
+      let saved = localSaved;
+      try {
+        const remote = await getTeacherProfile(account.userId);
+        if (remote && (remote.gradeLevel || remote.subjects?.length || (!localSaved.gradeLevel && !localSaved.subjects.length))) saved = remote;
+      } catch (err) {
+        // An older database may not have the profile migration yet; the local per-account copy remains usable.
+        console.info('PrepTip: using the saved local class settings', err?.message || err);
+      }
       state.teacher = {
         ...account,
         gradeLevel: s.grade || saved.gradeLevel,
@@ -580,6 +602,8 @@ async function submitAccount(form) {
       s.subjects = state.teacher.subjects;
       state.setupDone = true;
       await chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher, [STORAGE.SETUP_DONE]: true });
+      // Preserve class settings selected on this computer before the profile migration was available.
+      if (saved.gradeLevel || saved.subjects?.length) saveClassSettings();
       recordUsage();
       s.password = '';
       s.confirm = '';
@@ -682,13 +706,41 @@ async function saveAiTips() {
   try { await chrome.storage.local.set({ [STORAGE.AI_TIPS]: state.aiTips }); } catch { /* it still works this session */ }
 }
 
-// Keep the grade and subjects with the account on this computer, not just in the signed-in session,
-// so they're still there after signing out and back in.
+// Keep a local fallback and sync the grade and subjects with the teacher's account.
 function saveClassSettings() {
   state.profiles = rememberProfile(state.profiles, state.teacher.userId, {
     gradeLevel: state.teacher.gradeLevel, subjects: state.teacher.subjects
   });
   chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher, [STORAGE.PROFILES]: state.profiles }).catch(() => {});
+  saveTeacherProfile({
+    userId: state.teacher.userId,
+    gradeLevel: state.teacher.gradeLevel,
+    subjects: state.teacher.subjects
+  }).catch((err) => {
+    console.warn('PrepTip: could not save class settings to the account', err);
+    problem('profile', 'save-class-settings', err);
+  });
+}
+
+async function syncClassSettingsFromDatabase() {
+  try {
+    const profile = await getTeacherProfile(state.teacher.userId);
+    if (!profile) return;
+    const localProfile = recallProfile(state.profiles, state.teacher.userId);
+    if (!profile.gradeLevel && !profile.subjects.length && (localProfile.gradeLevel || localProfile.subjects.length)) {
+      state.teacher = { ...state.teacher, gradeLevel: localProfile.gradeLevel, subjects: localProfile.subjects };
+      saveClassSettings(); // move the existing per-account settings into the database
+      return;
+    }
+    state.teacher = { ...state.teacher, gradeLevel: profile.gradeLevel, subjects: cleanSubjects(profile.subjects) };
+    await chrome.storage.local.set({ [STORAGE.TEACHER]: state.teacher });
+    state.profiles = rememberProfile(state.profiles, state.teacher.userId, profile);
+    await chrome.storage.local.set({ [STORAGE.PROFILES]: state.profiles });
+    if (state.setupDone) render();
+  } catch (err) {
+    // Keep the local profile when the network or the database migration is unavailable.
+    console.info('PrepTip: class settings are using the local copy', err?.message || err);
+  }
 }
 
 // A tip was built: show it, keep it, count it (a count only — never the question or the answer).
@@ -797,6 +849,15 @@ async function sendFeedback() {
 // DOM events: one click handler for every data-action button.
 // ---------------------------------------------------------------------------
 const actions = {
+  'toggle-password': (el) => {
+    const input = document.getElementById(el.dataset.target);
+    if (!input) return;
+    const showing = input.type === 'password';
+    input.type = showing ? 'text' : 'password';
+    el.textContent = showing ? 'Hide' : 'Show';
+    el.setAttribute('aria-label', `${showing ? 'Hide' : 'Show'} ${el.dataset.target === 'account-confirm' ? 'confirmation password' : 'password'}`);
+    el.setAttribute('aria-pressed', String(showing));
+  },
   'share-preptip': async () => {
     if (state.sharePhase === 'sharing') return;
     // Start sharing directly from the click to retain browser user activation.
@@ -991,7 +1052,12 @@ function wireDomEvents() {
   });
 
   document.addEventListener('input', (e) => {
-    if (e.target.id === 'search') {
+    if (e.target.id === 'account-password') {
+      state.setup.password = e.target.value;
+      updatePasswordFeedback(e.target.value);
+    } else if (e.target.id === 'account-confirm') {
+      state.setup.confirm = e.target.value;
+    } else if (e.target.id === 'search') {
       state.query = e.target.value;
       state.request = newRequest();
       renderResults();

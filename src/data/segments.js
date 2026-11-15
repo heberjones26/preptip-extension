@@ -186,9 +186,8 @@ export function matchBadge(itemGrades, itemSubjects, profile) {
 }
 
 // ---------------------------------------------------------------------------
-// Class settings remembered per account on this computer (pt.profiles), so signing out and back in
-// again doesn't lose the grade and subjects. They never leave the computer. Other accounts on the same
-// computer have their own entry, so one teacher's settings never show up for another.
+// Local mirror of account class settings (pt.profiles), used when offline and to migrate existing
+// settings into the database. Each account gets its own entry on this computer.
 // ---------------------------------------------------------------------------
 
 // -> a new profiles object with this account's settings stored (the input is not changed).
