@@ -2,7 +2,7 @@
 // Layout: a hero figure + KPI stat-tile strip (at-a-glance), then the Objective detail cards.
 // The math lives in okr.js (pure, tested); this file only does I/O and DOM.
 import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, OKR_CONFIG } from './config.js';
-import { okr1FromRatings, okr2FromEvents, pctLabel } from './okr.js';
+import { okr1FromRatings, okr2FromEvents, pctLabel, kr3Weeks, kr4Weeks, daysSpread } from './okr.js';
 
 // ?demo=1 feeds representative numbers through the SAME render path (no network, no DB writes), so we
 // can see the on-track / below states and screenshot the design before teachers have generated data.
@@ -121,6 +121,65 @@ async function renderKr2() {
   }
 }
 
+// --- Week-by-week trend under OKR 3 and OKR 4 ------------------------------------------------
+// `weeks` = [{ weekStart, value (null = no data that week), partial }]; `max` is the top of the scale
+// and `target` draws the dashed line. Bars that meet the target are green, the rest orange; the
+// newest week is lighter because it is still in progress.
+function weekLabel(iso) {
+  const d = new Date(`${iso}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function weeklyChart({ weeks, max, target, fmt, noun }) {
+  if (!weeks.length || weeks.every((w) => w.value == null)) return '';
+  const cols = weeks.map((w) => {
+    const h = w.value == null ? 3 : Math.max(5, Math.round((w.value / max) * 100));
+    const cls = [w.value == null ? 'zero' : w.value >= target ? 'hit' : '', w.partial ? 'partial' : ''].filter(Boolean).join(' ');
+    const label = `Week of ${weekLabel(w.weekStart)}${w.partial ? ' (so far)' : ''}: ${w.value == null ? `no ${noun}` : fmt(w.value)}`;
+    return `<span class="tcol" title="${esc(label)}"><i class="${cls}" style="height:${h}%"></i></span>`;
+  }).join('');
+  const aria = `${noun} by week: ${weeks.map((w) => `${weekLabel(w.weekStart)} ${w.value == null ? 'none' : fmt(w.value)}`).join(', ')}`;
+  return `
+    <div class="wk" role="img" aria-label="${esc(aria)}">
+      <div class="trend" style="grid-template-columns:repeat(${weeks.length}, 1fr)">${cols}</div>
+      <span class="wk-target" style="bottom:${Math.round((target / max) * 100)}%"></span>
+    </div>
+    <div class="trend-axis" aria-hidden="true"><span>${esc(weekLabel(weeks[0].weekStart))}</span><span>dashed line = target</span><span>this week</span></div>`;
+}
+
+const TREND_WEEKS = 8;
+// The weekly numbers are an extra: if the okr_trends migration isn't applied yet, the card still
+// shows its headline figure, just without the history.
+async function fetchTrend(kind) {
+  try {
+    if (DEMO) {
+      const d = demoKrTrend();
+      return kind === 'kr3' ? { weeks: kr3Weeks(d.kr3, OKR_CONFIG.kr3), spread: d.spread } : { weeks: kr4Weeks(d.kr4), spread: [] };
+    }
+    if (kind === 'kr3') {
+      const [w, d] = await Promise.all([rpc(`okr_app_usage_weekly?p_weeks=${TREND_WEEKS}`), rpc('okr_app_usage_distribution')]);
+      return { weeks: kr3Weeks(w, OKR_CONFIG.kr3), spread: d || [] };
+    }
+    return { weeks: kr4Weeks(await rpc(`okr_tip_engagement_weekly?p_weeks=${TREND_WEEKS}`)), spread: [] };
+  } catch (err) {
+    console.info(`${kind} history not available yet (okr_trends migration)`, err?.message || err);
+    return { weeks: [], spread: [] };
+  }
+}
+const chartFor = (weeks, opts) => weeklyChart({ weeks, ...opts });
+
+function demoKrTrend() {
+  const monday = new Date(); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  const wk = (i) => new Date(monday.getTime() - (7 - i) * 604800000).toISOString().slice(0, 10);
+  const days = [1.2, 1.8, 2.1, 2.6, 2.4, 3.1, 3.5, 3.4];
+  const rate = [[40, 6], [52, 11], [61, 17], [58, 19], [66, 26], [71, 31], [80, 38], [50, 22]];
+  return {
+    kr3: days.map((d, i) => ({ week_start: wk(i + 1), teachers: 6 + i, qualifying: Math.round(d), avg_office_days: d })),
+    kr4: rate.map(([o, e], i) => ({ week_start: wk(i + 1), opens: o, engaged: e })),
+    spread: [{ office_days: 1, teachers: 1 }, { office_days: 3, teachers: 2 }, { office_days: 5, teachers: 2 }],
+  };
+}
+
 // --- Objective B (Carlos's tracking): attempt, otherwise show "awaiting" ----------------------
 // OKR 3: avg office days (Mon–Fri) the app is opened per teacher this week (from rpc/okr_app_usage).
 async function renderKr3() {
@@ -132,13 +191,17 @@ async function renderKr3() {
     const teachers = Number(row?.teachers) || 0;
     const avg = Number(row?.avg_office_days) || 0;
     const qualifying = Number(row?.qualifying) || 0;
-    if (!teachers) return awaiting('kr3', 'No app opens tracked this week yet.');
+    const trend = await fetchTrend('kr3');
+    const history = chartFor(trend.weeks, { max: ofDays, target: targetDays, fmt: (v) => `${v.toFixed(1)} days`, noun: 'office days opened' });
+    const spread = daysSpread(trend.spread);
+    const extra = `${history}${spread ? `<p class="kr-cap small">This week: ${esc(spread)}</p>` : ''}`;
+    if (!teachers) return setCard('kr3', meter({ value: '—', status: 'awaiting', pct: null, caption: 'No app opens tracked this week yet.' }) + extra, 'awaiting');
     const status = avg >= targetDays ? 'on-track' : 'below';
     setCard('kr3', meter({
       value: avg.toFixed(1), unit: ` / ${ofDays} days`, status, pct: avg / ofDays, target: targetDays / ofDays,
       caption: `${qualifying} of ${teachers} teachers opened on ≥${targetDays} office days this week`,
       barLabel: 'Average office days opened this week',
-    }), status);
+    }) + extra, status);
   } catch (err) {
     console.warn('kr3 not available yet', err);
     awaiting('kr3', 'Lives once the events migration + okr_app_usage() are applied.');
@@ -154,14 +217,16 @@ async function renderKr4() {
     else { const rows = await rpc('okr_tip_engagement'); row = Array.isArray(rows) ? rows[0] : rows; }
     const opens = Number(row?.opens) || 0;
     const engaged = Number(row?.engaged) || 0;
-    if (!opens) return awaiting('kr4', 'No app opens tracked yet.');
+    const trend = await fetchTrend('kr4');
+    const history = chartFor(trend.weeks, { max: 1, target: targetRate, fmt: pctLabel, noun: 'panel openings' });
+    if (!opens) return setCard('kr4', meter({ value: '—', status: 'awaiting', pct: null, caption: 'No app opens tracked yet.' }) + history, 'awaiting');
     const rate = engaged / opens;
     const status = rate >= targetRate ? 'on-track' : 'below';
     setCard('kr4', meter({
       value: pctLabel(rate), status, pct: rate, target: targetRate,
       caption: `${engaged} of ${opens} opens led to a ≥10s tip view · target ${pctLabel(targetRate)}`,
       barLabel: 'Tip-engagement rate',
-    }), status);
+    }) + history, status);
   } catch (err) {
     console.warn('kr4 not available yet', err);
     awaiting('kr4', 'Lives once the events migration + okr_tip_engagement() are applied.');
