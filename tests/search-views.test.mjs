@@ -51,3 +51,14 @@ test('sharing feedback and a selectable invitation appear in the footer', () => 
   assert.match(footer({ ...state(''), sharePhase: 'copied' }), /Invite copied/);
   assert.match(footer({ ...state(''), sharePhase: 'manual' }), /id="share-text"[^>]*readonly/);
 });
+
+// The site chip's "browse all sites" arrow is a real icon, not the text character that looked like a letter V.
+import { tipsView } from '../src/sidepanel/views.js';
+test('the site chip shows an arrow icon instead of a text "v" character', () => {
+  const site = { url_pattern: 'docs.google.com/document', name: 'Google Docs' };
+  const state = { query: '', view: 'tips', setupDone: true, teacher: { userId: 1, username: 'n' }, tab: { url: 'https://docs.google.com/document/d/1' }, catalog: { websites: [site], tips: [] }, request: { open: false, text: '', saving: false, sent: false, error: '' } };
+  const html = tipsView(state, { site, tips: [], browsing: false });
+  assert.match(html, /<span class="site-switch-icon" aria-hidden="true"><svg[^>]*viewBox="0 0 24 24"/);
+  assert.ok(!html.includes('&#8964;') && !html.includes('⌄'), 'no text arrow character');
+  assert.match(html, /aria-label="Browse all sites with tips"/, 'the button still has an accessible name');
+});

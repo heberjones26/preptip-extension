@@ -33,6 +33,8 @@ export const CAP = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4 2
 export const BOOKS = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a1.5 1.5 0 0 1 1.5 1.5V19a1.2 1.2 0 0 0-1.2-1.2H4zM20 5.5A1.5 1.5 0 0 0 18.5 4H14a1.5 1.5 0 0 0-1.5 1.5V19a1.2 1.2 0 0 1 1.2-1.2H20z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>';
 
 // Open-in-new-tab arrow, for external resource links.
+// A down arrow (chevron) for "tap to open a list", drawn as a stroke so it matches the other icons.
+export const CHEVRON_DOWN = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 export const EXTERNAL = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M12 5H6a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 // A little Google-style document, recolored per product.
