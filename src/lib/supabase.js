@@ -85,6 +85,22 @@ export async function signIn({ username, password }) {
   }));
 }
 
+// Class settings follow the teacher's account across browsers/devices. The users table itself
+// remains closed; these narrowly scoped RPCs expose only this profile and its update operation.
+export async function getTeacherProfile(userId) {
+  const rows = await rest('rpc/get_teacher_profile', {
+    method: 'POST', body: { p_user_id: userId }
+  });
+  const row = Array.isArray(rows) ? rows[0] : rows;
+  return row ? { gradeLevel: row.grade_level || null, subjects: Array.isArray(row.subjects) ? row.subjects : [] } : null;
+}
+
+export function saveTeacherProfile({ userId, gradeLevel = null, subjects = [] }) {
+  return rest('rpc/save_teacher_profile', {
+    method: 'POST', body: { p_user_id: userId, p_grade_level: gradeLevel, p_subjects: subjects }
+  });
+}
+
 export function submitFeedback({ userId, tipId, isHelpful = null, text = null }) {
   return rest('feedback', {
     method: 'POST',

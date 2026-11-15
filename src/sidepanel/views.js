@@ -54,7 +54,14 @@ function helpfulLine(rating) {
 }
 
 function tipCard(state, tip, { featured = false, site = null } = {}) {
-  const steps = tip.tip_steps?.length || 0;
+  const tipSteps = tip.tip_steps || [];
+  const steps = tipSteps.length;
+  const guided = tipSteps.filter((step) => step.step_type === 'guided').length;
+  const manual = steps - guided;
+  const guidance = !manual ? 'On-page guidance'
+    : !guided ? 'Written instructions'
+      : guided > manual ? 'Mostly guided'
+        : manual > guided ? 'Mostly written' : 'Guided + written';
   const mins = minutes(tip);
   return `
     <button type="button" class="tip-card${featured ? ' link' : ''}" data-action="open-tip" data-tip-id="${esc(tip.tip_id)}">
@@ -63,6 +70,7 @@ function tipCard(state, tip, { featured = false, site = null } = {}) {
       <span class="tc-meta">
         <span class="tag">${plural(steps, 'step')}</span>
         ${mins ? `<span class="tag">${mins}</span>` : ''}
+        <span class="tag guidance-tag" title="${guided} guided step${guided === 1 ? '' : 's'} and ${manual} written step${manual === 1 ? '' : 's'}">${guidance}</span>
         <span class="feat">${esc(tip.feature_name)}</span>
         <span class="go" aria-hidden="true">&rarr;</span>
       </span>
@@ -85,8 +93,8 @@ function staleNote(state) {
   return `<p class="stale">${OFFLINE}<span>Offline, showing saved tips</span></p>`;
 }
 
-function sectionHead(title, sub) {
-  return `<div class="sec-h"><h4>${title}</h4>${sub ? `<small>${sub}</small>` : ''}</div>`;
+function sectionHead(title, sub, className = '') {
+  return `<div class="sec-h${className ? ` ${className}` : ''}"><h4>${title}</h4>${sub ? `<small>${sub}</small>` : ''}</div>`;
 }
 
 // "Request a tip": a button, then a small form, then a thank-you.
@@ -129,7 +137,8 @@ export function header(state) {
   const who = name
     ? `<span class="who"><span class="avatar">${esc(name[0].toUpperCase())}</span>${esc(name)}</span>`
     : '';
-  return `<span class="brand">${LOGO}<b>PrepTip</b></span>${who}`;
+  // Chrome already shows the extension name and icon in its side-panel frame.
+  return who;
 }
 
 export function footer(state) {
@@ -233,6 +242,11 @@ function setupForm(state) {
   const dis = s.saving ? 'disabled' : '';
   const signup = s.mode === 'signup';
   const busy = signup ? 'Creating…' : 'Signing in…';
+  const strength = !s.password ? '' : s.password.length < 8 ? 'weak' : s.password.length < 12 ? 'fair' : 'good';
+  const strengthText = !s.password ? 'Enter a password to check its strength.'
+    : s.password.length < 8 ? 'Too short — use at least 8 characters.'
+      : s.password.length < 12 ? 'Acceptable length. 12 or more characters is stronger.'
+        : 'Good length. Choose a unique password.';
   return `
     <h2>${signup ? 'Create your account' : 'Sign in to PrepTip'}</h2>
     <p class="lede">${signup
@@ -241,9 +255,10 @@ function setupForm(state) {
     <form id="setup-form" class="form" novalidate>
       <label class="field"><span>Username</span><input name="username" autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="30" value="${esc(s.username)}" ${dis}></label>
       ${takenNotice(s)}
-      <label class="field"><span>Password</span><input name="password" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" maxlength="200" value="${esc(s.password)}" ${dis}></label>
-      ${signup ? `<label class="field"><span>Type the password again</span><input name="confirm" type="password" autocomplete="new-password" maxlength="200" value="${esc(s.confirm)}" ${dis}></label>
-      <p class="tiny-note">At least 8 characters. Keep it somewhere safe: there&rsquo;s no way to reset a forgotten password yet.</p>` : ''}
+      <label class="field"><span>Password</span><div class="password-control"><input id="account-password" name="password" type="password" autocomplete="${signup ? 'new-password' : 'current-password'}" maxlength="200" value="${esc(s.password)}" ${dis}><button type="button" class="password-toggle" data-action="toggle-password" data-target="account-password" aria-label="Show password" aria-pressed="false">Show</button></div></label>
+      ${signup ? `<div class="password-feedback" id="password-feedback" data-strength="${strength}" aria-live="polite"><span class="password-meter" aria-hidden="true"><i></i><i></i><i></i></span><span class="password-hint">${strengthText}</span></div>
+      <label class="field"><span>Type the password again</span><div class="password-control"><input id="account-confirm" name="confirm" type="password" autocomplete="new-password" maxlength="200" value="${esc(s.confirm)}" ${dis}><button type="button" class="password-toggle" data-action="toggle-password" data-target="account-confirm" aria-label="Show confirmation password" aria-pressed="false">Show</button></div></label>
+      <p class="tiny-note">Use at least 8 characters. Longer passwords are harder to guess. Keep it somewhere safe: there&rsquo;s no way to reset a forgotten password yet.</p>` : ''}
       ${s.error ? `<p class="form-error" role="alert">${esc(s.error)}</p>` : ''}
       <div class="row">
         <button type="button" class="btn ghost" data-action="setup-back" ${dis}>Back</button>
@@ -794,13 +809,13 @@ export function resourcesView(state) {
   } else {
     list = `
       ${gradeToggle(label, gradeOnly)}
-      ${recommended.length ? sectionHead(`Recommended for ${esc(label)}`) + `<div class="res-list">${recommended.map(resourceCard).join('')}</div>` : ''}
-      ${other.length ? sectionHead('Other resources') + `<div class="res-list">${other.map(resourceCard).join('')}</div>` : ''}`;
+      ${recommended.length ? sectionHead(`Recommended for ${esc(label)}`, '', 'res-section') + `<div class="res-list">${recommended.map(resourceCard).join('')}</div>` : ''}
+      ${other.length ? sectionHead('Other resources', '', 'res-section') + `<div class="res-list">${other.map(resourceCard).join('')}</div>` : ''}`;
   }
 
   return `
     <button type="button" class="back" data-action="close-resources">&larr; Back to tips</button>
-    <div class="site-chip"><span class="fav">${BOOKS}</span>
+    <div class="site-chip resources-heading"><span class="fav">${BOOKS}</span>
       <div><b>Common Teacher Resources</b><small>Sites made for teachers — a quick overview, no walkthroughs</small></div>
     </div>
     ${categoryChips(state)}
