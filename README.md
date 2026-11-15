@@ -97,7 +97,7 @@ You need **Google Chrome 116 or newer** (Edge and Brave work too) and a Google a
 4. **Load the extension.** Click **Load unpacked**, then select the `preptip-extension` folder, the one that directly contains `manifest.json`. A **PrepTip** card with an orange lightbulb icon appears. It should not show a red **Errors** button.
 5. **Pin it to the toolbar.** Click the puzzle-piece icon to the right of the address bar, then click the pin next to **PrepTip**.
 6. **Open a supported site.** Go to `https://sheets.new` to create a blank Google Sheet, or open any Sheet you already have. The PrepTip icon shows a green number, which is how many tips exist for Google Sheets.
-7. **Open PrepTip and finish setup.** Click the PrepTip icon. The side panel opens on the right and walks you through four short setup steps. Enter a first name and an email address (no password; this only links your feedback to you). When you finish, the panel lists the Google Sheets tips.
+7. **Open PrepTip and finish setup.** Click the PrepTip icon. The panel walks you through four short setup steps. Choose a username and password, then optionally select your grade and subjects. When you finish, the panel lists the Google Sheets tips.
 
 **If something looks wrong:**
 - **The panel says "No tips available for this site".** Check that the address starts with `docs.google.com/spreadsheets`.
@@ -230,5 +230,5 @@ Details and the privacy choices are in [`docs/ARCHITECTURE.md`](docs/ARCHITECTUR
 ## Known limits
 
 - **YouTube downloads (R9) are intentionally not implemented.** Saving YouTube videos breaks YouTube's Terms of Service and gets extensions removed from the Chrome Web Store. Instead, the button copies a link and shows how to add the video with Google Slides' built-in **Insert → Video**.
-- Teacher identity is a name and email with no verification. That's fine for a class prototype; a real launch would need proper sign-in.
+- Accounts use a username and password. There is no email verification or password-reset flow.
 - The blocklist is a small local file, not a live threat feed.

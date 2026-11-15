@@ -30,7 +30,7 @@ export function buildPrompt({ question = '', site = '', grade = '', subjects = [
     : `About me: I'm a busy teacher and not very techy.`;
 
   return [
-    'You are helping a teacher use a website. I use a Chrome extension called PrepTip that gives teachers short, step-by-step how-to tips for the web tools they already use (Google Sheets, Canva, YouTube and so on). There is no tip yet for what I need, so please write one.',
+    'You are helping a teacher use a website. I use a browser extension called PrepTip that gives teachers short, step-by-step how-to tips for the web tools they already use (Google Sheets, Canva, YouTube and so on). There is no tip yet for what I need, so please write one.',
     '',
     about,
     where ? `The website I'm on: ${where}.` : '',

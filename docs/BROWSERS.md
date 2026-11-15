@@ -32,6 +32,8 @@ Edge and Brave can also install compatible extensions from the Chrome Web Store.
 
 ## Firefox
 
+For a public AMO release, use the [Firefox submission packet](FIREFOX_SUBMISSION.md) for listing copy, reviewer instructions, permission explanations, and the privacy-policy deployment step.
+
 1. Build with `npm run package:firefox`.
 2. Visit `about:debugging#/runtime/this-firefox`.
 3. Choose **Load Temporary Add-on** and select `dist/firefox/manifest.json`.
@@ -40,7 +42,9 @@ Edge and Brave can also install compatible extensions from the Chrome Web Store.
 
 Temporary add-ons disappear when Firefox restarts. Normal installation requires a Mozilla-signed XPI, either listed on addons.mozilla.org or signed for self-distribution. Upload the Firefox archive through the [Mozilla distribution process](https://extensionworkshop.com/documentation/publish/signing-and-distribution-overview/); renaming an unsigned ZIP to XPI does not sign it. The stable add-on ID is `preptip@heberjones26.github.io`.
 
-The Firefox package uses [module background scripts](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Background_scripts) and a native `sidebar_action`. Its minimum version also covers session storage, MAIN-world YouTube scripts and Firefox's [built-in data collection consent](https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/). Account/profile data is declared under identifying and authentication information. Usage metrics and error reporting are optional technical/interaction data; PrepTip checks that permission before transmitting those reports. Teachers can change the consent in Firefox's add-on permissions.
+The Firefox package uses [module background scripts](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Background_scripts) and a native `sidebar_action`. Its minimum version also covers session storage, MAIN-world YouTube scripts and Firefox's [built-in data collection consent](https://extensionworkshop.com/documentation/develop/firefox-builtin-data-consent/). Account/profile data is declared under identifying and authentication information. Usage metrics and automatic error reports are optional technical/interaction data; PrepTip checks that permission before transmitting them. Teachers can change the consent in Firefox's add-on permissions. A report a teacher explicitly submits through **Report a problem** is still sent when automatic reporting is disabled.
+
+This package supports regular desktop Firefox windows. Private browsing is disabled with [`incognito: "not_allowed"`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/incognito), because PrepTip does not isolate its account and usage state into a separate private session. Firefox for Android is not supported: the panel depends on the desktop sidebar. The manifest intentionally omits [`gecko_android`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/browser_specific_settings#firefox_gecko_properties), which keeps AMO distribution desktop-only. A validator may still warn about Android's newer data-consent minimum; do not add Android compatibility to silence that warning.
 
 ## Safari on macOS
 

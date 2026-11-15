@@ -52,6 +52,14 @@ test('sharing feedback and a selectable invitation appear in the footer', () => 
   assert.match(footer({ ...state(''), sharePhase: 'manual' }), /id="share-text"[^>]*readonly/);
 });
 
+test('helpful counts cannot inject catalog markup into a tip card', () => {
+  const malicious = { ...state(''), ratings: { 1: { helpful: '<img src=x onerror=alert(1)>' } } };
+  const html = resultsHtml(malicious, context);
+  assert.doesNotMatch(html, /<img|onerror|tc-rating/);
+  const valid = resultsHtml({ ...state(''), ratings: { 1: { helpful: '2' } } }, context);
+  assert.match(valid, /2 teachers found this helpful/);
+});
+
 // The site chip's "browse all sites" arrow is a real icon, not the text character that looked like a letter V.
 import { tipsView } from '../src/sidepanel/views.js';
 test('the site chip shows an arrow icon instead of a text "v" character', () => {

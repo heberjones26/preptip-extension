@@ -50,8 +50,8 @@ function minutes(tip) {
 
 // Shows "N teachers found this helpful" from the feedback table (state.ratings, see loadRatings in sidepanel.js).
 function helpfulLine(rating) {
-  const n = rating?.helpful || 0;
-  if (!n) return "";
+  const n = Number(rating?.helpful);
+  if (!Number.isSafeInteger(n) || n < 1) return '';
   return `<span class="tc-rating">${THUMB}${n === 1 ? "1 teacher" : `${n} teachers`} found this helpful</span>`;
 }
 

@@ -806,7 +806,7 @@ async function aiBuildWithGemini() {
     const parsed = parseAiTip(text);
     if (!parsed.ok) {
       const err = new Error('Gemini answered in an unusable format');
-      err.friendly = 'Gemini answered, but not in a form we could use. Try again, or use copy and paste.';
+      err.friendly = 'Gemini answered, but not in a form we could use. Please try again.';
       throw err;
     }
     if (typed) { // only keep a key that just worked
@@ -816,7 +816,7 @@ async function aiBuildWithGemini() {
     }
     await aiTipReady(parsed.tip);
   } catch (err) {
-    a.geminiError = err.friendly || 'Something went wrong. Try again, or use copy and paste.';
+    a.geminiError = err.friendly || 'Something went wrong. Please try again.';
     if (err.name !== 'HostAccessError' && !isUserFixable(err)) problem('other', 'ai-gemini', err); // a wrong key or the free limit is not our bug
   }
   a.building = false;

@@ -85,7 +85,8 @@ export function createPanelEngagement({
 
   // Chrome 142+ can reuse the document when switching between side panels.
   // These events distinguish a real reopening from minimizing/restoring a window.
-  if (chrome.sidePanel?.onOpened && chrome.sidePanel?.onClosed && chrome.windows?.getCurrent) {
+  const panel = chrome.sidePanel;
+  if (panel?.onOpened && panel?.onClosed && chrome.windows?.getCurrent) {
     try {
       let windowId = null;
       const waiting = [];
@@ -99,8 +100,8 @@ export function createPanelEngagement({
         panelOpen = isOpen;
         if (isOpen) beginOpening();
       });
-      chrome.sidePanel.onOpened.addListener((info) => onLifecycle(true, info));
-      chrome.sidePanel.onClosed.addListener((info) => onLifecycle(false, info));
+      panel.onOpened.addListener((info) => onLifecycle(true, info));
+      panel.onClosed.addListener((info) => onLifecycle(false, info));
       Promise.resolve(chrome.windows.getCurrent()).then((current) => {
         windowId = current.id;
         for (const args of waiting) onLifecycle(...args);

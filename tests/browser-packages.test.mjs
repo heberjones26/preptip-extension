@@ -40,6 +40,8 @@ test('browser manifests preserve Chromium and use supported Firefox/Safari entry
   assert.deepEqual(chromium, source);
   assert.notEqual(chromium, source);
   const firefox = browserManifest(source, 'firefox');
+  assert.equal(firefox.incognito, 'not_allowed');
+  assert.equal(firefox.browser_specific_settings.gecko_android, undefined);
   assert.deepEqual(firefox.background, { scripts: ['src/background.js'], type: 'module' });
   assert.equal(firefox.sidebar_action.default_panel, source.side_panel.default_path);
   assert.equal(firefox.sidebar_action.open_at_install, false);
@@ -64,6 +66,16 @@ test('browser manifests preserve Chromium and use supported Firefox/Safari entry
   assert.throws(() => browserManifest(source, '../firefox'), /Unknown browser target/);
 });
 
+test('only the Firefox target disables private browsing, including an inherited spanning setting', () => {
+  const sourceWithIncognito = { ...structuredClone(source), incognito: 'spanning' };
+  const firefox = browserManifest(sourceWithIncognito, 'firefox');
+  assert.equal(firefox.incognito, 'not_allowed', 'Firefox cannot use shared account/session state in private windows');
+  assert.equal(firefox.browser_specific_settings.gecko_android, undefined, 'desktop sidebar does not advertise Android support');
+  assert.equal(browserManifest(sourceWithIncognito, 'chromium').incognito, 'spanning');
+  assert.equal(browserManifest(sourceWithIncognito, 'safari').incognito, 'spanning');
+  assert.equal(sourceWithIncognito.incognito, 'spanning', 'target generation leaves its source intact');
+});
+
 test('actual browser packages contain complete manifests/resources and exclude development pages', async (t) => {
   const output = mkdtempSync(join(tmpdir(), 'preptip-packages-'));
   t.after(() => rmSync(output, { recursive: true, force: true }));
@@ -76,6 +88,11 @@ test('actual browser packages contain complete manifests/resources and exclude d
       const files = archiveContents(buffer);
       const manifest = JSON.parse(files.get('manifest.json').toString('utf8'));
       assert.deepEqual(manifest, browserManifest(source, build.browser));
+      assert.equal(manifest.incognito, build.browser === 'firefox' ? 'not_allowed' : source.incognito,
+        'the uploaded Firefox ZIP disables private browsing without changing other targets');
+      if (build.browser === 'firefox') {
+        assert.equal(manifest.browser_specific_settings.gecko_android, undefined, 'uploaded Firefox package remains desktop-only');
+      }
       assert.deepEqual(manifest, JSON.parse(readFileSync(join(build.directory, 'manifest.json'), 'utf8')));
       assert.equal(files.size, build.files.length);
       for (const reference of manifestReferences(manifest)) {

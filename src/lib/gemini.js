@@ -68,13 +68,13 @@ function failure(status, body) {
   if (status === 401 || status === 403) {
     return new GeminiError(status, 'Google rejected that key. Make sure it’s a Gemini key from Google AI Studio.');
   }
-  if (status === 404) return new GeminiError(404, 'Gemini isn’t available right now. Try again later, or use copy and paste.');
+  if (status === 404) return new GeminiError(404, 'Gemini isn’t available right now. Try again later.');
   if (status === 429) {
-    return new GeminiError(429, 'You’ve hit Gemini’s free limit for now. Wait a minute and try again, or use copy and paste.');
+    return new GeminiError(429, 'You’ve hit Gemini’s free limit for now. Wait a minute and try again.');
   }
-  if (status === 'blocked') return new GeminiError('blocked', 'Gemini wouldn’t answer that one. Try rewording it, or use copy and paste.');
-  if (status === 'empty') return new GeminiError('empty', 'Gemini didn’t send an answer. Try again, or use copy and paste.');
-  return new GeminiError(status, 'Gemini is busy right now. Try again in a moment, or use copy and paste.');
+  if (status === 'blocked') return new GeminiError('blocked', 'Gemini wouldn’t answer that one. Try rewording it.');
+  if (status === 'empty') return new GeminiError('empty', 'Gemini didn’t send an answer. Please try again.');
+  return new GeminiError(status, 'Gemini is busy right now. Try again in a moment.');
 }
 
 // Returns the model's text. Throws a GeminiError whose `friendly` message is safe to show.
@@ -97,7 +97,7 @@ export async function generateWithGemini({ key, prompt, fetchImpl = (...a) => fe
       return text;
     } catch (err) {
       if (err instanceof GeminiError) throw err;
-      if (err?.name === 'AbortError') throw new GeminiError('timeout', 'Gemini took too long to answer. Try again, or use copy and paste.');
+      if (err?.name === 'AbortError') throw new GeminiError('timeout', 'Gemini took too long to answer. Please try again.');
       throw new GeminiError('network', 'We couldn’t reach Gemini. Check your connection and try again.');
     } finally {
       clearTimeout(timer);

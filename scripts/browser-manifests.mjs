@@ -12,6 +12,9 @@ export function browserManifest(source, browser = 'chromium') {
   manifest.permissions = (manifest.permissions || []).filter((permission) => permission !== 'sidePanel');
 
   if (browser === 'firefox') {
+    // Account/session metrics use shared extension storage; no private session
+    // isolation is implemented, so private windows must stay outside this build.
+    manifest.incognito = 'not_allowed';
     // Firefox uses an event page; unlike Chromium, it has no extension service workers.
     manifest.background = { scripts: [source.background.service_worker], type: 'module' };
     manifest.sidebar_action = {
@@ -21,6 +24,7 @@ export function browserManifest(source, browser = 'chromium') {
       open_at_install: false
     };
     manifest.browser_specific_settings = {
+      // Omit gecko_android: PrepTip needs a desktop sidebar and does not target Android.
       gecko: {
         id: 'preptip@heberjones26.github.io',
         // Covers MAIN-world content scripts, ES modules, session storage and
