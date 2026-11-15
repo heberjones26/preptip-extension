@@ -24,7 +24,7 @@ Beyond the four Key Results the hub also shows:
 | Error log | What breaks for teachers: errors, per 100 opens, teachers affected, a per-day chart, the most frequent issues and which tip they happened on (7 or 30 days) | `rpc/error_summary`, `error_trend`, `error_groups` (needs the `error_log` migration) |
 | Which tips are landing | Most and least helpful tips by thumbs-up rate | `rpc/tip_ratings` |
 | Most-opened resources | Which Common Teacher Resources get clicked | `rpc/resource_opens` |
-| AI tip builder | How often teachers build a tip with AI (counts only) | `rpc/ai_tip_summary` (needs the `ai_tip_events` migration) |
+| AI tip builder | Tips built with a teacher's own Gemini key and how many teachers did it (counts only; older copy/paste counts shown as a note) | `rpc/ai_tip_summary` (needs the `ai_tip_events` migration) |
 
 A "How each number is measured" section at the bottom defines every figure. What teachers type in a
 "Report a problem" note is never shown here (it stays in the Supabase table).
