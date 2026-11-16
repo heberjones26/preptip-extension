@@ -1,661 +1,204 @@
-// PrepTip metrics dashboard — fetch the live OKR totals from Supabase and render the dashboard.
-// Layout: a hero figure + KPI stat-tile strip (at-a-glance), then the Objective detail cards.
-// The math lives in okr.js (pure, tested); this file only does I/O and DOM.
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, OKR_CONFIG } from './config.js';
-import { aiPanelModel } from './ai-panel.js';
-import { okr1FromRatings, okr2FromEvents, pctLabel, kr3Weeks, kr4Weeks, daysSpread } from './okr.js';
+// PrepTip metrics hub: fetch the live totals from Supabase (or build the labelled SAMPLE set), turn them into a view model
+// (hub-model.js, pure and tested), and draw it. Live and sample share one render path, so the sample view is a true
+// preview of the real page. Read-only: the publishable key can only call the whitelisted aggregate functions.
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY } from './config.js';
+import { buildModel, sampleRaw, plural, agoText } from './hub-model.js';
 
-// ?demo=1 feeds representative numbers through the SAME render path (no network, no DB writes), so we
-// can see the on-track / below states and screenshot the design before teachers have generated data.
-const DEMO = new URLSearchParams(location.search).get('demo') === '1';
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const params = new URLSearchParams(location.search);
+let mode = params.get('data') === 'sample' || params.get('demo') === '1' ? 'sample' : 'live';
+let model = null;
 
-// Carries each KR's computed result so the hero + KPI strip can summarise after the cards render.
-const summary = { okr1: null, okr2: null };
-
-// --- Supabase REST (read-only; same publishable key the extension uses) ---------------------
+// ---- data ------------------------------------------------------------------------------------------------
 async function rest(path) {
-  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    headers: { apikey: SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' },
-  });
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: { apikey: SUPABASE_PUBLISHABLE_KEY, 'Content-Type': 'application/json' } });
   if (!res.ok) throw new Error(`${path} → ${res.status}`);
   const text = await res.text();
   return text ? JSON.parse(text) : null;
 }
-const rpc = (name) => rest(`rpc/${name}`);
+const rpc = (name, q = '') => rest(`rpc/${name}${q}`);
+let failures = 0;
+const safe = (p, fallback) => p.catch((err) => { failures += 1; console.info('hub: could not load', err.message); return fallback; });
+const first = (rows) => (Array.isArray(rows) ? rows[0] : rows) || {};
 
-// --- Small HTML helpers ----------------------------------------------------------------------
-const BADGE = {
-  'on-track': { cls: 'ok', label: 'On track', tone: 'ok' },
-  below: { cls: 'low', label: 'Below target', tone: 'low' },
-  insufficient: { cls: 'wait', label: 'Not enough data', tone: 'wait' },
-  awaiting: { cls: 'wait', label: 'Awaiting data', tone: 'wait' },
-  error: { cls: 'low', label: "Couldn't load", tone: 'low' },
-};
-const toneOf = (status) => (BADGE[status] || BADGE.awaiting).tone;
-
-function badge(status) {
-  const b = BADGE[status] || BADGE.awaiting;
-  return `<span class="badge ${b.cls}">${b.label}</span>`;
-}
-
-// A value + a labelled meter + a caption. `pct` 0..1 fills the bar; `target` 0..1 draws a tick.
-// The fill colour follows status (green / red / neutral) — the Domo-style status meter.
-function meter({ value, unit = '', status, pct, target, caption, barLabel }) {
-  const fill = pct == null ? 0 : Math.max(0, Math.min(100, Math.round(pct * 100)));
-  const tick = target == null ? '' : `<span class="tick" style="left:${Math.round(target * 100)}%" aria-hidden="true"></span>`;
-  const bar =
-    pct == null
-      ? ''
-      : `<div class="bar" data-tone="${toneOf(status)}" role="progressbar" aria-label="${barLabel}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${fill}">
-           <i style="width:${fill}%"></i>${tick}
-         </div>`;
-  return `
-    <div class="kr-top">
-      <span class="kr-val">${value}<small>${unit}</small></span>
-      ${badge(status)}
-    </div>
-    ${bar}
-    <p class="kr-cap">${caption}</p>`;
-}
-
-function setCard(id, html, status) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.querySelector('.kr-body').innerHTML = html;
-  el.setAttribute('aria-busy', 'false');
-  if (status) el.dataset.status = status; // drives the left-accent border + the on-track tally
-}
-
-function awaiting(id, caption) {
-  setCard(id, meter({ value: '—', status: 'awaiting', pct: null, caption }), 'awaiting');
-}
-
-// --- OKR 1: thumbs-up rate (live now, from rpc/tip_ratings) ----------------------------------
-async function renderKr1() {
-  try {
-    let ratings;
-    if (DEMO) {
-      ratings = { 1: { helpful: 25, total: 30 }, 2: { helpful: 9, total: 11 } }; // ~83%
-    } else {
-      const rows = await rpc('tip_ratings'); // [{ tip_id, helpful_count, rating_count }]
-      ratings = Object.fromEntries(
-        (rows || []).map((r) => [r.tip_id, { helpful: r.helpful_count, total: r.rating_count }]),
-      );
-    }
-    const m = okr1FromRatings(ratings, OKR_CONFIG.kr1);
-    summary.okr1 = m;
-    const caption = m.enough
-      ? `${m.helpful} of ${m.total} ratings were 👍 · target ${pctLabel(m.target)}`
-      : `${m.total} of ${m.floor} ratings needed before this counts`;
-    setCard('kr1', meter({
-      value: pctLabel(m.pct), status: m.status, pct: m.pct, target: m.target,
-      caption, barLabel: 'Thumbs-up rate toward 80% target',
-    }), m.status);
-  } catch (err) {
-    console.warn('kr1 failed', err);
-    setCard('kr1', meter({ value: '—', status: 'error', pct: null, caption: 'Could not reach the ratings data.' }), 'error');
-  }
-}
-
-// --- OKR 2: tips completed end-to-end (needs rpc/okr_tip_completions + the events table) ------
-async function renderKr2() {
-  try {
-    let totals;
-    if (DEMO) {
-      totals = { opens: 40, completions: 26 }; // 65%
-    } else {
-      const rows = await rpc('okr_tip_completions'); // [{ opens, completions }]
-      totals = Array.isArray(rows) ? rows[0] : rows;
-    }
-    const m = okr2FromEvents(totals || {}, OKR_CONFIG.kr2);
-    summary.okr2 = m;
-    const caption = m.enough
-      ? `${m.completions} finished of ${m.opens} started · ${pctLabel(m.rate)} completion · target ${pctLabel(m.targetRate)}`
-      : `${m.opens} of ${m.floor} started walkthroughs needed before this counts`;
-    setCard('kr2', meter({
-      value: String(m.completions), unit: ' done', status: m.status, pct: m.rate, target: m.targetRate,
-      caption, barLabel: 'Walkthrough completion rate',
-    }), m.status);
-  } catch (err) {
-    console.warn('kr2 not available yet', err);
-    awaiting('kr2', 'Live once the events table + okr_tip_completions() are applied.');
-  }
-}
-
-// --- Week-by-week trend under OKR 3 and OKR 4 ------------------------------------------------
-// `weeks` = [{ weekStart, value (null = no data that week), partial }]; `max` is the top of the scale
-// and `target` draws the dashed line. Bars that meet the target are green, the rest orange; the
-// newest week is lighter because it is still in progress.
-function weekLabel(iso) {
-  const d = new Date(`${iso}T12:00:00`);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
-}
-
-function weeklyChart({ weeks, max, target, fmt, noun }) {
-  if (!weeks.length || weeks.every((w) => w.value == null)) return '';
-  const cols = weeks.map((w) => {
-    const h = w.value == null ? 3 : Math.max(5, Math.round((w.value / max) * 100));
-    const cls = [w.value == null ? 'zero' : w.value >= target ? 'hit' : '', w.partial ? 'partial' : ''].filter(Boolean).join(' ');
-    const label = `Week of ${weekLabel(w.weekStart)}${w.partial ? ' (so far)' : ''}: ${w.value == null ? `no ${noun}` : fmt(w.value)}`;
-    return `<span class="tcol" title="${esc(label)}"><i class="${cls}" style="height:${h}%"></i></span>`;
-  }).join('');
-  const aria = `${noun} by week: ${weeks.map((w) => `${weekLabel(w.weekStart)} ${w.value == null ? 'none' : fmt(w.value)}`).join(', ')}`;
-  return `
-    <div class="wk" role="img" aria-label="${esc(aria)}">
-      <div class="trend" style="grid-template-columns:repeat(${weeks.length}, 1fr)">${cols}</div>
-      <span class="wk-target" style="bottom:${Math.round((target / max) * 100)}%"></span>
-    </div>
-    <div class="trend-axis" aria-hidden="true"><span>${esc(weekLabel(weeks[0].weekStart))}</span><span>dashed line = target</span><span>this week</span></div>`;
-}
-
-const TREND_WEEKS = 8;
-// The weekly numbers are an extra: if the okr_trends migration isn't applied yet, the card still
-// shows its headline figure, just without the history.
-async function fetchTrend(kind) {
-  try {
-    if (DEMO) {
-      const d = demoKrTrend();
-      return kind === 'kr3' ? { weeks: kr3Weeks(d.kr3, OKR_CONFIG.kr3), spread: d.spread } : { weeks: kr4Weeks(d.kr4), spread: [] };
-    }
-    if (kind === 'kr3') {
-      const [w, d] = await Promise.all([rpc(`okr_app_usage_weekly?p_weeks=${TREND_WEEKS}`), rpc('okr_app_usage_distribution')]);
-      return { weeks: kr3Weeks(w, OKR_CONFIG.kr3), spread: d || [] };
-    }
-    return { weeks: kr4Weeks(await rpc(`okr_tip_engagement_weekly?p_weeks=${TREND_WEEKS}`)), spread: [] };
-  } catch (err) {
-    console.info(`${kind} history not available yet (okr_trends migration)`, err?.message || err);
-    return { weeks: [], spread: [] };
-  }
-}
-const chartFor = (weeks, opts) => weeklyChart({ weeks, ...opts });
-
-function demoKrTrend() {
-  const monday = new Date(); monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-  const wk = (i) => new Date(monday.getTime() - (7 - i) * 604800000).toISOString().slice(0, 10);
-  const days = [1.2, 1.8, 2.1, 2.6, 2.4, 3.1, 3.5, 3.4];
-  const rate = [[40, 6], [52, 11], [61, 17], [58, 19], [66, 26], [71, 31], [80, 38], [50, 22]];
-  return {
-    kr3: days.map((d, i) => ({ week_start: wk(i + 1), teachers: 6 + i, qualifying: Math.round(d), avg_office_days: d })),
-    kr4: rate.map(([o, e], i) => ({ week_start: wk(i + 1), opens: o, engaged: e })),
-    spread: [{ office_days: 1, teachers: 1 }, { office_days: 3, teachers: 2 }, { office_days: 5, teachers: 2 }],
-  };
-}
-
-// --- Objective B (Carlos's tracking): attempt, otherwise show "awaiting" ----------------------
-// OKR 3: avg office days (Mon–Fri) the app is opened per teacher this week (from rpc/okr_app_usage).
-async function renderKr3() {
-  const { targetDays, ofDays } = OKR_CONFIG.kr3;
-  try {
-    let row;
-    if (DEMO) row = { teachers: 5, qualifying: 3, avg_office_days: 3.4 };
-    else { const rows = await rpc('okr_app_usage'); row = Array.isArray(rows) ? rows[0] : rows; }
-    const teachers = Number(row?.teachers) || 0;
-    const avg = Number(row?.avg_office_days) || 0;
-    const qualifying = Number(row?.qualifying) || 0;
-    const trend = await fetchTrend('kr3');
-    const history = chartFor(trend.weeks, { max: ofDays, target: targetDays, fmt: (v) => `${v.toFixed(1)} days`, noun: 'office days opened' });
-    const spread = daysSpread(trend.spread);
-    const extra = `${history}${spread ? `<p class="kr-cap small">This week: ${esc(spread)}</p>` : ''}`;
-    if (!teachers) return setCard('kr3', meter({ value: '—', status: 'awaiting', pct: null, caption: 'No app opens tracked this week yet.' }) + extra, 'awaiting');
-    const status = avg >= targetDays ? 'on-track' : 'below';
-    setCard('kr3', meter({
-      value: avg.toFixed(1), unit: ` / ${ofDays} days`, status, pct: avg / ofDays, target: targetDays / ofDays,
-      caption: `${qualifying} of ${teachers} teachers opened on ≥${targetDays} office days this week`,
-      barLabel: 'Average office days opened this week',
-    }) + extra, status);
-  } catch (err) {
-    console.warn('kr3 not available yet', err);
-    awaiting('kr3', 'Lives once the events migration + okr_app_usage() are applied.');
-  }
-}
-
-// OKR 4: of app opens, the share that lead to a ≥10s tip view (from rpc/okr_tip_engagement).
-async function renderKr4() {
-  const { targetRate } = OKR_CONFIG.kr4;
-  try {
-    let row;
-    if (DEMO) row = { opens: 50, engaged: 22 };
-    else { const rows = await rpc('okr_tip_engagement'); row = Array.isArray(rows) ? rows[0] : rows; }
-    const opens = Number(row?.opens) || 0;
-    const engaged = Number(row?.engaged) || 0;
-    const trend = await fetchTrend('kr4');
-    const history = chartFor(trend.weeks, { max: 1, target: targetRate, fmt: pctLabel, noun: 'panel openings' });
-    if (!opens) return setCard('kr4', meter({ value: '—', status: 'awaiting', pct: null, caption: 'No app opens tracked yet.' }) + history, 'awaiting');
-    const rate = engaged / opens;
-    const status = rate >= targetRate ? 'on-track' : 'below';
-    setCard('kr4', meter({
-      value: pctLabel(rate), status, pct: rate, target: targetRate,
-      caption: `${engaged} of ${opens} opens led to a ≥10s tip view · target ${pctLabel(targetRate)}`,
-      barLabel: 'Tip-engagement rate',
-    }) + history, status);
-  } catch (err) {
-    console.warn('kr4 not available yet', err);
-    awaiting('kr4', 'Lives once the events migration + okr_tip_engagement() are applied.');
-  }
-}
-
-// --- Catalog counts for the KPI strip (anon key can read websites + tips) --------------------
-async function fetchCounts() {
-  if (DEMO) return { tips: 60, sites: 7 };
-  try {
-    const [tips, sites] = await Promise.all([rest('tips?select=tip_id'), rest('websites?select=url_pattern')]);
-    return { tips: tips?.length ?? null, sites: sites?.length ?? null };
-  } catch {
-    return { tips: null, sites: null };
-  }
-}
-
-// --- Hero + KPI strip (summarise after the detail cards have rendered) -----------------------
-const statusOf = (id) => document.getElementById(id)?.dataset.status || 'awaiting';
-const num = (v) => (v == null ? '—' : String(v));
-
-function renderHero() {
-  const m = summary.okr1;
-  const el = document.getElementById('hero');
-  if (!el) return;
-  const status = m ? m.status : 'error';
-  const value = m ? pctLabel(m.pct) : '—';
-  const note = !m
-    ? 'Could not reach the ratings data.'
-    : m.enough
-      ? `${m.helpful} of ${m.total} tip ratings were a thumbs-up.`
-      : `No ratings yet — ${m.total} of ${m.floor} needed before this is meaningful.`;
-  const pct = m?.pct ?? null;
-  const fill = pct == null ? 0 : Math.max(0, Math.min(100, Math.round(pct * 100)));
-  el.innerHTML = `
-    <p class="hero-over">Sprint 1 · flagship result</p>
-    <div class="hero-row">
-      <span class="hero-val">${value}</span>
-      ${badge(status)}
-    </div>
-    <p class="hero-label">of tips are rated helpful <span class="muted">· target 80%</span></p>
-    <div class="bar lg" data-tone="${toneOf(status)}" role="progressbar" aria-label="Thumbs-up rate toward 80% target" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${fill}">
-      <i style="width:${fill}%"></i><span class="tick" style="left:80%" aria-hidden="true"></span>
-    </div>
-    <p class="hero-note">${note}</p>`;
-  el.setAttribute('aria-busy', 'false');
-}
-
-function kpiTile({ label, value, sub, tone = '' }) {
-  return `
-    <div class="kpi${tone ? ` t-${tone}` : ''}">
-      <p class="kpi-label">${label}</p>
-      <p class="kpi-val">${value}</p>
-      <p class="kpi-sub">${sub}</p>
-    </div>`;
-}
-
-function renderKpis(counts) {
-  const el = document.getElementById('kpis');
-  if (!el) return;
-  const statuses = ['kr1', 'kr2', 'kr3', 'kr4'].map(statusOf);
-  const onTrack = statuses.filter((s) => s === 'on-track').length;
-  const completions = summary.okr2 ? summary.okr2.completions : null;
-  el.innerHTML = [
-    kpiTile({ label: 'Key Results on track', value: `${onTrack}<small>/4</small>`, sub: 'across both objectives',
-      tone: onTrack >= 3 ? 'ok' : onTrack === 0 ? 'wait' : 'low' }),
-    kpiTile({ label: 'Tips completed', value: num(completions), sub: 'walkthroughs finished 100%' }),
-    kpiTile({ label: 'Tips available', value: num(counts.tips), sub: 'in the live catalog' }),
-    kpiTile({ label: 'Sites supported', value: num(counts.sites), sub: 'with guided tips' }),
-  ].join('');
-  el.setAttribute('aria-busy', 'false');
-}
-
-function setObjSub(id, ids) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const on = ids.filter((k) => statusOf(k) === 'on-track').length;
-  el.textContent = `${on} of ${ids.length} on track`;
-}
-
-// --- Insight panels ---------------------------------------------------------------------------
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-
-function setPanel(id, html) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.innerHTML = html;
-  el.setAttribute('aria-busy', 'false');
-}
-
-// Which tips are landing: most/least helpful by thumbs-up rate (min 3 ratings).
-function paintTipPerf(perf) {
-  const rated = perf.filter((p) => p.total >= 3).map((p) => ({ ...p, rate: p.helpful / p.total }));
-  if (!rated.length) {
-    return setPanel('tipperf', `<p class="muted-note">No tips have 3+ ratings yet — this fills in as teachers rate tips.</p>`);
-  }
-  const sorted = [...rated].sort((a, b) => b.rate - a.rate);
-  const row = (p, tone) => `<li><span class="perf-name">${esc(p.title)}</span><span class="perf-val t-${tone}">${Math.round(p.rate * 100)}%</span><span class="perf-n">${p.total} ratings</span></li>`;
-  const top = sorted.slice(0, 3);
-  const bottom = sorted.length > 3 ? sorted.slice(-3).reverse() : [];
-  setPanel('tipperf', `
-    <div class="perf-cols">
-      <div><h3 class="perf-h">Most helpful</h3><ul class="perf-list">${top.map((p) => row(p, 'ok')).join('')}</ul></div>
-      ${bottom.length ? `<div><h3 class="perf-h">Needs attention</h3><ul class="perf-list">${bottom.map((p) => row(p, 'low')).join('')}</ul></div>` : ''}
-    </div>`);
-}
-
-async function renderTipPerf() {
-  try {
-    if (DEMO) {
-      return paintTipPerf([
-        { title: 'Color-code grades automatically', helpful: 19, total: 21 },
-        { title: 'Keep the header row visible', helpful: 14, total: 16 },
-        { title: 'Average a row of scores', helpful: 11, total: 14 },
-        { title: 'Share view-only with co-teachers', helpful: 6, total: 13 },
-        { title: 'Sort students A–Z safely', helpful: 4, total: 12 },
-      ]);
-    }
-    const [rows, titles] = await Promise.all([rpc('tip_ratings'), rest('tips?select=tip_id,title')]);
-    const titleById = Object.fromEntries((titles || []).map((t) => [t.tip_id, t.title]));
-    paintTipPerf((rows || []).map((r) => ({ title: titleById[r.tip_id] || `Tip ${r.tip_id}`, helpful: r.helpful_count, total: r.rating_count })));
-  } catch (err) {
-    console.warn('tip perf failed', err);
-    setPanel('tipperf', `<p class="muted-note">Couldn't load tip ratings right now.</p>`);
-  }
-}
-
-// Most-opened resources (from rpc/resource_opens; needs the events migration applied).
-async function renderResourcePopularity() {
-  try {
-    let rows;
-    if (DEMO) {
-      rows = [{ label: 'Kahoot!', opens: 34 }, { label: 'Teachers Pay Teachers', opens: 21 }, { label: 'Edpuzzle', opens: 14 }, { label: 'Nearpod', opens: 9 }, { label: 'PhET Interactive Simulations', opens: 5 }];
-    } else {
-      rows = await rpc('resource_opens');
-    }
-    if (!rows || !rows.length) {
-      return setPanel('respop', `<p class="muted-note">No resource opens tracked yet.${DEMO ? '' : ' Lives once the events migration is applied and teachers open resources.'}</p>`);
-    }
-    const max = Math.max(...rows.map((r) => r.opens));
-    setPanel('respop', `<ul class="pop-list">${rows.slice(0, 6).map((r) => `
-      <li><span class="pop-name">${esc(r.label)}</span>
-      <span class="pop-bar" aria-hidden="true"><i style="width:${Math.round((r.opens / max) * 100)}%"></i></span>
-      <span class="pop-n">${r.opens}</span></li>`).join('')}</ul>`);
-  } catch (err) {
-    console.warn('resource popularity not available yet', err);
-    setPanel('respop', `<p class="muted-note">Lives once the events migration is applied.</p>`);
-  }
-}
-
-// --- Requested tips (rpc/requested_tips; needs the requested_tips migration) ----------------------
-let reqDays = 90;
-
-function demoRequests() {
-  const h = (n) => new Date(Date.now() - n * 3600000).toISOString();
-  return [
-    { kind: 'tip', site: 'Canva', wording: 'How do I make a printable seating chart?', requests: 6, teachers: 5, last_requested: h(5) },
-    { kind: 'tip', site: 'Google Sheets', wording: 'Hide student names when sharing grades with parents', requests: 4, teachers: 4, last_requested: h(30) },
-    { kind: 'tip', site: 'Google Classroom', wording: 'Schedule an assignment to post next Monday', requests: 3, teachers: 3, last_requested: h(52) },
-    { kind: 'tip', site: null, wording: 'Record my screen for a lesson video', requests: 2, teachers: 2, last_requested: h(100) },
-    { kind: 'tip', site: 'Padlet', wording: 'Moderate comments before students see them', requests: 1, teachers: 1, last_requested: h(300) },
-    { kind: 'resource', site: null, wording: 'Seesaw for K-2', requests: 2, teachers: 2, last_requested: h(70) },
-  ];
-}
-
-function requestsTable(rows, days) {
-  const body = rows.slice(0, 25).map((r) => `
-      <tr>
-        <td><span class="issue-text">${esc(r.wording)}</span></td>
-        <td>${esc(r.site || '—')}</td>
-        <td class="num">${Number(r.requests)}</td>
-        <td class="num">${Number(r.teachers)}</td>
-        <td class="nowrap">${esc(ago(r.last_requested))}</td>
-      </tr>`).join('');
-  const more = rows.length > 25 ? `<p class="muted-note small">Showing the 25 most-asked of ${rows.length}.</p>` : '';
-  return `
-    <div class="table-wrap" tabindex="0" role="region" aria-label="Requested tips (scrolls sideways on small screens)">
-      <table class="err-table">
-        <caption class="sr-only">Tips teachers asked for in the last ${days} days, most-asked first</caption>
-        <thead><tr><th scope="col">What they asked for</th><th scope="col">Site</th><th scope="col" class="num">Requests</th><th scope="col" class="num">Teachers</th><th scope="col">Last asked</th></tr></thead>
-        <tbody>${body}</tbody>
-      </table>
-    </div>${more}`;
-}
-
-function paintRequests(all, days) {
-  const tips = all.filter((r) => r.kind !== 'resource');
-  const resources = all.filter((r) => r.kind === 'resource');
-  const total = tips.reduce((a, r) => a + Number(r.requests), 0);
-  const sites = new Set(tips.map((r) => r.site).filter(Boolean)).size;
-  const tiles = [
-    { label: 'Tip requests', value: total, sub: `last ${days} days` },
-    { label: 'Different asks', value: tips.length, sub: 'same wording counted once' },
-    { label: 'Sites asked about', value: sites, sub: 'different sites named' },
-  ].map((t) => `
-    <div class="mini"><p class="kpi-label">${esc(t.label)}</p><p class="mini-val">${esc(String(t.value))}</p><p class="kpi-sub">${esc(t.sub)}</p></div>`).join('');
-
-  if (!tips.length && !resources.length) {
-    return setPanel('requests', `<div class="mini-row">${tiles}</div><p class="muted-note">No tip requests in the last ${days} days.</p>`);
-  }
-  const res = resources.length
-    ? `<h3 class="perf-h issues-h">Resource suggestions</h3>
-       <ul class="req-list">${resources.slice(0, 10).map((r) => `
-         <li><span class="issue-text">${esc(r.wording)}</span>
-         <span class="nowrap">${Number(r.requests)} ${Number(r.requests) === 1 ? 'request' : 'requests'} · ${esc(ago(r.last_requested))}</span></li>`).join('')}</ul>`
-    : '';
-  setPanel('requests', `
-    <div class="mini-row">${tiles}</div>
-    ${tips.length ? requestsTable(tips, days) : '<p class="muted-note">No tip requests, only resource suggestions.</p>'}
-    ${res}`);
-}
-
-async function renderRequests() {
-  const days = reqDays;
-  try {
-    const rows = DEMO ? demoRequests() : await rpc(`requested_tips?p_days=${days}`);
-    if (days !== reqDays) return; // the window changed while this was loading
-    paintRequests(Array.isArray(rows) ? rows : [], days);
-  } catch (err) {
-    console.warn('requested tips not available yet', err);
-    setPanel('requests', `<p class="muted-note">Lives once the requested_tips migration is applied.</p>`);
-  }
-}
-
-document.getElementById('req-days')?.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-days]');
-  if (!btn) return;
-  reqDays = Number(btn.dataset.days);
-  for (const b of document.querySelectorAll('#req-days [data-days]')) {
-    const on = b === btn;
-    b.classList.toggle('on', on);
-    b.setAttribute('aria-pressed', String(on));
-  }
-  renderRequests();
-});
-
-// --- Error log (rpc/error_summary, error_trend, error_groups; needs the error_log migration) ----
-let errDays = 7;
-
-const ERR_CATEGORY = {
-  load: 'Tips wouldn’t load',
-  network: 'Saves that failed',
-  guide: 'Guided steps',
-  ui: 'Panel crashes',
-  account: 'Sign-in',
-  other: 'Other',
-};
-
-// "2h ago", "3d ago" — enough to see whether an issue is still happening.
-function ago(iso) {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (!Number.isFinite(mins)) return '—';
-  if (mins < 60) return `${Math.max(1, mins)}m ago`;
-  if (mins < 60 * 48) return `${Math.round(mins / 60)}h ago`;
-  return `${Math.round(mins / 1440)}d ago`;
-}
-
-// Deterministic demo numbers so ?demo=1 always looks the same.
-function demoErrorData(days) {
-  const trend = Array.from({ length: days }, (_, i) => {
-    const day = new Date(Date.now() - (days - 1 - i) * 86400000).toISOString().slice(0, 10);
-    return { day, n: [1, 0, 3, 4, 2, 6, 7, 2, 0, 5][i % 10] };
-  });
-  const h = (n) => new Date(Date.now() - n * 3600000).toISOString();
-  return {
-    summary: { total: days === 7 ? 23 : 71, auto: days === 7 ? 17 : 52, reported: days === 7 ? 6 : 19, teachers: days === 7 ? 9 : 18, opens: days === 7 ? 212 : 640 },
-    trend,
-    groups: [
-      { source: 'auto', category: 'guide', context: 'target-not-found step 2', detail: 'Couldn’t find “Format > Conditional formatting” (menu) on the page', tip_title: 'Color-code grades automatically', site_name: 'Google Sheets', n: 8, teachers: 5, last_seen: h(2) },
-      { source: 'auto', category: 'load', context: 'catalog', detail: 'Failed to fetch', tip_title: null, site_name: null, n: 5, teachers: 3, last_seen: h(20) },
-      { source: 'reported', category: 'guide', context: 'teacher-report', detail: 'The steps didn’t match my screen', tip_title: 'Average a row of scores', site_name: 'Google Sheets', n: 4, teachers: 4, last_seen: h(7) },
-      { source: 'auto', category: 'network', context: 'feedback', detail: 'Supabase POST feedback failed (503)', tip_title: 'Keep the header row visible', site_name: 'Google Sheets', n: 2, teachers: 2, last_seen: h(51) },
-      { source: 'reported', category: 'guide', context: 'teacher-report', detail: 'The highlight was in the wrong place', tip_title: 'Share view-only with co-teachers', site_name: 'Google Sheets', n: 2, teachers: 2, last_seen: h(30) },
-      { source: 'auto', category: 'ui', context: 'script-error', detail: 'Cannot read properties of undefined', tip_title: null, site_name: null, n: 1, teachers: 1, last_seen: h(90) },
-    ],
-  };
-}
-
-function trendChart(trend) {
-  const counts = trend.map((d) => Number(d.n) || 0);
-  const max = Math.max(1, ...counts);
-  const fmt = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString([], { month: 'short', day: 'numeric' });
-  const cols = trend.map((d, i) => `
-    <span class="tcol" title="${esc(fmt(d.day))}: ${counts[i]} error${counts[i] === 1 ? '' : 's'}">
-      <i class="${counts[i] ? '' : 'zero'}" style="height:${counts[i] ? Math.max(6, Math.round((counts[i] / max) * 100)) : 3}%"></i>
-    </span>`).join('');
-  const label = `Errors per day, ${trend.length} days: ${counts.join(', ')}`;
-  return `
-    <div class="trend" role="img" aria-label="${esc(label)}" style="grid-template-columns:repeat(${trend.length}, 1fr)">${cols}</div>
-    <div class="trend-axis" aria-hidden="true"><span>${esc(fmt(trend[0].day))}</span><span>peak ${max}/day</span><span>${esc(fmt(trend[trend.length - 1].day))}</span></div>`;
-}
-
-function categoryBars(groups) {
-  const totals = {};
-  for (const g of groups) totals[g.category] = (totals[g.category] || 0) + Number(g.n);
-  const rows = Object.entries(totals).sort((a, b) => b[1] - a[1]);
-  if (!rows.length) return '';
-  const max = rows[0][1];
-  return `<ul class="pop-list">${rows.map(([cat, n]) => `
-    <li><span class="pop-name">${esc(ERR_CATEGORY[cat] || cat)}</span>
-    <span class="pop-bar" aria-hidden="true"><i style="width:${Math.round((n / max) * 100)}%"></i></span>
-    <span class="pop-n">${n}</span></li>`).join('')}</ul>`;
-}
-
-function issuesTable(groups, days) {
-  const rows = groups.slice(0, 10).map((g) => {
-    const where = [g.tip_title, g.site_name].filter(Boolean).join(' · ') || (g.context || '—');
-    const text = String(g.detail || '').slice(0, 140);
-    return `
-      <tr>
-        <td><span class="badge ${g.source === 'reported' ? 'rep' : 'wait'}">${g.source === 'reported' ? 'Reported' : 'Auto'}</span>
-            <span class="issue-text">${esc(text)}</span>
-            <span class="issue-cat">${esc(ERR_CATEGORY[g.category] || g.category)}${g.context && g.context !== 'teacher-report' ? ` · ${esc(g.context)}` : ''}</span></td>
-        <td>${esc(where)}</td>
-        <td class="num">${Number(g.n)}</td>
-        <td class="num">${Number(g.teachers)}</td>
-        <td class="nowrap">${esc(ago(g.last_seen))}</td>
-      </tr>`;
-  }).join('');
-  return `
-    <div class="table-wrap" tabindex="0" role="region" aria-label="Most frequent problems (scrolls sideways on small screens)">
-      <table class="err-table">
-        <caption class="sr-only">Most frequent problems in the last ${days} days</caption>
-        <thead><tr><th scope="col">Issue</th><th scope="col">Where</th><th scope="col" class="num">Times</th><th scope="col" class="num">Teachers</th><th scope="col">Last seen</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-    <p class="muted-note small">What teachers typed in their reports isn’t shown here; it’s in the Supabase <code>error_log</code> table.</p>`;
-}
-
-function paintErrorLog(summary, trend, groups, days) {
-  const total = Number(summary?.total) || 0;
-  const auto = Number(summary?.auto) || 0;
-  const opens = Number(summary?.opens) || 0;
-  const per100 = opens > 0 ? (auto / opens) * 100 : null;
-  const tiles = [
-    { label: 'Errors', value: total, sub: `${auto} automatic` },
-    { label: 'Per 100 app opens', value: per100 == null ? '—' : per100.toFixed(1), sub: per100 == null ? 'no opens tracked yet' : `${opens} opens` },
-    { label: 'Teachers affected', value: Number(summary?.teachers) || 0, sub: 'with at least one error' },
-    { label: 'Reported by teachers', value: Number(summary?.reported) || 0, sub: 'via “Report a problem”' },
-  ].map((t) => `
-    <div class="mini"><p class="kpi-label">${esc(t.label)}</p><p class="mini-val">${esc(String(t.value))}</p><p class="kpi-sub">${esc(t.sub)}</p></div>`).join('');
-
-  if (!total) {
-    return setPanel('errlog', `<div class="mini-row">${tiles}</div><p class="muted-note">No errors recorded in the last ${days} days.</p>`);
-  }
-  setPanel('errlog', `
-    <div class="mini-row">${tiles}</div>
-    <div class="err-cols">
-      <div><h3 class="perf-h">Errors per day</h3>${trend.length ? trendChart(trend) : ''}</div>
-      <div><h3 class="perf-h">What kind</h3>${categoryBars(groups)}</div>
-    </div>
-    <h3 class="perf-h issues-h">Most frequent issues</h3>
-    ${issuesTable(groups, days)}`);
-}
-
-async function renderErrorLog() {
-  const days = errDays;
-  try {
-    let summary, trend, groups;
-    if (DEMO) {
-      ({ summary, trend, groups } = demoErrorData(days));
-    } else {
-      const [s, t, g] = await Promise.all([
-        rpc(`error_summary?p_days=${days}`), rpc(`error_trend?p_days=${days}`), rpc(`error_groups?p_days=${days}`),
-      ]);
-      summary = Array.isArray(s) ? s[0] : s;
-      trend = t || [];
-      groups = g || [];
-    }
-    if (days !== errDays) return; // the window changed while this was loading
-    paintErrorLog(summary, trend, groups, days);
-  } catch (err) {
-    console.warn('error log not available yet', err);
-    setPanel('errlog', `<p class="muted-note">Lives once the error_log migration is applied.</p>`);
-  }
-}
-
-document.getElementById('errlog-days')?.addEventListener('click', (e) => {
-  const btn = e.target.closest('[data-days]');
-  if (!btn) return;
-  errDays = Number(btn.dataset.days);
-  for (const b of document.querySelectorAll('#errlog-days [data-days]')) {
-    const on = b === btn;
-    b.classList.toggle('on', on);
-    b.setAttribute('aria-pressed', String(on));
-  }
-  renderErrorLog();
-});
-
-// --- AI tip builder usage (rpc/ai_tip_summary; needs the ai_tip_events migration) --------------
-async function renderAiBuilder() {
-  try {
-    let row;
-    if (DEMO) row = { prompts_copied: 41, built_from_paste: 27, built_with_gemini: 9, teachers: 14 };
-    else { const rows = await rpc('ai_tip_summary?p_days=30'); row = Array.isArray(rows) ? rows[0] : rows; }
-    const m = aiPanelModel(row);
-    const tiles = m.tiles.map((t) => `
-      <div class="mini"><p class="kpi-label">${esc(t.label)}</p><p class="mini-val">${t.value}</p><p class="kpi-sub">${esc(t.sub)}</p></div>`).join('');
-    setPanel('aibuilder', `<div class="mini-row">${tiles}</div>${m.none ? '<p class="muted-note">No AI tips built yet.</p>' : ''}${m.legacy ? `<p class="muted-note small">${esc(m.legacy)}</p>` : ''}`);
-  } catch (err) {
-    console.warn('ai builder stats not available yet', err);
-    setPanel('aibuilder', `<p class="muted-note">Lives once the ai_tip_events migration is applied.</p>`);
-  }
-}
-
-// --- Orchestration ---------------------------------------------------------------------------
-async function load() {
-  const updated = document.getElementById('updated');
-  if (updated) updated.textContent = '';
-  const [counts] = await Promise.all([
-    fetchCounts(),
-    Promise.allSettled([renderKr1(), renderKr2(), renderKr3(), renderKr4(), renderTipPerf(), renderResourcePopularity(), renderRequests(), renderErrorLog(), renderAiBuilder()]),
+async function fetchLive() {
+  failures = 0;
+  const [tips, sites, ratings, comp, usageWeeks, engagement, engWeeks, requests, resources, ai, eSum, eTrend, eGroups] = await Promise.all([
+    safe(rest('tips?select=tip_id,title'), null), safe(rest('websites?select=url_pattern'), null),
+    safe(rpc('tip_ratings'), []), safe(rpc('okr_tip_completions'), []),
+    safe(rpc('okr_app_usage_weekly', '?p_weeks=8'), []), safe(rpc('okr_tip_engagement'), []), safe(rpc('okr_tip_engagement_weekly', '?p_weeks=8'), []),
+    safe(rpc('requested_tips', '?p_days=90'), []), safe(rpc('resource_opens'), []), safe(rpc('ai_tip_summary', '?p_days=30'), []),
+    safe(rpc('error_summary', '?p_days=30'), []), safe(rpc('error_trend', '?p_days=14'), []), safe(rpc('error_groups', '?p_days=30'), []),
   ]);
-  renderHero();
-  renderKpis(counts);
-  setObjSub('obj-a-sub', ['kr1', 'kr2']);
-  setObjSub('obj-b-sub', ['kr3', 'kr4']);
-  if (updated) {
-    if (DEMO) {
-      updated.textContent = 'Demo data — not live';
-      updated.classList.add('demo');
-    } else {
-      const now = new Date();
-      updated.textContent = `Updated ${now.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
-    }
-  }
+  const titles = Object.fromEntries((tips || []).map((t) => [t.tip_id, t.title]));
+  const rt = ratings || [];
+  const c = first(comp), e = first(engagement), a = first(ai);
+  return {
+    mode: 'live', asof: new Date(), loadFailed: failures,
+    catalog: { tips: tips ? tips.length : null, sites: sites ? sites.length : null },
+    ratings: { up: rt.reduce((s, r) => s + (Number(r.helpful_count) || 0), 0), total: rt.reduce((s, r) => s + (Number(r.rating_count) || 0), 0) },
+    tipPerf: rt.map((r) => ({ title: titles[r.tip_id] || `Tip ${r.tip_id}`, up: r.helpful_count, total: r.rating_count })),
+    completions: { started: c.opens, finished: c.completions },
+    usageWeeks: usageWeeks || [], engagement: { opens: e.opens, engaged: e.engaged }, engWeeks: engWeeks || [],
+    requests: requests || [], resources: resources || [], ai: { gemini: a.built_with_gemini, teachers: a.teachers },
+    errors: { summary: first(eSum), trend: eTrend || [], groups: eGroups || [] },
+  };
 }
 
-document.getElementById('refresh')?.addEventListener('click', load);
+// ---- small pieces ------------------------------------------------------------------------------------------
+const clamp = (v, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, v));
+
+function tileHtml(t) {
+  const fillW = clamp((t.fill / t.domain) * 100), goalLeft = clamp((t.goalAt / t.domain) * 100);
+  const foot = t.dots
+    ? `<span class="dots${t.dots.length > 24 ? ' dense' : ''}" role="img" aria-label="${esc(t.sub)}">${t.dots.map((on) => `<i class="${on ? '' : 'off'}"></i>`).join('')}</span>
+       <span class="key"><i></i>${esc(t.dotsKey[0])}<i class="off"></i>${esc(t.dotsKey[1])}</span>`
+    : t.spark
+      ? `<svg class="spark" width="${t.spark.w}" height="${t.spark.h}" viewBox="0 0 ${t.spark.w} ${t.spark.h}" role="img" aria-label="${esc(`${t.label}, by week: ${(t.sparkValues || []).map((v, i) => `${t.sparkLabels[i]} ${v == null ? 'none' : v}`).join(', ')}`)}"><path d="${t.spark.d}"></path><circle cx="${t.spark.last.x.toFixed(1)}" cy="${t.spark.last.y.toFixed(1)}" r="3.5"></circle></svg>
+         ${t.delta ? `<span class="delta ${t.delta.dir > 0 ? 'up' : ''}">${esc(t.delta.text)}</span>` : ''}`
+      : '';
+  return `<article class="tile" aria-labelledby="t-${t.id}">
+    <div class="tile-top"><h3 class="tile-label" id="t-${t.id}">${esc(t.label)}</h3><span class="chip chip-${t.status}"><i></i>${esc(t.statusText)}</span></div>
+    <p class="tile-val"><span><span class="val">${esc(t.valueText)}</span>${t.unit ? `<span class="unit">${esc(t.unit)}</span>` : ''}</span><span class="goal">${esc(t.goalText)}</span></p>
+    <div class="meter" role="img" aria-label="${esc(`${t.label}: ${t.valueText}. ${t.goalText}.`)}"><i style="width:${fillW}%"></i><b style="left:${goalLeft}%"></b></div>
+    <p class="tile-sub">${esc(t.sub)}</p>
+    ${foot ? `<div class="tile-foot">${foot}</div>` : ''}
+  </article>`;
+}
+
+function rankHtml(rows, empty) {
+  if (!rows.length) return `<p class="empty">${esc(empty)}</p>`;
+  return `<ul class="rank">${rows.map((r) => `<li>
+    <div class="rank-top"><span class="rank-label">${esc(r.label)}</span><span class="rank-val">${esc(r.valueText)}</span></div>
+    <div class="rank-bar" aria-hidden="true"><i style="width:${clamp(r.width)}%"></i></div>
+    ${r.sub ? `<div class="rank-sub">${esc(r.sub)}</div>` : ''}</li>`).join('')}</ul>`;
+}
+
+// ---- charts: thin columns, one accent plus gray, hairline grid, tooltip per column ------------------------------------
+// axis top: always even, so the middle tick is a whole number
+const niceMax = (v) => { if (v <= 4) return 4; if (v <= 6) return 6; if (v <= 8) return 8; if (v <= 10) return 10; const p = 10 ** Math.floor(Math.log10(v)); const f = v / p; return (f <= 2 ? 2 : f <= 5 ? 5 : 10) * p; };
+function barPath(x, y, w, h, r = 3) {
+  if (h <= 0) return '';
+  const k = Math.min(r, h, w / 2);
+  return `M${x} ${y + h}V${y + k}Q${x} ${y} ${x + k} ${y}H${x + w - k}Q${x + w} ${y} ${x + w} ${y + k}V${y + h}Z`;
+}
+function columns({ rows, series, width, label }) {
+  const H = 180, L = 30, R = 6, T = 8, B = 26, W = Math.max(260, width);
+  const pw = W - L - R, ph = H - T - B, max = niceMax(Math.max(0, ...rows.flatMap((r) => series.map((s) => r[s.key]))));
+  const y = (v) => T + ph - (v / max) * ph;
+  const gw = pw / rows.length, bw = Math.min(22, (gw * 0.64 - (series.length - 1) * 3) / series.length);
+  const step = gw < 44 ? 2 : 1;
+  const ticks = [0, max / 2, max];
+  const grid = ticks.map((t) => `<line class="${t === 0 ? 'axis' : 'grid'}" x1="${L}" x2="${W - R}" y1="${y(t)}" y2="${y(t)}"></line><text x="${L - 6}" y="${y(t) + 4}" text-anchor="end">${Math.round(t)}</text>`).join('');
+  const cols = rows.map((r, i) => {
+    const x0 = L + i * gw, total = series.length * bw + (series.length - 1) * 3, bx = x0 + (gw - total) / 2;
+    const bars = series.map((s, k) => `<path class="bar-${s.tone}" d="${barPath(+(bx + k * (bw + 3)).toFixed(1), +y(r[s.key]).toFixed(1), +bw.toFixed(1), +(ph - (y(r[s.key]) - T)).toFixed(1))}"></path>`).join('');
+    const tip = `Week of ${r.week}: ${series.map((s) => `${r[s.key]} ${s.label.toLowerCase()}`).join(' · ')}`;
+    return `<g class="col" data-tip="${esc(tip)}"><rect class="hit" x="${x0}" y="${T}" width="${gw}" height="${ph}"></rect>${bars}${i % step === 0 ? `<text x="${x0 + gw / 2}" y="${H - 8}" text-anchor="middle">${esc(r.week)}</text>` : ''}</g>`;
+  }).join('');
+  const table = `<table class="sr-only"><caption>${esc(label)}</caption><thead><tr><th>Week of</th>${series.map((s) => `<th>${esc(s.label)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(r.week)}</td>${series.map((s) => `<td>${r[s.key]}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">${grid}${cols}</svg>${table}`;
+}
+function chartCard({ title, sub, rows, series, width, label }) {
+  const any = rows.some((r) => series.some((s) => r[s.key] > 0));
+  const legend = series.length > 1 ? `<ul class="legend">${series.map((s) => `<li><i class="sw ${s.tone === 'muted' ? 'muted' : ''}"></i>${esc(s.label)}</li>`).join('')}</ul>` : '';
+  return `<div class="card"><h3 class="card-h">${esc(title)}</h3><p class="card-sub">${esc(sub)}</p>${legend}
+    ${any ? `<div class="chart">${columns({ rows, series, width, label })}</div>` : `<p class="empty">No activity yet.</p>`}</div>`;
+}
+
+// ---- sections -------------------------------------------------------------------------------------------------
+function render(m) {
+  const sample = m.mode === 'sample';
+  $('banner').hidden = !sample;
+  for (const b of document.querySelectorAll('#mode [data-mode]')) b.setAttribute('aria-pressed', String(b.dataset.mode === m.mode));
+  $('updated').textContent = sample ? 'Sample data' : `Updated ${m.asof.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+  const cat = m.catalog.sites && m.catalog.tips ? ` ${m.catalog.sites} tools · ${m.catalog.tips} tips.` : '';
+  $('lede').textContent = `How teachers use PrepTip, and what they tell us.${cat}`;
+
+  // Key Results
+  $('krs').innerHTML = m.loadFailed >= 6
+    ? `<p class="empty">We couldn’t reach the data service. Check your connection and press Refresh.</p>`
+    : m.groups.map((g) => `<div class="kr-group"><div class="kr-group-h"><span class="overline">Objective ${g.key}</span><h3>${esc(g.title)}</h3></div><div class="kr-tiles">${g.tiles.map(tileHtml).join('')}</div></div>`).join('');
+  $('krs').setAttribute('aria-busy', 'false');
+
+  // trends
+  const wide = Math.floor((($('trends').clientWidth || 1100) - (matchMedia('(max-width: 760px)').matches ? 0 : 16)) / (matchMedia('(max-width: 760px)').matches ? 1 : 2)) - 42;
+  $('trends').innerHTML =
+    chartCard({ title: 'Panel opens and tip views', sub: 'Each week, how often teachers opened PrepTip and how many opens led to 10+ seconds on a tip.', rows: m.trends.opens,
+      series: [{ key: 'opens', label: 'Panel opens', tone: 'muted' }, { key: 'views', label: 'Opens with a tip view', tone: 'accent' }], width: wide, label: 'Panel opens and tip views per week' }) +
+    chartCard({ title: 'Active teachers', sub: 'Teachers who opened PrepTip at least once that week.', rows: m.trends.teachers,
+      series: [{ key: 'teachers', label: 'Active teachers', tone: 'accent' }], width: wide, label: 'Active teachers per week' });
+  $('trends').setAttribute('aria-busy', 'false');
+
+  // what teachers tell us
+  $('voice').innerHTML =
+    `<div class="card"><h3 class="card-h">Requested tips</h3><p class="card-sub">Most-asked first. Links and personal details are removed; no names are shown.</p>${rankHtml(m.requests, 'No requests yet. Teachers can suggest a tip from the panel.')}</div>
+     <div class="card"><h3 class="card-h">Tip feedback</h3><p class="card-sub">Share of each tip’s ratings that were thumbs-up, best first.</p>${rankHtml(m.tipPerf, 'No ratings yet. Teachers rate a tip when they finish it.')}</div>`;
+  $('voice').setAttribute('aria-busy', 'false');
+
+  // usage
+  const u = m.usage;
+  $('usage').innerHTML = `<div class="usage"><div>
+      <h3 class="card-h">Features in use</h3><p class="card-sub">AI tips in the last 30 days; requests in the last 90.</p>
+      <div class="stats" style="margin-top:14px">
+        <div class="stat"><span class="overline">AI tips</span><p class="stat-v">${u.aiBuilt}</p><p class="stat-s">built by ${plural(u.aiTeachers, 'teacher')}</p></div>
+        <div class="stat"><span class="overline">Resources</span><p class="stat-v">${u.resourceTotal}</p><p class="stat-s">links opened</p></div>
+        <div class="stat"><span class="overline">Requests</span><p class="stat-v">${u.requestTotal}</p><p class="stat-s">tips asked for</p></div>
+      </div></div>
+      <div><h3 class="card-h">Most-opened resources</h3><p class="card-sub">Teacher-built sites teachers click through to.</p>${rankHtml(u.resources, 'No resource opens yet.')}</div></div>`;
+  $('usage').setAttribute('aria-busy', 'false');
+
+  // product health (collapsed)
+  const h = m.health;
+  $('health-sum').textContent = h.total ? `${plural(h.total, 'error')} in 30 days${h.per100 != null ? ` · ${h.per100} per 100 opens` : ''}` : 'No errors in 30 days';
+  const issues = h.groups.length
+    ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Issue</th><th>Where</th><th class="num">Times</th><th class="num">Teachers</th><th class="num">Last seen</th></tr></thead><tbody>${h.groups.map((g) => `<tr>
+        <td>${esc(String(g.detail || '').slice(0, 120))}${g.source === 'reported' ? ' <span class="chip">Reported</span>' : ''}</td>
+        <td>${esc([g.tip_title, g.site_name].filter(Boolean).join(' · ') || g.context || '—')}</td>
+        <td class="num">${Number(g.n)}</td><td class="num">${Number(g.teachers)}</td><td class="num">${esc(agoText(g.last_seen))}</td></tr>`).join('')}</tbody></table></div>`
+    : `<p class="empty">No errors recorded in the last 30 days.</p>`;
+  $('health-body').innerHTML = `<div class="mini-row">
+      <div class="stat"><span class="overline">Errors</span><p class="stat-v">${h.total}</p><p class="stat-s">${h.auto} automatic</p></div>
+      <div class="stat"><span class="overline">Per 100 opens</span><p class="stat-v">${h.per100 == null ? '—' : h.per100}</p><p class="stat-s">${h.opens} opens</p></div>
+      <div class="stat"><span class="overline">Teachers affected</span><p class="stat-v">${h.teachers}</p><p class="stat-s">at least one error</p></div>
+      <div class="stat"><span class="overline">Reported by teachers</span><p class="stat-v">${h.reported}</p><p class="stat-s">via Report a problem</p></div></div>${issues}`;
+}
+
+async function load() {
+  $('refresh').disabled = true;
+  const raw = mode === 'sample' ? sampleRaw() : await fetchLive();
+  raw.loadFailed = raw.loadFailed || 0;
+  model = buildModel(raw);
+  model.loadFailed = raw.loadFailed;
+  render(model);
+  $('refresh').disabled = false;
+}
+
+// ---- events ---------------------------------------------------------------------------------------------------
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-mode]');
+  if (!b || b.dataset.mode === mode) return;
+  mode = b.dataset.mode;
+  const u = new URL(location.href); u.searchParams.delete('demo');
+  mode === 'sample' ? u.searchParams.set('data', 'sample') : u.searchParams.delete('data');
+  history.replaceState(null, '', u);
+  load();
+});
+$('refresh').addEventListener('click', load);
+let resizeTimer;
+addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => model && render(model), 150); });
+
+const tip = $('tip');
+function showTip(e) {
+  const el = e.target.closest?.('[data-tip]');
+  if (!el) { tip.hidden = true; return; }
+  tip.textContent = el.dataset.tip; tip.hidden = false;
+  const r = tip.getBoundingClientRect();
+  tip.style.left = `${Math.min(innerWidth - r.width - 8, Math.max(8, e.clientX + 12))}px`;
+  tip.style.top = `${Math.max(8, e.clientY - r.height - 12)}px`;
+}
+document.addEventListener('pointermove', showTip);
+document.addEventListener('pointerleave', () => { tip.hidden = true; });
+
 load();
