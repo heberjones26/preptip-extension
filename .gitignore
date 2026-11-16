@@ -14,3 +14,4 @@ Thumbs.db
 !/dist/preptip-*.zip
 !/dist/preptip_firefox-*.zip
 !/dist/preptip_safari-*.zip
+!/dist/preptip_firefox-*.xpi
