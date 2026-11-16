@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PrepTip — OKR Dashboard</title>
-  <meta name="description" content="Live OKR tracking for the PrepTip teacher-tips extension.">
+  <title>PrepTip — Metrics</title>
+  <meta name="description" content="How teachers use PrepTip and what they tell us: four Key Results, tracked live.">
   <!-- Geist (pantry design system). Falls back to system-ui if the CDN is unreachable. -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/geist@5/index.css">
@@ -18,166 +18,82 @@
   <header class="top">
     <div class="wrap top-inner">
       <span class="brand">
-        <span class="logo" aria-hidden="true">
-          <svg viewBox="0 0 24 24" width="30" height="30" fill="none">
-            <rect width="24" height="24" rx="6" fill="#E8590C"></rect>
-            <path d="M12 6a4 4 0 0 0-2.4 7.2c.4.3.6.7.6 1.1v.2h3.6v-.2c0-.4.2-.8.6-1.1A4 4 0 0 0 12 6Z" fill="#fff"></path>
-            <rect x="10.2" y="16" width="3.6" height="1.6" rx=".8" fill="#fff"></rect>
-          </svg>
-        </span>
-        <span class="brand-txt"><b>PrepTip</b><small>OKR Dashboard</small></span>
+        <svg class="logo" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+          <rect width="24" height="24" rx="6" fill="#E8590C"></rect>
+          <path d="M12 6a4 4 0 0 0-2.4 7.2c.4.3.6.7.6 1.1v.2h3.6v-.2c0-.4.2-.8.6-1.1A4 4 0 0 0 12 6Z" fill="#fff"></path>
+          <rect x="10.2" y="16" width="3.6" height="1.6" rx=".8" fill="#fff"></rect>
+        </svg>
+        <span class="brand-txt"><b>PrepTip</b><span>Metrics</span></span>
       </span>
       <div class="top-right">
-        <span id="updated" class="updated"></span>
-        <button type="button" id="refresh" class="btn">Refresh</button>
+        <div class="seg" id="mode" role="group" aria-label="Data source">
+          <button type="button" class="seg-btn" data-mode="live" aria-pressed="true">Live</button>
+          <button type="button" class="seg-btn" data-mode="sample" aria-pressed="false">Sample</button>
+        </div>
+        <span class="updated" id="updated" aria-live="polite"></span>
+        <button type="button" class="btn" id="refresh">Refresh</button>
       </div>
     </div>
   </header>
 
-  <nav class="page-nav" aria-label="On this page">
-    <div class="wrap">
-      <a href="#summary">Overview</a>
-      <a href="#obj-a">Objective A</a>
-      <a href="#obj-b">Objective B</a>
-      <a href="#requests-h">Requested tips</a>
-      <a href="#errlog-h">Error log</a>
-      <a href="#tipperf-h">Tips</a>
-      <a href="#respop-h">Resources</a>
-      <a href="#ai-h">AI builder</a>
+  <div class="banner" id="banner" role="status" hidden>
+    <div class="wrap banner-in">
+      <span><b>Sample data.</b> These numbers are made up to show the layout. They are not real teacher activity.</span>
+      <button type="button" class="link" data-mode="live">Show live data</button>
     </div>
-  </nav>
+  </div>
 
   <main id="main" class="wrap">
-    <!-- At-a-glance: one hero figure + a KPI stat-tile strip (the dashboard summary). -->
-    <section class="summary" id="summary" aria-label="At a glance">
-      <article class="hero" id="hero" aria-busy="true">
-        <span class="loading">Loading…</span>
-      </article>
-      <div class="kpis" id="kpis" aria-busy="true"></div>
+    <div class="page-head">
+      <h1>Metrics</h1>
+      <p class="lede" id="lede">How teachers use PrepTip, and what they tell us.</p>
+    </div>
+
+    <section aria-labelledby="kr-h">
+      <h2 id="kr-h" class="sr-only">Key Results</h2>
+      <div id="krs" class="krs" aria-busy="true"><p class="muted">Loading…</p></div>
     </section>
 
-    <!-- Objective A -->
-    <section class="objective" aria-labelledby="obj-a">
-      <div class="obj-head">
-        <h2 id="obj-a" class="obj-h"><span class="obj-tag">Objective A</span> Tips are effective and helpful</h2>
-        <span class="obj-sub" id="obj-a-sub"></span>
-      </div>
-      <div class="grid">
-        <article class="okr" id="kr1" aria-busy="true">
-          <h3 class="kr-h">Thumbs-up rate</h3>
-          <p class="kr-sub">Share of 👍 across all tip ratings · target 80% · needs ≥5 ratings</p>
-          <div class="kr-body"><span class="loading">Loading…</span></div>
-        </article>
-        <article class="okr" id="kr2" aria-busy="true">
-          <h3 class="kr-h">Tips completed end-to-end</h3>
-          <p class="kr-sub">Walkthroughs finished through 100% of their steps</p>
-          <div class="kr-body"><span class="loading">Loading…</span></div>
-        </article>
-      </div>
+    <section class="block" aria-labelledby="trend-h">
+      <h2 id="trend-h" class="sec-h">Activity by week</h2>
+      <div id="trends" class="grid-2" aria-busy="true"></div>
     </section>
 
-    <!-- Objective B -->
-    <section class="objective" aria-labelledby="obj-b">
-      <div class="obj-head">
-        <h2 id="obj-b" class="obj-h"><span class="obj-tag">Objective B</span> Teachers use the app consistently</h2>
-        <span class="obj-sub" id="obj-b-sub"></span>
-      </div>
-      <div class="grid">
-        <article class="okr" id="kr3" aria-busy="true">
-          <h3 class="kr-h">Days the app is opened</h3>
-          <p class="kr-sub">Avg office days opened per teacher · target 3 of 5</p>
-          <div class="kr-body"><span class="loading">Loading…</span></div>
-        </article>
-        <article class="okr" id="kr4" aria-busy="true">
-          <h3 class="kr-h">Opens that lead to a tip</h3>
-          <p class="kr-sub">Of app opens, share with a ≥10-second tip view</p>
-          <div class="kr-body"><span class="loading">Loading…</span></div>
-        </article>
-      </div>
+    <section class="block" aria-labelledby="voice-h">
+      <h2 id="voice-h" class="sec-h">What teachers tell us</h2>
+      <p class="sec-sub">Their requests and ratings show us what to write and what to fix next.</p>
+      <div id="voice" class="grid-2" aria-busy="true"></div>
     </section>
 
-    <!-- Requested tips: the backlog of tips teachers asked for -->
-    <section class="panel" aria-labelledby="requests-h">
-      <div class="panel-head">
-        <div>
-          <h2 id="requests-h" class="panel-h">Requested tips</h2>
-          <p class="panel-sub">What teachers asked us to write, most-asked first. Same ask on the same site is grouped. Links, emails and phone numbers are removed and no names are shown.</p>
-        </div>
-        <div class="seg" id="req-days" role="group" aria-label="Time window">
-          <button type="button" class="seg-btn" data-days="30" aria-pressed="false">30 days</button>
-          <button type="button" class="seg-btn on" data-days="90" aria-pressed="true">90 days</button>
-        </div>
-      </div>
-      <div id="requests" class="panel-body" aria-busy="true"><span class="loading">Loading…</span></div>
+    <section class="block" aria-labelledby="use-h">
+      <h2 id="use-h" class="sec-h">How teachers use PrepTip</h2>
+      <div id="usage" class="card" aria-busy="true"></div>
     </section>
 
-    <!-- Error log: what teachers ran into in the extension -->
-    <section class="panel" aria-labelledby="errlog-h">
-      <div class="panel-head">
-        <div>
-          <h2 id="errlog-h" class="panel-h">Error log</h2>
-          <p class="panel-sub">Problems teachers ran into in the extension, and problems they reported.</p>
-        </div>
-        <div class="seg" id="errlog-days" role="group" aria-label="Time window">
-          <button type="button" class="seg-btn on" data-days="7" aria-pressed="true">7 days</button>
-          <button type="button" class="seg-btn" data-days="30" aria-pressed="false">30 days</button>
-        </div>
-      </div>
-      <div id="errlog" class="panel-body" aria-busy="true"><span class="loading">Loading…</span></div>
-    </section>
-
-    <!-- Insight panels -->
-    <section class="panel" aria-labelledby="tipperf-h">
-      <h2 id="tipperf-h" class="panel-h">Which tips are landing</h2>
-      <p class="panel-sub">Most and least helpful tips, by thumbs-up rate (tips with at least 3 ratings).</p>
-      <div id="tipperf" class="panel-body" aria-busy="true"><span class="loading">Loading…</span></div>
-    </section>
-
-    <section class="panel" aria-labelledby="respop-h">
-      <h2 id="respop-h" class="panel-h">Most-opened resources</h2>
-      <p class="panel-sub">Which Common Teacher Resources teachers click through to.</p>
-      <div id="respop" class="panel-body" aria-busy="true"><span class="loading">Loading…</span></div>
-    </section>
-
-    <section class="panel" aria-labelledby="ai-h">
-      <h2 id="ai-h" class="panel-h">AI tip builder</h2>
-      <p class="panel-sub">How often teachers ask an AI to write a tip when we don&rsquo;t have one (last 30 days). Counts only: their questions and the AI&rsquo;s answers are never stored.</p>
-      <div id="aibuilder" class="panel-body" aria-busy="true"><span class="loading">Loading…</span></div>
-    </section>
-
-    <details class="panel how">
-      <summary>How each number is measured</summary>
-      <dl class="how-list">
-        <dt>Thumbs-up rate (KR 1)</dt>
-        <dd>👍 ratings divided by all 👍/👎 ratings on tips, from <code>feedback</code>. Needs at least 5 ratings before it counts. Target 80%.</dd>
-        <dt>Tips completed (KR 2)</dt>
-        <dd>Walkthroughs followed to their last step (<code>tip_complete</code>) out of those started (<code>tip_open</code>). Target is a completion rate; the headline is the count.</dd>
-        <dt>Days the app is opened (KR 3)</dt>
-        <dd>For each teacher, the distinct Monday–Friday days this week the side panel was opened (<code>app_open</code>), averaged across teachers. Target 3 of 5 days. The chart under it shows the same figure for each of the last 8 weeks (green = met the target, lighter bar = this week so far), and the line below it is this week&rsquo;s spread across teachers.</dd>
-        <dt>Opens that lead to a tip (KR 4)</dt>
-        <dd>Of panel openings, the share where the teacher opened a tip and stayed on it for more than 10 seconds (<code>tip_dwell_success</code>). Target 50%. The chart under it is the same share for each of the last 8 weeks; a week with no openings is left empty, not shown as 0%.</dd>
-        <dt>Requested tips</dt>
-        <dd>Teachers&rsquo; &ldquo;Submit a tip request&rdquo; messages (<code>feedback</code> rows with no tip), grouped by site and wording. &ldquo;Teachers&rdquo; counts different accounts, so one person asking three times is one teacher. Resource suggestions are listed separately.</dd>
-        <dt>Error log</dt>
-        <dd>Problems the extension caught itself, plus what teachers report with &ldquo;Report a problem&rdquo;, from <code>error_log</code>. &ldquo;Per 100 opens&rdquo; counts automatic errors against panel openings in the same window. What teachers type in a report is never shown here.</dd>
-        <dt>AI tip builder</dt>
-        <dd>Tips built with the teacher&rsquo;s own Gemini key (<code>ai_tip_gemini</code>) and how many teachers did it, over the last 30 days. Teachers&rsquo; questions and the AI&rsquo;s answers are never stored. Older versions also offered copy and paste; those counts (<code>ai_prompt_copied</code>, <code>ai_tip_pasted</code>) are shown as a note when there are any.</dd>
-      </dl>
+    <details class="fold" id="health">
+      <summary><span class="fold-t">Product health</span><span class="fold-s" id="health-sum"></span></summary>
+      <div id="health-body" class="fold-body"></div>
     </details>
 
-    <p class="foot-note">
-      All four Key Results read live from Supabase — Objective A from tip ratings and completions,
-      Objective B (days opened, tip engagement) from the shared <code>events</code> table. A card reads
-      “Awaiting data” only until its first events arrive.
-    </p>
-
-    <footer class="page-foot">
-      <span>PrepTip · OKR Dashboard</span>
-      <span class="dot" aria-hidden="true">·</span>
-      <span>IS 401 team project</span>
-    </footer>
+    <details class="fold" id="how">
+      <summary><span class="fold-t">How each number is measured</span></summary>
+      <dl class="how fold-body">
+        <dt>Thumbs-up rate</dt><dd>Thumbs-ups divided by all thumbs-up and thumbs-down ratings on tips. Goal 80%.</dd>
+        <dt>Walkthroughs finished</dt><dd>Walkthroughs followed to their last step, out of those started. Goal 60%.</dd>
+        <dt>Days a teacher opens PrepTip</dt><dd>For each teacher, the distinct Monday to Friday days in a week they opened the panel, averaged across teachers. Shows the latest week with activity. Goal 3 of 5 days.</dd>
+        <dt>Opens that lead to a tip view</dt><dd>Of panel openings, the share where a teacher stayed on a tip for more than 10 seconds. Goal 50%.</dd>
+        <dt>Requested tips</dt><dd>What teachers typed into “Submit a tip request”, grouped by site and wording. Links, emails and phone numbers are removed and no names are shown.</dd>
+        <dt>Sample data</dt><dd>The Sample switch shows invented numbers so the layout can be seen fully populated. It never touches the database and is always labelled.</dd>
+      </dl>
+    </details>
   </main>
 
+  <footer class="wrap foot">
+    <span>PrepTip · IS 401 team project</span>
+    <a href="privacy.html">Privacy</a>
+  </footer>
+
+  <div id="tip" class="tip" role="tooltip" hidden></div>
   <script type="module" src="dashboard.js"></script>
 </body>
 </html>

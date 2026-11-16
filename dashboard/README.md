@@ -9,29 +9,32 @@ which a fixed-width Chrome side panel can't be.
 
 ## What it shows
 
-| Objective | Key Result | Source |
+One page, four sections. Live and sample data go through the same code, so the sample view is a true preview.
+
+| Section | What it answers | Source |
 |---|---|---|
-| A — Tips are effective and helpful | Thumbs-up rate (target 80%, floor 5 ratings) | `rpc/tip_ratings` |
-| A | Tips completed end-to-end | `rpc/okr_tip_completions` (needs the `events` migration applied) |
-| B — Teachers use the app consistently | Days the app is opened (target 3 of 5), plus an 8-week history and this week's spread (how many teachers opened on 1, 2, 3… days) | `rpc/okr_app_usage`, `okr_app_usage_weekly`, `okr_app_usage_distribution` |
-| B | Opens that lead to a tip, plus an 8-week history | `rpc/okr_tip_engagement`, `okr_tip_engagement_weekly` |
+| **Key Results** (4 stat tiles, grouped by Objective) | Value, goal, status and the sample size behind each number. Thumbs-up rate and walkthroughs finished show one dot per rating/walkthrough; days opened and tip views add a weekly sparkline once there are 3 weeks of data | `rpc/tip_ratings`, `okr_tip_completions`, `okr_app_usage_weekly`, `okr_tip_engagement`, `okr_tip_engagement_weekly` |
+| **Activity by week** | Panel opens vs opens that led to a tip view, and active teachers, per week | `okr_tip_engagement_weekly`, `okr_app_usage_weekly` |
+| **What teachers tell us** | Requested tips (scrubbed wording, most-asked first) and tip feedback (share thumbs-up per tip) | `rpc/requested_tips`, `tip_ratings` |
+| **How teachers use PrepTip** | AI tips built, resource opens, requests, most-opened resources | `rpc/ai_tip_summary`, `resource_opens`, `requested_tips` |
+| *Product health* (collapsed) | Errors, errors per 100 opens, teachers affected, top issues | `rpc/error_summary`, `error_groups` |
+| *How each number is measured* (collapsed) | Plain-language definitions | static |
 
-Beyond the four Key Results the hub also shows:
+**No minimum amounts of data.** A small number is shown as it is, with its sample size beside it ("1 rating",
+"7 of 10 started"), instead of hiding it behind a "not enough data" state. Status is only value against goal:
+*On track*, *Below goal*, or *No data yet* when there is nothing to measure.
 
-| Panel | What it answers | Source |
-|---|---|---|
-| Requested tips | The backlog of tips teachers asked for, most-asked first, with the site, how many times, how many teachers and when; resource suggestions listed separately. Wording is scrubbed in the database (links, emails, phone numbers removed) and never shows who asked | `rpc/requested_tips` |
-| Error log | What breaks for teachers: errors, per 100 opens, teachers affected, a per-day chart, the most frequent issues and which tip they happened on (7 or 30 days) | `rpc/error_summary`, `error_trend`, `error_groups` (needs the `error_log` migration) |
-| Which tips are landing | Most and least helpful tips by thumbs-up rate | `rpc/tip_ratings` |
-| Most-opened resources | Which Common Teacher Resources get clicked | `rpc/resource_opens` |
-| AI tip builder | Tips built with a teacher's own Gemini key and how many teachers did it (counts only; older copy/paste counts shown as a note) | `rpc/ai_tip_summary` (needs the `ai_tip_events` migration) |
+**Live vs Sample.** The header switch (or `?data=sample`, also `?demo=1`) shows **invented** numbers under a visible
+"Sample data" banner so the layout can be seen fully populated. Sample numbers are generated in the browser
+(`hub-model.js` `sampleRaw`), never written to the database and never mixed with live numbers.
 
-A "How each number is measured" section at the bottom defines every figure. What teachers type in a
-"Report a problem" note is never shown here (it stays in the Supabase table).
+A panel whose database function isn't live yet simply shows empty (the other panels keep working).
 
-Cards degrade gracefully: a panel whose function isn't live yet shows **"Awaiting data"** or "Lives once
-the … migration is applied" instead of erroring. OKR 1 works with no migrations; the rest light up as
-their functions are applied.
+## Files
+
+`index.html` (structure) · `dashboard.css` (pantry design tokens, light and dark) · `dashboard.js` (fetch + draw) ·
+`hub-model.js` (pure logic and the sample set, unit-tested) · `config.js` (targets). `okr.js` and `ai-panel.js`
+are earlier helpers that still have tests but are no longer used by the page.
 
 ## Run it locally
 

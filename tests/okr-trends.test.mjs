@@ -11,7 +11,8 @@ const dashboardJs = readFileSync(new URL('../dashboard/dashboard.js', import.met
 test('every function the hub calls for OKR history exists in the migration and is public-callable', () => {
   for (const [name, sig] of [['okr_app_usage_weekly', 'int'], ['okr_app_usage_distribution', ''], ['okr_tip_engagement_weekly', 'int']]) {
     assert.ok(sql.includes(`create or replace function public.${name}(`), `${name} is defined`);
-    assert.ok(dashboardJs.includes(name), `dashboard.js calls ${name}`);
+    // the spread (distribution) is still in the database but the redesigned hub no longer draws it
+    if (name !== 'okr_app_usage_distribution') assert.ok(dashboardJs.includes(name), `dashboard.js calls ${name}`);
     assert.ok(sql.includes(`grant execute on function public.${name}(${sig}) to anon, authenticated`), `${name} is granted`);
   }
 });
