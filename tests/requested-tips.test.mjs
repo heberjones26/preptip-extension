@@ -34,7 +34,8 @@ test('the scrubber removes the same kinds of things as the extension scrub()', (
 });
 
 test('the hub asks for the window it shows and escapes what it prints', () => {
-  assert.match(dashboardJs, /requested_tips\?p_days=\$\{days\}/);
-  assert.match(dashboardJs, /esc\(r\.wording\)/);
-  assert.match(dashboardJs, /esc\(r\.site \|\| '—'\)/);
+  assert.match(dashboardJs, /rpc\('requested_tips', '\?p_days=90'\)/);
+  // wording and site reach the page only through the ranked-list renderer, which escapes them
+  assert.match(dashboardJs, /esc\(r\.label\)/);
+  assert.match(dashboardJs, /esc\(r\.sub\)/);
 });
