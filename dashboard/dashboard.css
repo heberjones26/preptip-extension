@@ -1,7 +1,8 @@
 /* PrepTip metrics hub. Pantry design system: Geist, neutral scale, borders over shadows, two backgrounds
-   (page = secondary surface, cards = white), colour is earned. PrepTip orange is the single accent; green and amber
+   (page = secondary surface, cards = white), colour is earned. Light only. PrepTip orange is the single accent; green and amber
    appear only as status. Plain CSS, no build. Token names are shared with privacy.html, so keep them. */
 :root {
+  color-scheme: light;    /* always light, whatever the viewer's device is set to */
   --brand: #e8590c;       /* PrepTip orange: the one accent (marks, meters, sparklines) */
   --brand-dk: #c2410c;    /* orange for small text on white (AA) */
   --brand-soft: #fdeadf;  /* tint of the same ramp: unfilled meter track */
@@ -22,14 +23,6 @@
   --radius-md: 6px;       /* inner boxes, buttons */
   --sans: "Geist Variable", "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "Geist Mono Variable", "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --brand: #f0661a; --brand-dk: #ff9a5c; --brand-soft: #3a2418;
-    --white: #171b23; --n50: #0f1218; --n100: #1d222c; --n200: #262c38; --n300: #3a4252; --n500: #9aa3b2; --n700: #c7cdd9; --n900: #e9ebf0;
-    --good-bg: #0f2a1a; --good-ink: #4ade80; --good-line: #14532d;
-    --warn-bg: #2b2208; --warn-ink: #fbbf24; --warn-line: #5b4a12;
-  }
 }
 
 * { box-sizing: border-box; }

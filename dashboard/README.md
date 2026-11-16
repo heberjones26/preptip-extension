@@ -32,7 +32,7 @@ A panel whose database function isn't live yet simply shows empty (the other pan
 
 ## Files
 
-`index.html` (structure) · `dashboard.css` (pantry design tokens, light and dark) · `dashboard.js` (fetch + draw) ·
+`index.html` (structure) · `dashboard.css` (pantry design tokens, light only) · `dashboard.js` (fetch + draw) ·
 `hub-model.js` (pure logic and the sample set, unit-tested) · `config.js` (targets). `okr.js` and `ai-panel.js`
 are earlier helpers that still have tests but are no longer used by the page.
 
